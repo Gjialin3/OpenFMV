@@ -1,4 +1,4 @@
-import { AppEdge, AppNode, InteractionRule, NodeType, OpenFMVGraph } from '../_types';
+import { AppEdge, AppNode, InteractionRule, NodeType, OpenFMVGraph, TimelineAction, TimelineClip } from '../_types';
 
 export interface RuntimeChoice {
   input?: string;
@@ -15,6 +15,11 @@ export function getNodeById(nodes: AppNode[], nodeId: string | null | undefined)
 export function getRuntimeInteractionMode(node: AppNode): 'choice' | 'input' | 'slider';
 export function shouldShowRuntimeControls(node: AppNode | null | undefined, edges: AppEdge[]): boolean;
 export function getRuntimeChoiceRules(node: AppNode): InteractionRule[];
+export function getTimelineClips(node: AppNode): TimelineClip[];
+export function getTimelineClipEndTime(clip: TimelineClip): number;
+export function isTimelineClipActive(clip: TimelineClip, time: number): boolean;
+export function getActiveTimelineClips(node: AppNode, time: number): TimelineClip[];
+export function resolveTimelineActionNodeId(node: AppNode, edges: AppEdge[], action?: TimelineAction): string | null;
 export type RuntimeStatus = 'running' | 'ended';
 export interface RuntimeProgram {
   graph: OpenFMVGraph;
@@ -34,12 +39,15 @@ export type RuntimeEvent =
   | { type: 'choice.selected'; input?: string; handleId?: string | null }
   | { type: 'input.submitted'; value: string }
   | { type: 'slider.unlocked'; input?: string; handleId?: string | null }
+  | { type: 'timeline.clip.triggered'; clipId: string; action?: TimelineAction }
+  | { type: 'timeline.clip.timeout'; clipId: string; action?: TimelineAction }
   | { type: 'navigate'; nodeId: string | null }
   | { type: 'variable.set'; key: string; value: unknown };
 export type RuntimeEffect =
   | { type: 'scene'; nodeId: string; nodeType: NodeType; title: string; text: string }
   | { type: 'playMedia'; mediaType: 'video'; src: string; playbackId?: string; poster?: string }
   | { type: 'playMedia'; mediaType: 'image'; src: string }
+  | { type: 'timelineOverlay'; nodeId: string; clips: TimelineClip[] }
   | { type: 'showChoices'; prompt: string; choices: Array<{ id: string; label: string; input: string; handleId: string; rule: InteractionRule }> }
   | { type: 'showInput'; prompt: string; placeholder: string }
   | { type: 'showSlider'; prompt: string; label: string; handleId: string }

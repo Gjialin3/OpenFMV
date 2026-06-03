@@ -1,12 +1,14 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
-import { Check, Clock3, Download, Loader2, Play, Settings } from 'lucide-react';
-import { useSearchParams } from 'next/navigation';
+import { Check, Clock3, Download, Film, GitBranch, Loader2, Play, Settings } from 'lucide-react';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useEditorStore } from '@/app/_store/useEditorStore';
 import { usePlayerStore } from '@/app/_store/usePlayerStore';
 import { useRuntimeGraphStore } from '@/app/_store/useRuntimeGraphStore';
+import { getLocalizedPath, stripLocaleFromPath } from '@/app/_utils/localePaths';
 import { ensureGraphData, getLocalProject, saveLocalProject } from '@/app/_utils/localProjects';
 import { createProjectSnapshot } from '@/app/_utils/projectPersistence';
 import { OpenFMVProject } from '@/app/_types';
@@ -23,8 +25,18 @@ export default function TopBar() {
   const { setIsPlaying, setCurrentNode, reset } = usePlayerStore();
   const { setGraph } = useRuntimeGraphStore();
   const searchParams = useSearchParams();
+  const pathname = usePathname();
   const projectId = searchParams.get('id');
   const initialTitleFromQuery = searchParams.get('title')?.trim();
+  const querySuffix = projectId
+    ? `?id=${encodeURIComponent(projectId)}`
+    : initialTitleFromQuery
+      ? `?title=${encodeURIComponent(initialTitleFromQuery)}`
+      : '';
+  const pathWithoutLocale = stripLocaleFromPath(pathname || '/editor');
+  const isNodeMode = pathWithoutLocale.startsWith('/nodes');
+  const blueprintHref = getLocalizedPath(locale, `/editor${querySuffix}`);
+  const nodesHref = getLocalizedPath(locale, `/nodes${querySuffix}`);
   const [project, setProject] = useState<OpenFMVProject | null>(null);
   const [title, setTitle] = useState(initialTitleFromQuery || t('untitledProject'));
   const [isSaving, setIsSaving] = useState(false);
@@ -197,6 +209,17 @@ export default function TopBar() {
           <Input type="text" value={title} onChange={(event) => setTitle(event.target.value)} className="h-auto w-36 min-w-0 border-0 bg-transparent px-0 py-0 text-sm font-semibold tracking-normal text-white shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 md:w-64" />
         </div>
       </div>
+
+      <nav className="pointer-events-auto absolute left-1/2 hidden h-9 -translate-x-1/2 items-center gap-1 rounded-full border border-white/10 bg-white/[0.09] p-1 shadow-[0_10px_34px_rgba(0,0,0,0.26)] backdrop-blur-2xl lg:flex">
+        <Link href={blueprintHref} className={`inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition ${isNodeMode ? 'text-openfmv-sub hover:bg-white/[0.08] hover:text-white' : 'bg-white/[0.17] text-white'}`} title={t('blueprintMode')}>
+          <GitBranch size={13} />
+          {t('blueprintMode')}
+        </Link>
+        <Link href={nodesHref} className={`inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition ${isNodeMode ? 'bg-white/[0.17] text-white' : 'text-openfmv-sub hover:bg-white/[0.08] hover:text-white'}`} title={t('nodeMode')}>
+          <Film size={13} />
+          {t('nodeMode')}
+        </Link>
+      </nav>
 
       <div className="pointer-events-auto flex items-center gap-1.5 md:gap-2">
         <div className="hidden h-9 items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.09] px-3 text-xs text-openfmv-sub shadow-[0_10px_34px_rgba(0,0,0,0.26)] backdrop-blur-2xl md:flex" title={lastSaved ? t('lastSaved', { time: lastSaved.toLocaleTimeString() }) : t('autoSaveEnabled')} suppressHydrationWarning>

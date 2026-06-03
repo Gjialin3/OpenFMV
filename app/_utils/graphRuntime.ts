@@ -1,4 +1,4 @@
-import { AppEdge, AppNode, InteractionMode, InteractionRule, NodeType, OpenFMVGraph } from '../_types';
+import { AppEdge, AppNode, InteractionMode, InteractionRule, NodeType, OpenFMVGraph, TimelineAction, TimelineClip } from '../_types';
 import {
   buildNodeEffects as buildCoreNodeEffects,
   compileRuntimeGraph as compileCoreRuntimeGraph,
@@ -11,10 +11,13 @@ import {
   getNodeText as getCoreNodeText,
   getNodeTitle as getCoreNodeTitle,
   getOutgoingEdges as getCoreOutgoingEdges,
+  getActiveTimelineClips as getCoreActiveTimelineClips,
   getRuntimeChoiceRules as getCoreRuntimeChoiceRules,
   getRuntimeInteractionMode as getCoreRuntimeInteractionMode,
+  getTimelineClips as getCoreTimelineClips,
   getVisibleRules as getCoreVisibleRules,
   resolveNextNodeId as resolveCoreNextNodeId,
+  resolveTimelineActionNodeId as resolveCoreTimelineActionNodeId,
   shouldShowRuntimeControls as shouldCoreShowRuntimeControls,
 } from './graphRuntimeCore.mjs';
 
@@ -45,6 +48,8 @@ export type RuntimeEvent =
   | { type: 'choice.selected'; input?: string; handleId?: string | null }
   | { type: 'input.submitted'; value: string }
   | { type: 'slider.unlocked'; input?: string; handleId?: string | null }
+  | { type: 'timeline.clip.triggered'; clipId: string; action?: TimelineAction }
+  | { type: 'timeline.clip.timeout'; clipId: string; action?: TimelineAction }
   | { type: 'navigate'; nodeId: string | null }
   | { type: 'variable.set'; key: string; value: unknown };
 
@@ -52,6 +57,7 @@ export type RuntimeEffect =
   | { type: 'scene'; nodeId: string; nodeType: NodeType; title: string; text: string }
   | { type: 'playMedia'; mediaType: 'video'; src: string; playbackId?: string; poster?: string }
   | { type: 'playMedia'; mediaType: 'image'; src: string }
+  | { type: 'timelineOverlay'; nodeId: string; clips: TimelineClip[] }
   | { type: 'showChoices'; prompt: string; choices: Array<{ id: string; label: string; input: string; handleId: string; rule: InteractionRule }> }
   | { type: 'showInput'; prompt: string; placeholder: string }
   | { type: 'showSlider'; prompt: string; label: string; handleId: string }
@@ -103,6 +109,14 @@ export const shouldShowRuntimeControls = (node: AppNode | null | undefined, edge
 };
 
 export const getRuntimeChoiceRules = (node: AppNode): InteractionRule[] => getCoreRuntimeChoiceRules(node);
+
+export const getTimelineClips = (node: AppNode): TimelineClip[] => getCoreTimelineClips(node) as TimelineClip[];
+
+export const getActiveTimelineClips = (node: AppNode, time: number): TimelineClip[] => getCoreActiveTimelineClips(node, time) as TimelineClip[];
+
+export const resolveTimelineActionNodeId = (node: AppNode, edges: AppEdge[], action: TimelineAction): string | null => {
+  return resolveCoreTimelineActionNodeId(node, edges, action);
+};
 
 export const compileRuntimeGraph = (graph: OpenFMVGraph, options: { entryNodeId?: string | null } = {}): RuntimeProgram => {
   return compileCoreRuntimeGraph(graph, options) as RuntimeProgram;

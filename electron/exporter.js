@@ -327,6 +327,14 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
     .icon-button:hover { background: #fb923c; }
     .timer { width: 100%; max-width: 320px; margin: 20px auto 0; height: 6px; border-radius: 999px; background: rgba(255,255,255,.1); overflow: hidden; }
     .timer span { display: block; height: 100%; width: 100%; background: #f97316; transform-origin: left; animation: timer linear forwards; }
+    .timeline-overlay { pointer-events: none; position: absolute; inset: 0; z-index: 3; display: grid; place-items: center; }
+    .timeline-frame { position: relative; aspect-ratio: 16 / 9; width: 100%; height: 100%; max-width: 100%; max-height: 100%; }
+    .timeline-clip { pointer-events: auto; position: absolute; display: flex; min-width: 48px; min-height: 36px; align-items: center; justify-content: center; box-sizing: border-box; border-radius: 12px; padding: 0 12px; color: white; font-size: 14px; font-weight: 750; cursor: pointer; box-shadow: 0 18px 54px rgba(0,0,0,.32); backdrop-filter: blur(14px); transition: transform .16s ease; }
+    .timeline-clip:hover { transform: scale(1.02); }
+    .timeline-clip.button { border: 1px solid rgba(253,186,116,.9); background: rgba(249,115,22,.92); }
+    .timeline-clip.hotspot { border: 2px solid rgba(103,232,249,.9); background: rgba(34,211,238,.12); color: #ecfeff; }
+    .timeline-clip.pauseGate { border: 1px solid rgba(196,181,253,.9); background: rgba(139,92,246,.86); }
+    .timeline-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     @keyframes timer { from { transform: scaleX(1); } to { transform: scaleX(0); } }
     @media (max-width: 720px) {
       .content { padding: 28px 20px; }
@@ -348,11 +356,18 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
     let runtime = null;
     let snapshot = null;
     let countdownTimer = null;
+    let timelineNodeId = null;
+    let timelineShownClipIds = new Set();
+    let timelineTimedOutClipIds = new Set();
 
     const escapeHtml = (value) => String(value || '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
     const effect = (type) => (snapshot && snapshot.effects || []).find((item) => item.type === type);
     const t = (key) => playerMessages[key] || playerMessagesByLocale['zh-CN'][key] || key;
     const translatedDefault = (value, key) => value === playerMessagesByLocale['zh-CN'][key] ? t(key) : value;
+    const clipLabel = (clip) => clip.type === 'hotspot' ? (clip.showHint ? clip.hint || clip.name || '' : '') : clip.label || clip.name || '';
+    const clipRect = (clip) => clip.rect || { x: .38, y: .76, width: .24, height: .1 };
+    const clipAction = (clip) => clip.type === 'pauseGate' ? (clip.action || { type: 'continue' }) : clip.action || { type: 'continue' };
+    const clipClass = (clip) => clip.type === 'hotspot' ? 'hotspot' : clip.type === 'pauseGate' ? 'pauseGate' : 'button';
 
     const send = (event) => {
       snapshot = runtime.dispatch(event);
@@ -361,10 +376,75 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
 
     const promptHtml = (prompt) => prompt ? '<h2 class="prompt">' + escapeHtml(prompt) + '</h2>' : '';
 
+    const resetTimelineSessionIfNeeded = () => {
+      const nextNodeId = snapshot && snapshot.currentNodeId;
+      if (timelineNodeId === nextNodeId) return;
+      timelineNodeId = nextNodeId;
+      timelineShownClipIds = new Set();
+      timelineTimedOutClipIds = new Set();
+    };
+
+    const renderTimelineOverlay = () => {
+      resetTimelineSessionIfNeeded();
+      const overlay = document.getElementById('timelineOverlay');
+      const video = document.getElementById('sceneVideo');
+      const timeline = effect('timelineOverlay');
+      if (!overlay || !video || !timeline || !snapshot || !snapshot.currentNode) {
+        if (overlay) overlay.innerHTML = '';
+        return;
+      }
+
+      const currentTime = Number(video.currentTime) || 0;
+      const activeClips = runtimeCore.getActiveTimelineClips(snapshot.currentNode, currentTime);
+      for (const clip of activeClips) {
+        const shouldPause = clip.type === 'pauseGate' || Boolean(clip.pauseOnShow);
+        if (!shouldPause || timelineShownClipIds.has(clip.id)) continue;
+        timelineShownClipIds.add(clip.id);
+        video.pause();
+      }
+      for (const clip of timeline.clips || []) {
+        const endTime = Number(clip.endTime) || Number(clip.startTime || 0) + .1;
+        if (!clip.timeoutAction || timelineTimedOutClipIds.has(clip.id) || currentTime <= endTime) continue;
+        timelineTimedOutClipIds.add(clip.id);
+        send({ type: 'timeline.clip.timeout', clipId: clip.id, action: clip.timeoutAction });
+        return;
+      }
+
+      overlay.innerHTML = '<div class="timeline-frame">' + activeClips.map((clip) => {
+        const rect = clipRect(clip);
+        return '<button class="timeline-clip ' + clipClass(clip) + '" data-timeline-clip="' + escapeHtml(clip.id) + '" style="left:' + (rect.x * 100) + '%;top:' + (rect.y * 100) + '%;width:' + (rect.width * 100) + '%;height:' + (rect.height * 100) + '%"><span class="timeline-label">' + escapeHtml(clipLabel(clip)) + '</span></button>';
+      }).join('') + '</div>';
+
+      overlay.querySelectorAll('[data-timeline-clip]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const clip = activeClips.find((item) => item.id === button.dataset.timelineClip);
+          if (!clip) return;
+          const action = clipAction(clip);
+          if (action.type === 'continue') {
+            video.play();
+            return;
+          }
+          send({ type: 'timeline.clip.triggered', clipId: clip.id, action });
+        });
+      });
+    };
+
+    const wireTimelineOverlay = () => {
+      const video = document.getElementById('sceneVideo');
+      renderTimelineOverlay();
+      if (!video) return;
+      video.addEventListener('timeupdate', renderTimelineOverlay);
+      video.addEventListener('seeked', renderTimelineOverlay);
+      video.addEventListener('loadedmetadata', renderTimelineOverlay);
+    };
+
     const renderActions = () => {
       if (!snapshot || snapshot.status === 'ended' || (snapshot.currentNode && snapshot.currentNode.type === 'end')) {
         return '<div class="actions actions-single actions-start"><button class="action-button" data-restart="1"><span class="action-label">' + escapeHtml(t('restart')) + '</span><span class="action-arrow">↻</span></button></div>';
       }
+      const timeline = effect('timelineOverlay');
+      const media = effect('playMedia');
+      if (timeline && media && media.mediaType === 'video') return '';
       const input = effect('showInput');
       if (input) {
         return '<div class="controls">' + promptHtml(input.prompt) + '<div class="input-row"><input id="answer" placeholder="' + escapeHtml(translatedDefault(input.placeholder, 'answerPlaceholder')) + '" /><button class="icon-button" data-input="1">→</button></div></div>';
@@ -396,13 +476,13 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
         return;
       }
       const media = mediaEffect && mediaEffect.mediaType === 'video'
-        ? '<video class="media" src="' + escapeHtml(mediaEffect.src) + '" poster="' + escapeHtml(mediaEffect.poster || '') + '" autoplay playsinline controls></video>'
+        ? '<video id="sceneVideo" class="media" src="' + escapeHtml(mediaEffect.src) + '" poster="' + escapeHtml(mediaEffect.poster || '') + '" autoplay playsinline controls></video>'
         : mediaEffect && mediaEffect.mediaType === 'image'
           ? '<img class="media" src="' + escapeHtml(mediaEffect.src) + '" />'
           : '';
       const timer = timerEffect ? '<div class="timer"><span style="animation-duration:' + timerEffect.seconds + 's"></span></div>' : '';
       const storyCopy = '<div class="story-copy"><div class="node-type">' + escapeHtml(scene.nodeType) + '</div><h1>' + escapeHtml(scene.title) + '</h1>' + (scene.text ? '<p>' + escapeHtml(scene.text) + '</p>' : '') + '</div>';
-      appRoot.innerHTML = '<div class="scene">' + media + '<div class="shade"></div><div class="bottom-glow"></div><main class="content"><div class="content-inner">' + storyCopy + renderActions() + timer + '</div></main></div>';
+      appRoot.innerHTML = '<div class="scene">' + media + '<div id="timelineOverlay" class="timeline-overlay"></div><div class="shade"></div><div class="bottom-glow"></div><main class="content"><div class="content-inner">' + storyCopy + renderActions() + timer + '</div></main></div>';
       if (timerEffect && snapshot.currentNode && snapshot.currentNode.type !== 'end') {
         countdownTimer = setTimeout(() => send({ type: 'timer.timeout' }), timerEffect.seconds * 1000);
       }
@@ -431,6 +511,7 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
           send({ type: 'continue' });
         });
       });
+      wireTimelineOverlay();
     };
 
     try {

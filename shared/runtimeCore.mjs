@@ -71,6 +71,34 @@ export function getRuntimeChoiceRules(node) {
   return rules.length > 0 ? rules : [{ id: 'continue', keyword: '继续', condition: '继续', handleId: '' }];
 }
 
+export function getTimelineClips(node) {
+  const tracks = Array.isArray(node?.data?.timeline?.tracks) ? node.data.timeline.tracks : [];
+  return tracks.flatMap((track) => Array.isArray(track.clips) ? track.clips : []).filter((clip) => clip && clip.enabled !== false);
+}
+
+export function getTimelineClipEndTime(clip) {
+  const endTime = Number(clip?.endTime);
+  if (Number.isFinite(endTime) && endTime > Number(clip?.startTime || 0)) return endTime;
+  return Number(clip?.startTime || 0) + 0.1;
+}
+
+export function isTimelineClipActive(clip, time) {
+  const startTime = Number(clip?.startTime);
+  if (!Number.isFinite(startTime) || clip?.enabled === false) return false;
+  return time >= startTime && time <= getTimelineClipEndTime(clip);
+}
+
+export function getActiveTimelineClips(node, time) {
+  return getTimelineClips(node).filter((clip) => isTimelineClipActive(clip, Number(time) || 0));
+}
+
+export function resolveTimelineActionNodeId(node, edges, action = {}) {
+  if (!action || action.type === 'continue' || action.type === 'setVariable') return null;
+  if (action.type === 'goToNode') return action.nodeId || null;
+  if (action.type === 'goToHandle') return resolveNextNodeId(node, edges, { handleId: action.handleId || undefined });
+  return null;
+}
+
 export function compileRuntimeGraph(graph, options = {}) {
   const nodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
   const edges = Array.isArray(graph?.edges) ? graph.edges : [];
@@ -119,6 +147,15 @@ export function buildNodeEffects(node, edges) {
       type: 'playMedia',
       mediaType: 'image',
       src: data.image,
+    });
+  }
+
+  const timelineClips = getTimelineClips(node);
+  if (timelineClips.length > 0) {
+    effects.push({
+      type: 'timelineOverlay',
+      nodeId: node.id,
+      clips: timelineClips,
     });
   }
 
@@ -209,6 +246,19 @@ export function dispatchRuntimeEvent(program, state, event) {
     choice = { input: event.input || 'unlocked', handleId: event.handleId || 'slider' };
   } else if (type === 'navigate') {
     choice = { targetNodeId: event.nodeId };
+  } else if (type === 'timeline.clip.triggered' || type === 'timeline.clip.timeout') {
+    const clip = getTimelineClips(currentNode).find((item) => item.id === event.clipId);
+    const action = event.action || (type === 'timeline.clip.timeout' ? clip?.timeoutAction : clip?.action);
+    if (!action || action.type === 'continue') {
+      return { ...state, variables };
+    }
+    if (action.type === 'setVariable' && action.key) {
+      return {
+        ...state,
+        variables: { ...variables, [action.key]: action.value },
+      };
+    }
+    choice = { targetNodeId: resolveTimelineActionNodeId(currentNode, program.graph.edges, action) };
   }
 
   const targetNodeId = choice.targetNodeId ?? resolveNextNodeId(currentNode, program.graph.edges, choice);
@@ -262,6 +312,11 @@ const runtimeFunctions = [
   getRuntimeInteractionMode,
   shouldShowRuntimeControls,
   getRuntimeChoiceRules,
+  getTimelineClips,
+  getTimelineClipEndTime,
+  isTimelineClipActive,
+  getActiveTimelineClips,
+  resolveTimelineActionNodeId,
   compileRuntimeGraph,
   createRuntimeState,
   buildNodeEffects,
@@ -282,6 +337,11 @@ export function buildRuntimeCoreBrowserScript() {
   const getRuntimeInteractionMode = ${getRuntimeInteractionMode.toString()};
   const shouldShowRuntimeControls = ${shouldShowRuntimeControls.toString()};
   const getRuntimeChoiceRules = ${getRuntimeChoiceRules.toString()};
+  const getTimelineClips = ${getTimelineClips.toString()};
+  const getTimelineClipEndTime = ${getTimelineClipEndTime.toString()};
+  const isTimelineClipActive = ${isTimelineClipActive.toString()};
+  const getActiveTimelineClips = ${getActiveTimelineClips.toString()};
+  const resolveTimelineActionNodeId = ${resolveTimelineActionNodeId.toString()};
   const compileRuntimeGraph = ${compileRuntimeGraph.toString()};
   const createRuntimeState = ${createRuntimeState.toString()};
   const buildNodeEffects = ${buildNodeEffects.toString()};
@@ -299,6 +359,11 @@ export function buildRuntimeCoreBrowserScript() {
     getRuntimeInteractionMode,
     shouldShowRuntimeControls,
     getRuntimeChoiceRules,
+    getTimelineClips,
+    getTimelineClipEndTime,
+    isTimelineClipActive,
+    getActiveTimelineClips,
+    resolveTimelineActionNodeId,
     compileRuntimeGraph,
     createRuntimeState,
     buildNodeEffects,

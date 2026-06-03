@@ -6,9 +6,10 @@ import { ArrowRight, RotateCcw, X } from 'lucide-react';
 import { useResolvedMediaSrc } from '../../_hooks/useResolvedMediaSrc';
 import { usePlayerStore } from '../../_store/usePlayerStore';
 import { useRuntimeGraphStore } from '../../_store/useRuntimeGraphStore';
+import { AppNode, TimelineAction, TimelineClip } from '../../_types';
 import OpenFMVVideo from '../video/OpenFMVVideo';
 import { SwipeUnlock } from './interactions';
-import { createRuntime, RuntimeEffect, RuntimeEvent, RuntimeSnapshot } from '../../_utils/graphRuntime';
+import { createRuntime, getActiveTimelineClips, RuntimeEffect, RuntimeEvent, RuntimeSnapshot } from '../../_utils/graphRuntime';
 
 const Countdown = ({ seconds, countdownKey, onTimeout }: { seconds?: number; countdownKey: string; onTimeout: () => void }) => {
   const normalizedSeconds = Math.max(0, Math.floor(Number(seconds) || 0));
@@ -103,6 +104,119 @@ const InteractionControls = ({ effects, dispatch }: { effects: RuntimeEffect[]; 
   );
 };
 
+const getTimelineClipLabel = (clip: TimelineClip) => {
+  if (clip.type === 'hotspot') return clip.showHint ? clip.hint || clip.name || '' : '';
+  return clip.label || clip.name || '';
+};
+
+const getTimelineClipRect = (clip: TimelineClip) => {
+  if ('rect' in clip && clip.rect) return clip.rect;
+  return { x: 0.38, y: 0.76, width: 0.24, height: 0.1 };
+};
+
+const getTimelineClipAction = (clip: TimelineClip): TimelineAction => {
+  if (clip.type === 'pauseGate') return clip.action || { type: 'continue' };
+  return clip.action;
+};
+
+const TimelineRuntimeOverlay = ({
+  currentNode,
+  timelineEffect,
+  videoRef,
+  dispatch,
+}: {
+  currentNode: AppNode | null;
+  timelineEffect?: Extract<RuntimeEffect, { type: 'timelineOverlay' }>;
+  videoRef: React.RefObject<HTMLVideoElement>;
+  dispatch: (event: RuntimeEvent) => void;
+}) => {
+  const [currentTime, setCurrentTime] = useState(0);
+  const shownClipIds = useRef<Set<string>>(new Set());
+  const timedOutClipIds = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    shownClipIds.current = new Set();
+    timedOutClipIds.current = new Set();
+    setCurrentTime(0);
+  }, [timelineEffect?.nodeId]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const syncTime = () => setCurrentTime(video.currentTime || 0);
+    syncTime();
+    video.addEventListener('timeupdate', syncTime);
+    video.addEventListener('seeked', syncTime);
+    video.addEventListener('loadedmetadata', syncTime);
+    return () => {
+      video.removeEventListener('timeupdate', syncTime);
+      video.removeEventListener('seeked', syncTime);
+      video.removeEventListener('loadedmetadata', syncTime);
+    };
+  }, [timelineEffect?.nodeId, videoRef]);
+
+  const activeClips = useMemo(() => (
+    currentNode && timelineEffect ? getActiveTimelineClips(currentNode, currentTime) : []
+  ), [currentNode, currentTime, timelineEffect]);
+
+  useEffect(() => {
+    if (!currentNode || !timelineEffect) return;
+    for (const clip of activeClips) {
+      const shouldPause = clip.type === 'pauseGate' || ('pauseOnShow' in clip && clip.pauseOnShow);
+      if (!shouldPause || shownClipIds.current.has(clip.id)) continue;
+      shownClipIds.current.add(clip.id);
+      videoRef.current?.pause();
+    }
+
+    for (const clip of timelineEffect.clips) {
+      const endTime = clip.endTime ?? clip.startTime + 0.1;
+      const timeoutAction = 'timeoutAction' in clip ? clip.timeoutAction : undefined;
+      if (!timeoutAction || timedOutClipIds.current.has(clip.id) || currentTime <= endTime) continue;
+      timedOutClipIds.current.add(clip.id);
+      dispatch({ type: 'timeline.clip.timeout', clipId: clip.id, action: timeoutAction });
+    }
+  }, [activeClips, currentNode, currentTime, dispatch, timelineEffect, videoRef]);
+
+  const triggerClip = (clip: TimelineClip) => {
+    const action = getTimelineClipAction(clip);
+    if (action.type === 'continue') {
+      void videoRef.current?.play();
+      return;
+    }
+    dispatch({ type: 'timeline.clip.triggered', clipId: clip.id, action });
+  };
+
+  if (!timelineEffect || activeClips.length === 0) return null;
+
+  return (
+    <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center">
+      <div className="relative aspect-video h-full max-h-full w-full max-w-full">
+        {activeClips.map((clip) => {
+          const rect = getTimelineClipRect(clip);
+          const label = getTimelineClipLabel(clip);
+          const clipClassName = clip.type === 'hotspot'
+            ? 'border-cyan-300/90 bg-cyan-400/12 text-cyan-50'
+            : clip.type === 'pauseGate'
+              ? 'border-violet-300/85 bg-violet-500/86 text-white'
+              : 'border-orange-300/90 bg-orange-500/92 text-white';
+          return (
+            <button
+              key={clip.id}
+              type="button"
+              onClick={() => triggerClip(clip)}
+              className={`pointer-events-auto absolute flex min-h-9 min-w-12 items-center justify-center rounded-[12px] border px-3 text-sm font-semibold shadow-[0_18px_54px_rgba(0,0,0,0.32)] backdrop-blur-md transition hover:scale-[1.02] ${clipClassName}`}
+              style={{ left: `${rect.x * 100}%`, top: `${rect.y * 100}%`, width: `${rect.width * 100}%`, height: `${rect.height * 100}%` }}
+              aria-label={label || clip.type}
+            >
+              <span className="min-w-0 truncate">{label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 export default function PlayerOverlay() {
   const t = useTranslations('player');
   const { isPlaying, setIsPlaying, reset } = usePlayerStore();
@@ -115,7 +229,9 @@ export default function PlayerOverlay() {
   const currentNode = snapshot?.currentNode ?? null;
   const sceneEffect = getEffect(effects, 'scene');
   const mediaEffect = getEffect(effects, 'playMedia');
+  const timelineEffect = getEffect(effects, 'timelineOverlay');
   const imageSrc = useResolvedMediaSrc(mediaEffect?.mediaType === 'image' ? mediaEffect.src : undefined);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     if (!isPlaying || nodes.length === 0) {
@@ -146,7 +262,8 @@ export default function PlayerOverlay() {
       </div>
 
       <div className="absolute inset-0 bg-black">
-        {mediaEffect?.mediaType === 'image' ? <img src={imageSrc} alt={sceneEffect?.title || ''} className="h-full w-full object-contain" /> : mediaEffect?.mediaType === 'video' ? <OpenFMVVideo src={mediaEffect.src} playbackId={mediaEffect.playbackId} poster={mediaEffect.poster} autoPlay playsInline controls className="h-full w-full object-contain" /> : <div className="h-full w-full bg-[radial-gradient(circle_at_50%_24%,rgba(249,115,22,0.22),transparent_34%),radial-gradient(circle_at_78%_12%,rgba(255,255,255,0.09),transparent_30%),linear-gradient(135deg,#151821,#070a10_62%,#17120f)]" />}
+        {mediaEffect?.mediaType === 'image' ? <img src={imageSrc} alt={sceneEffect?.title || ''} className="h-full w-full object-contain" /> : mediaEffect?.mediaType === 'video' ? <OpenFMVVideo src={mediaEffect.src} playbackId={mediaEffect.playbackId} poster={mediaEffect.poster} autoPlay playsInline controls className="h-full w-full object-contain" playerRef={videoRef} /> : <div className="h-full w-full bg-[radial-gradient(circle_at_50%_24%,rgba(249,115,22,0.22),transparent_34%),radial-gradient(circle_at_78%_12%,rgba(255,255,255,0.09),transparent_30%),linear-gradient(135deg,#151821,#070a10_62%,#17120f)]" />}
+        <TimelineRuntimeOverlay currentNode={currentNode} timelineEffect={timelineEffect} videoRef={videoRef} dispatch={dispatch} />
         <div className="absolute inset-0 bg-gradient-to-b from-black/62 via-black/18 to-black/88" />
         <div className="absolute inset-x-0 bottom-0 h-1/2 bg-[radial-gradient(circle_at_50%_100%,rgba(249,115,22,0.15),transparent_45%)]" />
       </div>
@@ -161,7 +278,7 @@ export default function PlayerOverlay() {
 
           {snapshot.status === 'ended' || currentNode?.type === 'end' ? (
             <button onClick={() => dispatch({ type: 'restart' })} className="inline-flex items-center gap-2 rounded-full bg-openfmv-accent px-6 py-3 text-sm font-semibold text-white transition hover:bg-openfmv-accent-hover"><RotateCcw size={16} />{t('restart')}</button>
-          ) : (
+          ) : timelineEffect && mediaEffect?.mediaType === 'video' ? null : (
             <InteractionControls effects={effects} dispatch={dispatch} />
           )}
         </div>

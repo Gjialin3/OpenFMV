@@ -218,6 +218,78 @@ describe('electron game exporter', () => {
     expect(main).toContain('frame: false');
   });
 
+  it('renders timeline overlay runtime support in exported games', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'openfmv-export-timeline-'));
+    const project = {
+      schemaVersion: 1,
+      id: 'project-timeline',
+      title: 'Timeline Game',
+      graphData: {
+        nodes: [
+          {
+            id: 'story',
+            type: 'story',
+            position: { x: 0, y: 0 },
+            data: {
+              type: 'story',
+              title: 'Story',
+              content: '',
+              video: 'https://example.com/scene.mp4',
+              timeline: {
+                version: 1,
+                tracks: [
+                  {
+                    id: 'interaction-track',
+                    type: 'interaction',
+                    name: 'Interaction',
+                    clips: [
+                      {
+                        id: 'clip-a',
+                        type: 'button',
+                        label: 'Choose',
+                        startTime: 1,
+                        endTime: 4,
+                        rect: { x: 0.4, y: 0.7, width: 0.2, height: 0.1 },
+                        action: { type: 'goToHandle', handleId: 'choice' },
+                        pauseOnShow: true,
+                        enabled: true,
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+        ],
+        edges: [],
+      },
+      assets: [],
+      metadata: { entryNodeId: 'story' },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const result = await exportGamePackage({
+      project,
+      config: {
+        gameTitle: 'Timeline Game',
+        outputDirectory: root,
+        entryNodeId: 'story',
+        windowMode: 'windowed',
+        resolution: { width: 1280, height: 720 },
+        includeDebugOverlay: false,
+      },
+      isDev: false,
+    });
+
+    const html = await readFile(join(result.outputDirectory, 'resources', 'app', 'index.html'), 'utf8');
+    expect(html).toContain('id="timelineOverlay"');
+    expect(html).toContain('runtimeCore.getActiveTimelineClips');
+    expect(html).toContain("send({ type: 'timeline.clip.triggered'");
+    expect(html).toContain("send({ type: 'timeline.clip.timeout'");
+    expect(html).toContain('id="sceneVideo"');
+  });
+
   it('exports the shared graph runtime for navigation rules', async () => {
     const root = await mkdtemp(join(tmpdir(), 'openfmv-export-runtime-rules-'));
     const project = {

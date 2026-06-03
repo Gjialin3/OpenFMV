@@ -112,6 +112,7 @@ const getTextPreview = (asset: OpenFMVAsset) => {
 
 const getAssetStudioHref = (locale: string, projectId: string, assetId: string) => getLocalizedPath(locale, `/asset-studio?projectId=${encodeURIComponent(projectId)}&assetId=${encodeURIComponent(assetId)}`);
 const getEditorHref = (locale: string, projectId: string) => getLocalizedPath(locale, `/editor?id=${projectId}`);
+const getNodesHref = (locale: string, projectId: string) => getLocalizedPath(locale, `/nodes?id=${projectId}`);
 const getPlayHref = (locale: string, projectId: string) => getLocalizedPath(locale, `/play/${projectId}`);
 
 export default function LocalProjectsClient() {
@@ -558,6 +559,14 @@ export default function LocalProjectsClient() {
                             <span suppressHydrationWarning>{formatProjectTime(project.updatedAt, locale, assetsT('justNow'))}</span>
                           </div>
                           <div className="mt-1 truncate text-xs text-openfmv-muted">{t('projectCardStats', { nodes: stats.nodes, assets: stats.assets })}</div>
+                          <div className="mt-2 flex gap-2">
+                            <Link href={getEditorHref(locale, project.id)} className="inline-flex h-8 flex-1 items-center justify-center rounded-[10px] border border-white/10 bg-white/[0.045] text-xs font-semibold text-openfmv-sub transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white">
+                              {t('openBlueprint')}
+                            </Link>
+                            <Link href={getNodesHref(locale, project.id)} className="inline-flex h-8 flex-1 items-center justify-center rounded-[10px] border border-orange-300/20 bg-orange-400/[0.10] text-xs font-semibold text-orange-100 transition hover:border-orange-200/40 hover:bg-orange-400/[0.16]">
+                              {t('openNodeTimeline')}
+                            </Link>
+                          </div>
                         </div>
                       </article>
                     );
@@ -583,6 +592,14 @@ export default function LocalProjectsClient() {
                           </div>
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
+                          <Link href={getEditorHref(locale, project.id)} className="inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-4 text-sm font-semibold text-openfmv-sub transition hover:border-white/25 hover:text-white">
+                            <Layout size={14} />
+                            {t('openBlueprint')}
+                          </Link>
+                          <Link href={getNodesHref(locale, project.id)} className="inline-flex h-9 items-center gap-2 rounded-full border border-orange-300/20 bg-orange-400/[0.10] px-4 text-sm font-semibold text-orange-100 transition hover:border-orange-200/40 hover:bg-orange-400/[0.16]">
+                            <Film size={14} />
+                            {t('openNodeTimeline')}
+                          </Link>
                           <Link href={getPlayHref(locale, project.id)} className="inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-4 text-sm font-semibold text-openfmv-sub transition hover:border-white/25 hover:text-white">
                             <Play size={14} />
                             {t('preview')}
