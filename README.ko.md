@@ -5,6 +5,10 @@
 </p>
 
 <p align="center">
+  <mark><strong>该项目正在快速迭代，敬请期待</strong></mark>
+</p>
+
+<p align="center">
   <a href="./readme.md">English</a> · <a href="./README.zh-CN.md">简体中文</a> · <a href="./README.ja.md">日本語</a> · 한국어
 </p>
 
@@ -184,6 +188,10 @@ npm run test:run
 ```
 
 변경 사항이 데스크톱 내보내기 또는 재생 흐름에 영향을 준다면, 편집, 저장, 미리보기, 내보내기 경로도 수동으로 확인하세요.
+
+## 감사
+
+오픈 영상 편집 워크플로와 인터랙션 디자인에 참고가 된 [OpenCut](https://github.com/OpenCut-app/OpenCut)에 감사드립니다.
 
 ## 라이선스
 

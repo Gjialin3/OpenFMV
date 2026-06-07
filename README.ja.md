@@ -5,6 +5,10 @@
 </p>
 
 <p align="center">
+  <mark><strong>该项目正在快速迭代，敬请期待</strong></mark>
+</p>
+
+<p align="center">
   <a href="./readme.md">English</a> · <a href="./README.zh-CN.md">简体中文</a> · 日本語 · <a href="./README.ko.md">한국어</a>
 </p>
 
@@ -184,6 +188,10 @@ npm run test:run
 ```
 
 デスクトップエクスポートや再生フローに影響する変更の場合は、編集、保存、プレビュー、エクスポートの各パスも手動で確認してください。
+
+## 謝辞
+
+オープンな動画編集ワークフローとインタラクションデザインの参考として、[OpenCut](https://github.com/OpenCut-app/OpenCut) に感謝します。
 
 ## ライセンス
 

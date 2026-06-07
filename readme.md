@@ -5,24 +5,41 @@
 </p>
 
 <p align="center">
+  <mark><strong>该项目正在快速迭代，敬请期待</strong></mark>
+</p>
+
+<p align="center">
   English · <a href="./README.zh-CN.md">简体中文</a> · <a href="./README.ja.md">日本語</a> · <a href="./README.ko.md">한국어</a>
 </p>
 
 OpenFMV is a local-first visual nonlinear storytelling editor for building interactive videos, branching narratives, interactive short dramas, and standalone desktop story experiences.
 
-The current project is a Next.js 14 + Electron desktop app. It uses React Flow to build the story graph editing canvas. Project files, imported assets, and exported content are stored locally, with no account system, database, or cloud storage dependency.
+The current project is a Next.js 14 + Electron desktop app. Project files, imported assets, timeline media, and exported content are stored locally, with no account system, database, or cloud storage dependency.
 
 ![OpenFMV editor overview](./public/readme/openfmv-editor-overview.png)
 
+## Editing Model
+
+OpenFMV has two focused editing surfaces:
+
+- **Editor**: the story graph canvas. It owns scene nodes, story flow, output handles, edges, graph labels, and branching structure.
+- **Nodes**: the node-level multi-track editor. It owns each scene's media timeline, interaction timeline, clip timing, preview layout, and interaction actions.
+
+Media and interactions are stored in each node's `NodeTimeline v2` data. The graph editor reads timeline interaction outputs so branches can be connected visually from the Editor page while the detailed clip work stays in Nodes.
+
 ## Features
 
-- Visual story graph: organize nonlinear narratives with start, story, interaction, and ending nodes.
-- Branching interactions: support choices, text input, slide-to-unlock, countdowns, and default paths.
-- Local asset management: import images, videos, audio, and text assets, then keep them with the local project.
-- Instant playback preview: open the player view after editing to verify the branching experience.
-- Project import and export: save projects as OpenFMV JSON files for backup, migration, and version control.
-- Desktop game export: package a project into a runnable Electron desktop experience.
-- Local AI assistance: the desktop app can call local CLI agents or model services configured with your own keys.
+- Visual story graph for organizing nonlinear narratives with start, scene, and ending nodes.
+- Node-level timeline editor with media tracks and interaction tracks.
+- Local asset library for videos, images, audio, and text assets shared across projects.
+- Interactive clips such as buttons, hotspots, pause gates, timed branches, and variable actions.
+- Editor nodes that show video covers, media counts, interaction counts, and output routes.
+- Synchronized branch routing between timeline interaction actions and graph edges.
+- Fixed-ratio preview stage so media and interaction positions stay consistent while editing and previewing.
+- Instant playback preview for validating branching and timeline interactions.
+- Project import/export as local OpenFMV JSON.
+- Desktop game export with bundled runtime, graph data, timeline data, and local assets.
+- Local AI assistance through desktop-configured CLI agents or model services.
 
 ## Screenshots
 
@@ -119,22 +136,24 @@ app/
     player/             Player components
     local/              Local desktop UI
     ui/                 Shared UI components
+  _features/
+    node-timeline/      NodeTimeline v2 schema, commands, snapping, playback, and UI
   _hooks/               React hooks
   _store/               Zustand stores
   _types/               Shared TypeScript types
-  _utils/               Utility functions
+  _utils/               Runtime, persistence, timeline, and local project utilities
   api/                  Local Next.js API routes
   editor/               Editor page
   play/[id]/            Player page
   projects/             Project management page
-  asset-studio/         Asset studio
-  assets/               Assets page
 electron/
   main.js               Electron main process and IPC
   preload.js            Preload API
   exporter.js           Desktop experience exporter
+shared/
+  runtimeCore.mjs       Shared runtime used by player and exporter
 scripts/                Build and packaging scripts
-__tests__/              Tests
+__tests__/              Unit tests
 ```
 
 ## Project Files
@@ -152,7 +171,7 @@ createdAt
 updatedAt
 ```
 
-Imported assets are copied into the local project or app data directory. When exporting a project or desktop experience, related assets are copied into the output directory so the result can run without relying on the original asset paths.
+Imported assets are copied into the local project or app data directory. When exporting a project or desktop experience, related timeline `src` and `poster` assets are copied into the output directory so the result can run without relying on the original asset paths.
 
 ## Desktop Export
 
@@ -162,17 +181,16 @@ Use:
 npm run package:desktop
 ```
 
-After the build completes, the desktop app is output to `dist/`. Interactive stories exported from the app include the runtime, project graph data, and asset resources, making them suitable for distribution to players or testers.
+After the build completes, the desktop app is output to `dist/`. Interactive stories exported from the app include the runtime, project graph data, node timelines, and asset resources, making them suitable for distribution to players or testers.
 
 ## Development Notes
 
 - The project follows a local-first design and does not include login, user sync, hosted backends, databases, or cloud storage.
+- Story flow belongs in `/editor`; node-level media and interactions belong in `/nodes`.
+- Media clips and interaction clips should be stored in `node.data.timeline`.
 - Shared type definitions live in `app/_types/index.ts`.
-- When adding a new node type, update the types, node registration, editor component, player logic, and export runtime together.
 - Styling uses Tailwind CSS, with custom colors centralized in `app/globals.css`.
 - React Flow node components should be wrapped with `React.memo`.
-
-For more architecture rules, see `docs/architecture-boundaries.md` and `docs/editor-connection-rules.md`.
 
 ## Contributing
 
@@ -183,7 +201,11 @@ npm run lint
 npm run test:run
 ```
 
-If your change affects desktop export or playback flow, also manually verify editing, saving, previewing, and export paths.
+If your change affects desktop export, timeline playback, or graph routing, also manually verify editing, saving, previewing, and export paths.
+
+## Acknowledgements
+
+Thanks to [OpenCut](https://github.com/OpenCut-app/OpenCut) for inspiration around open video editing workflows and interaction design.
 
 ## License
 
