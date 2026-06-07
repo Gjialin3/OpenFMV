@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <mark><strong>该项目正在快速迭代，敬请期待</strong></mark>
+  <mark><strong>このプロジェクトは急速に進化しています。今後の更新にご期待ください。</strong></mark>
 </p>
 
 <p align="center">

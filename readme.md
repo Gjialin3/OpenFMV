@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <mark><strong>该项目正在快速迭代，敬请期待</strong></mark>
+  <mark><strong>This project is evolving quickly. Stay tuned.</strong></mark>
 </p>
 
 <p align="center">
