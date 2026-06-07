@@ -93,10 +93,10 @@ const assetFolderForPath = (sourcePath) => {
 const collectGraphMediaPaths = (graphData) => {
   const paths = new Set();
   for (const node of graphData.nodes || []) {
-    for (const key of ['image', 'video', 'videoThumbnail']) {
-      const value = node.data?.[key];
-      if (isLocalFilePath(value)) {
-        paths.add(value);
+    for (const track of node.data?.timeline?.tracks || []) {
+      for (const clip of track.clips || []) {
+        if (isLocalFilePath(clip?.src)) paths.add(clip.src);
+        if (isLocalFilePath(clip?.poster)) paths.add(clip.poster);
       }
     }
   }
@@ -151,10 +151,14 @@ const copyProjectAsset = async (sourcePath, projectDir, usedNames, baseDir) => {
 const rewriteGraphMediaPaths = (graphData, pathMap) => {
   for (const node of graphData.nodes || []) {
     if (!node.data) continue;
-    for (const key of ['image', 'video', 'videoThumbnail']) {
-      const value = node.data[key];
-      if (pathMap.has(value)) {
-        node.data[key] = pathMap.get(value);
+    for (const track of node.data.timeline?.tracks || []) {
+      for (const clip of track.clips || []) {
+        if (pathMap.has(clip?.src)) {
+          clip.src = pathMap.get(clip.src);
+        }
+        if (pathMap.has(clip?.poster)) {
+          clip.poster = pathMap.get(clip.poster);
+        }
       }
     }
   }
@@ -327,7 +331,7 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
     .icon-button:hover { background: #fb923c; }
     .timer { width: 100%; max-width: 320px; margin: 20px auto 0; height: 6px; border-radius: 999px; background: rgba(255,255,255,.1); overflow: hidden; }
     .timer span { display: block; height: 100%; width: 100%; background: #f97316; transform-origin: left; animation: timer linear forwards; }
-    .timeline-overlay { pointer-events: none; position: absolute; inset: 0; z-index: 3; display: grid; place-items: center; }
+    .timeline-overlay { pointer-events: none; position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; }
     .timeline-frame { position: relative; aspect-ratio: 16 / 9; width: 100%; height: 100%; max-width: 100%; max-height: 100%; }
     .timeline-clip { pointer-events: auto; position: absolute; display: flex; min-width: 48px; min-height: 36px; align-items: center; justify-content: center; box-sizing: border-box; border-radius: 12px; padding: 0 12px; color: white; font-size: 14px; font-weight: 750; cursor: pointer; box-shadow: 0 18px 54px rgba(0,0,0,.32); backdrop-filter: blur(14px); transition: transform .16s ease; }
     .timeline-clip:hover { transform: scale(1.02); }
@@ -364,10 +368,6 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
     const effect = (type) => (snapshot && snapshot.effects || []).find((item) => item.type === type);
     const t = (key) => playerMessages[key] || playerMessagesByLocale['zh-CN'][key] || key;
     const translatedDefault = (value, key) => value === playerMessagesByLocale['zh-CN'][key] ? t(key) : value;
-    const clipLabel = (clip) => clip.type === 'hotspot' ? (clip.showHint ? clip.hint || clip.name || '' : '') : clip.label || clip.name || '';
-    const clipRect = (clip) => clip.rect || { x: .38, y: .76, width: .24, height: .1 };
-    const clipAction = (clip) => clip.type === 'pauseGate' ? (clip.action || { type: 'continue' }) : clip.action || { type: 'continue' };
-    const clipClass = (clip) => clip.type === 'hotspot' ? 'hotspot' : clip.type === 'pauseGate' ? 'pauseGate' : 'button';
 
     const send = (event) => {
       snapshot = runtime.dispatch(event);
@@ -376,75 +376,94 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
 
     const promptHtml = (prompt) => prompt ? '<h2 class="prompt">' + escapeHtml(prompt) + '</h2>' : '';
 
-    const resetTimelineSessionIfNeeded = () => {
-      const nextNodeId = snapshot && snapshot.currentNodeId;
-      if (timelineNodeId === nextNodeId) return;
-      timelineNodeId = nextNodeId;
+    const timelineClipRect = (clip) => {
+      if (clip && clip.rect) return clip.rect;
+      return { x: 0.38, y: 0.76, width: 0.24, height: 0.1 };
+    };
+
+    const timelineClipLabel = (clip) => {
+      if (!clip) return '';
+      if (clip.type === 'hotspot') return clip.showHint ? clip.hint || clip.name || 'Hotspot' : '';
+      return clip.label || clip.name || 'Continue';
+    };
+
+    const timelineClipAction = (clip) => {
+      if (!clip) return { type: 'continue' };
+      if (clip.type === 'pauseGate') return clip.action || { type: 'continue' };
+      return clip.action || { type: 'continue' };
+    };
+
+    const renderTimelineOverlay = (overlay, activeClips) => {
+      overlay.innerHTML = '<div class="timeline-frame">' + activeClips.map((clip) => {
+        const rect = timelineClipRect(clip);
+        return '<button class="timeline-clip ' + escapeHtml(clip.type) + '" data-timeline-clip="' + escapeHtml(clip.id) + '" style="left:' + (rect.x * 100) + '%;top:' + (rect.y * 100) + '%;width:' + (rect.width * 100) + '%;height:' + (rect.height * 100) + '%"><span class="timeline-label">' + escapeHtml(timelineClipLabel(clip)) + '</span></button>';
+      }).join('') + '</div>';
+    };
+
+    const resetTimelineSessionIfNeeded = (timeline) => {
+      if (!timeline || timeline.nodeId === timelineNodeId) return;
+      timelineNodeId = timeline.nodeId;
       timelineShownClipIds = new Set();
       timelineTimedOutClipIds = new Set();
     };
 
-    const renderTimelineOverlay = () => {
-      resetTimelineSessionIfNeeded();
-      const overlay = document.getElementById('timelineOverlay');
-      const video = document.getElementById('sceneVideo');
-      const timeline = effect('timelineOverlay');
-      if (!overlay || !video || !timeline || !snapshot || !snapshot.currentNode) {
-        if (overlay) overlay.innerHTML = '';
-        return;
-      }
-
-      const currentTime = Number(video.currentTime) || 0;
-      const activeClips = runtimeCore.getActiveTimelineClips(snapshot.currentNode, currentTime);
-      for (const clip of activeClips) {
-        const shouldPause = clip.type === 'pauseGate' || Boolean(clip.pauseOnShow);
-        if (!shouldPause || timelineShownClipIds.has(clip.id)) continue;
-        timelineShownClipIds.add(clip.id);
-        video.pause();
-      }
-      for (const clip of timeline.clips || []) {
-        const endTime = Number(clip.endTime) || Number(clip.startTime || 0) + .1;
-        if (!clip.timeoutAction || timelineTimedOutClipIds.has(clip.id) || currentTime <= endTime) continue;
-        timelineTimedOutClipIds.add(clip.id);
-        send({ type: 'timeline.clip.timeout', clipId: clip.id, action: clip.timeoutAction });
-        return;
-      }
-
-      overlay.innerHTML = '<div class="timeline-frame">' + activeClips.map((clip) => {
-        const rect = clipRect(clip);
-        return '<button class="timeline-clip ' + clipClass(clip) + '" data-timeline-clip="' + escapeHtml(clip.id) + '" style="left:' + (rect.x * 100) + '%;top:' + (rect.y * 100) + '%;width:' + (rect.width * 100) + '%;height:' + (rect.height * 100) + '%"><span class="timeline-label">' + escapeHtml(clipLabel(clip)) + '</span></button>';
-      }).join('') + '</div>';
-
-      overlay.querySelectorAll('[data-timeline-clip]').forEach((button) => {
-        button.addEventListener('click', () => {
-          const clip = activeClips.find((item) => item.id === button.dataset.timelineClip);
-          if (!clip) return;
-          const action = clipAction(clip);
-          if (action.type === 'continue') {
-            video.play();
-            return;
-          }
-          send({ type: 'timeline.clip.triggered', clipId: clip.id, action });
-        });
-      });
-    };
-
     const wireTimelineOverlay = () => {
-      const video = document.getElementById('sceneVideo');
-      renderTimelineOverlay();
-      if (!video) return;
-      video.addEventListener('timeupdate', renderTimelineOverlay);
-      video.addEventListener('seeked', renderTimelineOverlay);
-      video.addEventListener('loadedmetadata', renderTimelineOverlay);
+      const timeline = effect('timelineOverlay');
+      const mediaEffect = effect('playMedia');
+      const overlay = document.getElementById('timelineOverlay');
+      const video = appRoot.querySelector('video.media');
+      if (!timeline || !overlay || !video || !snapshot.currentNode || !mediaEffect || mediaEffect.mediaType !== 'video') return;
+
+      resetTimelineSessionIfNeeded(timeline);
+
+      const syncTimeline = () => {
+        const time = (mediaEffect.timelineStartTime || 0) + (video.currentTime || 0) - (mediaEffect.sourceStart || 0);
+        const activeClips = runtimeCore.getActiveTimelineClips(snapshot.currentNode, time);
+        renderTimelineOverlay(overlay, activeClips);
+
+        activeClips.forEach((clip) => {
+          if (timelineShownClipIds.has(clip.id)) return;
+          if (clip.type === 'pauseGate' || clip.pauseOnShow) {
+            timelineShownClipIds.add(clip.id);
+            video.pause();
+          }
+        });
+
+        timeline.clips.forEach((clip) => {
+          const endTime = runtimeCore.getTimelineClipEndTime(clip);
+          if (clip.type !== 'button' || !clip.timeoutAction || time < endTime || timelineTimedOutClipIds.has(clip.id)) return;
+          timelineTimedOutClipIds.add(clip.id);
+          send({ type: 'timeline.clip.timeout', clipId: clip.id, action: clip.timeoutAction });
+        });
+
+        overlay.querySelectorAll('[data-timeline-clip]').forEach((button) => {
+          button.addEventListener('click', (event) => {
+            event.stopPropagation();
+            const clip = timeline.clips.find((item) => item.id === button.dataset.timelineClip);
+            if (!clip) return;
+            const action = timelineClipAction(clip);
+            if (action.type === 'continue') {
+              video.play();
+              return;
+            }
+            send({ type: 'timeline.clip.triggered', clipId: clip.id, action });
+          });
+        });
+      };
+
+      syncTimeline();
+      video.addEventListener('timeupdate', syncTimeline);
+      video.addEventListener('seeked', syncTimeline);
+      video.addEventListener('loadedmetadata', syncTimeline);
     };
 
     const renderActions = () => {
+      const mediaEffect = effect('playMedia');
+      const timeline = effect('timelineOverlay');
+      if (timeline && mediaEffect && mediaEffect.mediaType === 'video') return '';
       if (!snapshot || snapshot.status === 'ended' || (snapshot.currentNode && snapshot.currentNode.type === 'end')) {
         return '<div class="actions actions-single actions-start"><button class="action-button" data-restart="1"><span class="action-label">' + escapeHtml(t('restart')) + '</span><span class="action-arrow">↻</span></button></div>';
       }
-      const timeline = effect('timelineOverlay');
-      const media = effect('playMedia');
-      if (timeline && media && media.mediaType === 'video') return '';
       const input = effect('showInput');
       if (input) {
         return '<div class="controls">' + promptHtml(input.prompt) + '<div class="input-row"><input id="answer" placeholder="' + escapeHtml(translatedDefault(input.placeholder, 'answerPlaceholder')) + '" /><button class="icon-button" data-input="1">→</button></div></div>';
@@ -476,13 +495,20 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
         return;
       }
       const media = mediaEffect && mediaEffect.mediaType === 'video'
-        ? '<video id="sceneVideo" class="media" src="' + escapeHtml(mediaEffect.src) + '" poster="' + escapeHtml(mediaEffect.poster || '') + '" autoplay playsinline controls></video>'
+        ? '<video class="media" src="' + escapeHtml(mediaEffect.src) + '" poster="' + escapeHtml(mediaEffect.poster || '') + '" autoplay playsinline controls' + (mediaEffect.muted ? ' muted' : '') + '></video>'
         : mediaEffect && mediaEffect.mediaType === 'image'
           ? '<img class="media" src="' + escapeHtml(mediaEffect.src) + '" />'
           : '';
       const timer = timerEffect ? '<div class="timer"><span style="animation-duration:' + timerEffect.seconds + 's"></span></div>' : '';
       const storyCopy = '<div class="story-copy"><div class="node-type">' + escapeHtml(scene.nodeType) + '</div><h1>' + escapeHtml(scene.title) + '</h1>' + (scene.text ? '<p>' + escapeHtml(scene.text) + '</p>' : '') + '</div>';
       appRoot.innerHTML = '<div class="scene">' + media + '<div id="timelineOverlay" class="timeline-overlay"></div><div class="shade"></div><div class="bottom-glow"></div><main class="content"><div class="content-inner">' + storyCopy + renderActions() + timer + '</div></main></div>';
+      const renderedVideo = appRoot.querySelector('video.media');
+      if (renderedVideo && mediaEffect && mediaEffect.mediaType === 'video' && mediaEffect.sourceStart > 0) {
+        renderedVideo.addEventListener('loadedmetadata', () => {
+          renderedVideo.currentTime = mediaEffect.sourceStart;
+        }, { once: true });
+      }
+      wireTimelineOverlay();
       if (timerEffect && snapshot.currentNode && snapshot.currentNode.type !== 'end') {
         countdownTimer = setTimeout(() => send({ type: 'timer.timeout' }), timerEffect.seconds * 1000);
       }
@@ -511,7 +537,6 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
           send({ type: 'continue' });
         });
       });
-      wireTimelineOverlay();
     };
 
     try {

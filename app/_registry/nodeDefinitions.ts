@@ -75,10 +75,10 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
     icon: Video,
     iconColorClass: 'bg-white/[0.08] text-openfmv-sub',
     menuPlacement: {
-      toolbar: true,
-      pendingConnect: true,
-      edgeMenu: true,
-      quickAdd: true,
+      toolbar: false,
+      pendingConnect: false,
+      edgeMenu: false,
+      quickAdd: false,
     },
     createDefaultData: () => ({
       type: 'interaction',

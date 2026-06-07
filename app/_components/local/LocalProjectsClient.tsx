@@ -73,7 +73,21 @@ const getProjectCover = (project: OpenFMVProject) => {
   if (project.metadata?.coverImage) return project.metadata.coverImage;
   const nodeCover = project.graphData?.nodes
     ?.map((node) => node.data as Record<string, unknown>)
-    .map((data) => data.image || data.videoThumbnail)
+    .map((data) => {
+      const tracks = Array.isArray((data.timeline as { tracks?: unknown[] } | undefined)?.tracks)
+        ? ((data.timeline as { tracks: Array<{ clips?: unknown[] }> }).tracks)
+        : [];
+      for (const track of tracks) {
+        const clips = Array.isArray(track.clips) ? track.clips : [];
+        const mediaClip = clips.find((clip) => {
+          const type = (clip as Record<string, unknown>).type;
+          return type === 'image' || type === 'video';
+        }) as Record<string, unknown> | undefined;
+        if (typeof mediaClip?.poster === 'string') return mediaClip.poster;
+        if (mediaClip?.type === 'image' && typeof mediaClip.src === 'string') return mediaClip.src;
+      }
+      return undefined;
+    })
     .find((value): value is string => typeof value === 'string' && value.length > 0);
   if (nodeCover) return nodeCover;
   return project.assets.find((asset) => asset.type === 'image')?.path || '';
@@ -535,7 +549,7 @@ export default function LocalProjectsClient() {
                             </div>
                           </BorderGlow>
                         </Link>
-                        <Link href={getPlayHref(locale, project.id)} className="absolute left-1/2 top-[90px] z-20 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/45 text-white opacity-0 shadow-[0_16px_42px_rgba(0,0,0,0.36)] backdrop-blur-3xl transition hover:scale-105 hover:bg-white/15 group-hover:opacity-100" title={t('preview')}>
+                        <Link href={getEditorHref(locale, project.id)} className="absolute left-1/2 top-[90px] z-20 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/45 text-white opacity-0 shadow-[0_16px_42px_rgba(0,0,0,0.36)] backdrop-blur-3xl transition hover:scale-105 hover:bg-white/15 group-hover:opacity-100" title={t('openBlueprint')}>
                           <Play size={22} fill="currentColor" className="ml-0.5" />
                         </Link>
                         <div className="absolute left-7 right-7 top-1 z-20 flex items-center justify-between opacity-0 transition group-hover:opacity-100">
@@ -559,14 +573,6 @@ export default function LocalProjectsClient() {
                             <span suppressHydrationWarning>{formatProjectTime(project.updatedAt, locale, assetsT('justNow'))}</span>
                           </div>
                           <div className="mt-1 truncate text-xs text-openfmv-muted">{t('projectCardStats', { nodes: stats.nodes, assets: stats.assets })}</div>
-                          <div className="mt-2 flex gap-2">
-                            <Link href={getEditorHref(locale, project.id)} className="inline-flex h-8 flex-1 items-center justify-center rounded-[10px] border border-white/10 bg-white/[0.045] text-xs font-semibold text-openfmv-sub transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white">
-                              {t('openBlueprint')}
-                            </Link>
-                            <Link href={getNodesHref(locale, project.id)} className="inline-flex h-8 flex-1 items-center justify-center rounded-[10px] border border-orange-300/20 bg-orange-400/[0.10] text-xs font-semibold text-orange-100 transition hover:border-orange-200/40 hover:bg-orange-400/[0.16]">
-                              {t('openNodeTimeline')}
-                            </Link>
-                          </div>
                         </div>
                       </article>
                     );
@@ -596,7 +602,7 @@ export default function LocalProjectsClient() {
                             <Layout size={14} />
                             {t('openBlueprint')}
                           </Link>
-                          <Link href={getNodesHref(locale, project.id)} className="inline-flex h-9 items-center gap-2 rounded-full border border-orange-300/20 bg-orange-400/[0.10] px-4 text-sm font-semibold text-orange-100 transition hover:border-orange-200/40 hover:bg-orange-400/[0.16]">
+                          <Link href={getNodesHref(locale, project.id)} className="inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-4 text-sm font-semibold text-openfmv-sub transition hover:border-white/25 hover:text-white">
                             <Film size={14} />
                             {t('openNodeTimeline')}
                           </Link>

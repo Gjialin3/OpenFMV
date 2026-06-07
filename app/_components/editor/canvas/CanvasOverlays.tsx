@@ -1,7 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { Plus, Sparkles, Video } from 'lucide-react';
+import { Plus, Video } from 'lucide-react';
 
 import { NodeType } from '@/app/_types';
 import { nodeRegistry } from '@/app/_registry/nodeRegistry';
@@ -55,10 +55,6 @@ export function EmptyCanvasPrompt({ onAddNode }: EmptyCanvasPromptProps) {
           <Button type="button" variant="glass" size="sm" onClick={() => onAddNode('story')}>
             <Video size={15} />
             {t('nodeTypes.story.name')}
-          </Button>
-          <Button type="button" variant="glass" size="sm" onClick={() => onAddNode('interaction')}>
-            <Sparkles size={15} />
-            {t('nodeTypes.interaction.name')}
           </Button>
         </div>
       </div>

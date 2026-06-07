@@ -29,7 +29,7 @@ describe('AppWindowFrame', () => {
     vi.restoreAllMocks();
   });
 
-  it('opens the OpenFMV AI settings center from the frame settings button', async () => {
+  it('renders children without the frame-level settings button', async () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -42,15 +42,7 @@ describe('AppWindowFrame', () => {
       );
     });
 
-    const settingsButton = document.querySelector('button[title="设置"]');
-    expect(settingsButton).toBeTruthy();
-
-    await act(async () => {
-      settingsButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      await Promise.resolve();
-    });
-
-    expect(document.body.textContent).toContain('设置');
-    expect(document.body.textContent).toContain('核心引擎');
+    expect(document.body.textContent).toContain('content');
+    expect(document.querySelector(`button[title="${messages.settings.open}"]`)).toBeNull();
   });
 });

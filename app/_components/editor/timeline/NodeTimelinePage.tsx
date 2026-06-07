@@ -1,65 +1,88 @@
 'use client';
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { useShallow } from 'zustand/react/shallow';
 
-import { AppNode } from '@/app/_types';
-import { useEditorStore } from '@/app/_store/useEditorStore';
 import AssetPicker from '@/app/_components/editor/AssetPicker';
-import PlayerOverlay from '@/app/_components/player/PlayerOverlay';
+import { PickerAsset } from '@/app/_components/editor/canvas/assetBinding';
 import TopBar from '@/app/_components/editor/TopBar';
-import { getPickerAssetUpdate, PickerAsset } from '@/app/_components/editor/canvas/assetBinding';
-import NodeTimelinePanel from './NodeTimelinePanel';
+import PlayerOverlay from '@/app/_components/player/PlayerOverlay';
+import { createMediaClipFromTimelineAsset, ensureNodeTimeline, insertTimelineClip } from '@/app/_features/node-timeline';
+import NodeTimelineEditor, { NodeTimelineAssetRequest } from '@/app/_features/node-timeline/components/NodeTimelineEditor';
+import { useEditorStore } from '@/app/_store/useEditorStore';
+import { TimelineMediaClipType } from '@/app/_types';
 
 export default function NodeTimelinePage() {
   const assetsT = useTranslations('assets');
-  const nodes = useEditorStore((state) => state.nodes);
-  const updateNodeData = useEditorStore((state) => state.updateNodeData);
-  const isAssetPickerOpen = useEditorStore((state) => state.isAssetPickerOpen);
-  const setAssetPickerOpen = useEditorStore((state) => state.setAssetPickerOpen);
-  const targetNodeIdForAsset = useEditorStore((state) => state.targetNodeIdForAsset);
-  const setTargetNodeIdForAsset = useEditorStore((state) => state.setTargetNodeIdForAsset);
+  const [assetRequest, setAssetRequest] = useState<NodeTimelineAssetRequest | null>(null);
+  const {
+    nodes,
+    updateNodeData,
+    isAssetPickerOpen,
+    setAssetPickerOpen,
+  } = useEditorStore(
+    useShallow((state) => ({
+      nodes: state.nodes,
+      updateNodeData: state.updateNodeData,
+      isAssetPickerOpen: state.isAssetPickerOpen,
+      setAssetPickerOpen: state.setAssetPickerOpen,
+    }))
+  );
 
   const handleAssetSelect = useCallback((asset: PickerAsset) => {
-    if (!targetNodeIdForAsset) {
+    const request = assetRequest;
+    const targetNode = request ? nodes.find((node) => node.id === request.nodeId) : null;
+    if (!request || !targetNode) {
+      setAssetRequest(null);
       setAssetPickerOpen(false);
       return;
     }
 
-    const targetNode = nodes.find((node) => node.id === targetNodeIdForAsset);
-    if (!targetNode) {
-      setTargetNodeIdForAsset(null);
-      setAssetPickerOpen(false);
-      return;
-    }
-
-    const update = getPickerAssetUpdate(targetNode, asset);
-    if (!update) {
+    if (asset.type !== 'image' && asset.type !== 'video' && asset.type !== 'audio') {
       alert(assetsT('audioCannotBind'));
+      setAssetRequest(null);
+      setAssetPickerOpen(false);
       return;
     }
 
-    updateNodeData(targetNode.id, update as Partial<AppNode['data']>);
-    setTargetNodeIdForAsset(null);
+    const clip = createMediaClipFromTimelineAsset({
+      type: asset.type as TimelineMediaClipType,
+      src: asset.url,
+      name: asset.prompt || asset.url,
+      assetId: asset.id,
+      startTime: request.startTime,
+      metadata: asset.metadata,
+    });
+    const timeline = insertTimelineClip({
+      timeline: ensureNodeTimeline(targetNode.data.timeline),
+      clip,
+      trackId: request.trackId,
+    });
+    updateNodeData(targetNode.id, { timeline });
+
+    setAssetRequest(null);
     setAssetPickerOpen(false);
-  }, [assetsT, nodes, setAssetPickerOpen, setTargetNodeIdForAsset, targetNodeIdForAsset, updateNodeData]);
+  }, [assetRequest, assetsT, nodes, setAssetPickerOpen, updateNodeData]);
+
+  const handleRequestMediaClip = useCallback((request: NodeTimelineAssetRequest) => {
+    setAssetRequest(request);
+    setAssetPickerOpen(true);
+  }, [setAssetPickerOpen]);
+
+  const closeAssetPicker = () => {
+    setAssetRequest(null);
+    setAssetPickerOpen(false);
+  };
 
   return (
     <main className="relative h-full w-full overflow-hidden bg-[#020202]">
       <TopBar />
-      <div className="absolute inset-x-0 bottom-0 top-14">
-        <NodeTimelinePanel />
+      <div className="absolute inset-0">
+        <NodeTimelineEditor onRequestMediaClip={handleRequestMediaClip} />
       </div>
+      <AssetPicker isOpen={isAssetPickerOpen} onClose={closeAssetPicker} onSelect={handleAssetSelect} allowAudio />
       <PlayerOverlay />
-
-      <AssetPicker
-        isOpen={isAssetPickerOpen}
-        onClose={() => {
-          setAssetPickerOpen(false);
-          setTargetNodeIdForAsset(null);
-        }}
-        onSelect={handleAssetSelect}
-      />
     </main>
   );
 }

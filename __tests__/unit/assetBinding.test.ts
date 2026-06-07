@@ -31,16 +31,9 @@ describe('assetBinding', () => {
     });
   });
 
-  it('maps image and video picker assets to supported node data', () => {
-    expect(getPickerAssetUpdate(storyNode, { id: 'image', type: 'image', url: 'image.png', prompt: null, metadata: {}, createdAt: new Date() })).toMatchObject({
-      image: 'image.png',
-      video: undefined,
-    });
-    expect(getPickerAssetUpdate(storyNode, { id: 'video', type: 'video', url: 'video.mp4', prompt: null, metadata: { playbackId: 'mux' }, createdAt: new Date() })).toMatchObject({
-      video: 'video.mp4',
-      videoPlaybackId: 'mux',
-      image: undefined,
-    });
+  it('does not bind media picker assets to blueprint node data', () => {
+    expect(getPickerAssetUpdate(storyNode, { id: 'image', type: 'image', url: 'image.png', prompt: null, metadata: {}, createdAt: new Date() })).toBeNull();
+    expect(getPickerAssetUpdate(storyNode, { id: 'video', type: 'video', url: 'video.mp4', prompt: null, metadata: { playbackId: 'mux' }, createdAt: new Date() })).toBeNull();
   });
 
   it('rejects unsupported or incompatible asset bindings', () => {

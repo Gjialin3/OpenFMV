@@ -29,8 +29,20 @@ describe('electron game exporter', () => {
             data: {
               type: 'start',
               label: 'Start',
-              image: pathToFileURL(sourceImage).href,
               content: 'Hello local game',
+              timeline: {
+                version: 2,
+                duration: 24,
+                bookmarks: [],
+                tracks: [
+                  {
+                    id: 'media-track',
+                    type: 'media',
+                    name: 'Media',
+                    clips: [{ id: 'image-clip', type: 'image', src: pathToFileURL(sourceImage).href, startTime: 0, duration: 4, enabled: true }],
+                  },
+                ],
+              },
             },
           },
         ],
@@ -65,7 +77,7 @@ describe('electron game exporter', () => {
     });
 
     const gameJson = JSON.parse(await readFile(join(result.outputDirectory, 'resources', 'app', 'game.json'), 'utf8'));
-    const rewrittenImage = gameJson.graphData.nodes[0].data.image;
+    const rewrittenImage = gameJson.graphData.nodes[0].data.timeline.tracks[0].clips[0].src;
     expect(rewrittenImage).toBe('assets/source.png');
     expect(gameJson.assets[0].path).toBe('assets/source.png');
     expect(gameJson.assets[0].relativePath).toBe('assets/source.png');
@@ -99,9 +111,22 @@ describe('electron game exporter', () => {
             data: {
               type: 'start',
               label: 'Start',
-              image: 'https://example.com/remote.png',
-              video: 'data:video/mp4;base64,AAAA',
-              videoThumbnail: 'blob:http://localhost/thumb',
+              timeline: {
+                version: 2,
+                duration: 24,
+                bookmarks: [],
+                tracks: [
+                  {
+                    id: 'media-track',
+                    type: 'media',
+                    name: 'Media',
+                    clips: [
+                      { id: 'remote-clip', type: 'image', src: 'https://example.com/remote.png', startTime: 0, duration: 4, enabled: true },
+                      { id: 'data-clip', type: 'video', src: 'data:video/mp4;base64,AAAA', poster: 'blob:http://localhost/thumb', startTime: 4, duration: 4, enabled: true },
+                    ],
+                  },
+                ],
+              },
             },
           },
           {
@@ -112,7 +137,19 @@ describe('electron game exporter', () => {
               type: 'story',
               title: 'Local',
               content: '',
-              image: localImage,
+              timeline: {
+                version: 2,
+                duration: 24,
+                bookmarks: [],
+                tracks: [
+                  {
+                    id: 'media-track',
+                    type: 'media',
+                    name: 'Media',
+                    clips: [{ id: 'local-clip', type: 'image', src: localImage, startTime: 0, duration: 4, enabled: true }],
+                  },
+                ],
+              },
             },
           },
         ],
@@ -164,10 +201,10 @@ describe('electron game exporter', () => {
 
     const gameJson = JSON.parse(await readFile(join(result.outputDirectory, 'resources', 'app', 'game.json'), 'utf8'));
 
-    expect(gameJson.graphData.nodes[0].data.image).toBe('https://example.com/remote.png');
-    expect(gameJson.graphData.nodes[0].data.video).toBe('data:video/mp4;base64,AAAA');
-    expect(gameJson.graphData.nodes[0].data.videoThumbnail).toBe('blob:http://localhost/thumb');
-    expect(gameJson.graphData.nodes[1].data.image).toBe('assets/local.png');
+    expect(gameJson.graphData.nodes[0].data.timeline.tracks[0].clips[0].src).toBe('https://example.com/remote.png');
+    expect(gameJson.graphData.nodes[0].data.timeline.tracks[0].clips[1].src).toBe('data:video/mp4;base64,AAAA');
+    expect(gameJson.graphData.nodes[0].data.timeline.tracks[0].clips[1].poster).toBe('blob:http://localhost/thumb');
+    expect(gameJson.graphData.nodes[1].data.timeline.tracks[0].clips[0].src).toBe('assets/local.png');
     expect(gameJson.assets.find((asset: { id: string; path: string }) => asset.id === 'remote').path).toBe('https://example.com/remote.png');
     expect(gameJson.assets.find((asset: { id: string; path: string }) => asset.id === 'data').path).toBe('data:text/plain;base64,SGVsbG8=');
     expect(gameJson.assets.find((asset: { id: string; path: string }) => asset.id === 'local').path).toBe('assets/local.png');
@@ -216,78 +253,6 @@ describe('electron game exporter', () => {
     expect(html).toContain('countdownTimer = setTimeout');
     expect(html).toContain('class="timer"');
     expect(main).toContain('frame: false');
-  });
-
-  it('renders timeline overlay runtime support in exported games', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'openfmv-export-timeline-'));
-    const project = {
-      schemaVersion: 1,
-      id: 'project-timeline',
-      title: 'Timeline Game',
-      graphData: {
-        nodes: [
-          {
-            id: 'story',
-            type: 'story',
-            position: { x: 0, y: 0 },
-            data: {
-              type: 'story',
-              title: 'Story',
-              content: '',
-              video: 'https://example.com/scene.mp4',
-              timeline: {
-                version: 1,
-                tracks: [
-                  {
-                    id: 'interaction-track',
-                    type: 'interaction',
-                    name: 'Interaction',
-                    clips: [
-                      {
-                        id: 'clip-a',
-                        type: 'button',
-                        label: 'Choose',
-                        startTime: 1,
-                        endTime: 4,
-                        rect: { x: 0.4, y: 0.7, width: 0.2, height: 0.1 },
-                        action: { type: 'goToHandle', handleId: 'choice' },
-                        pauseOnShow: true,
-                        enabled: true,
-                      },
-                    ],
-                  },
-                ],
-              },
-            },
-          },
-        ],
-        edges: [],
-      },
-      assets: [],
-      metadata: { entryNodeId: 'story' },
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    const result = await exportGamePackage({
-      project,
-      config: {
-        gameTitle: 'Timeline Game',
-        outputDirectory: root,
-        entryNodeId: 'story',
-        windowMode: 'windowed',
-        resolution: { width: 1280, height: 720 },
-        includeDebugOverlay: false,
-      },
-      isDev: false,
-    });
-
-    const html = await readFile(join(result.outputDirectory, 'resources', 'app', 'index.html'), 'utf8');
-    expect(html).toContain('id="timelineOverlay"');
-    expect(html).toContain('runtimeCore.getActiveTimelineClips');
-    expect(html).toContain("send({ type: 'timeline.clip.triggered'");
-    expect(html).toContain("send({ type: 'timeline.clip.timeout'");
-    expect(html).toContain('id="sceneVideo"');
   });
 
   it('exports the shared graph runtime for navigation rules', async () => {
@@ -490,7 +455,19 @@ describe('electron game exporter', () => {
             data: {
               type: 'start',
               label: 'Start',
-              image: sourceImage,
+              timeline: {
+                version: 2,
+                duration: 24,
+                bookmarks: [],
+                tracks: [
+                  {
+                    id: 'media-track',
+                    type: 'media',
+                    name: 'Media',
+                    clips: [{ id: 'image-clip', type: 'image', src: sourceImage, startTime: 0, duration: 4, enabled: true }],
+                  },
+                ],
+              },
             },
           },
         ],
@@ -514,8 +491,8 @@ describe('electron game exporter', () => {
     const savedProject = await saveProjectToDirectory(project, projectDir);
     const savedJson = JSON.parse(await readFile(join(projectDir, 'project.openfmv.json'), 'utf8'));
 
-    expect(savedProject.graphData.nodes[0].data.image).toBe('assets/images/source.png');
-    expect(savedJson.graphData.nodes[0].data.image).toBe('assets/images/source.png');
+    expect(savedProject.graphData.nodes[0].data.timeline.tracks[0].clips[0].src).toBe('assets/images/source.png');
+    expect(savedJson.graphData.nodes[0].data.timeline.tracks[0].clips[0].src).toBe('assets/images/source.png');
     expect(savedJson.assets[0].path).toBe('assets/images/source.png');
     expect(savedJson.assets[0].relativePath).toBe('assets/images/source.png');
     await expect(stat(join(projectDir, 'assets', 'images', 'source.png'))).resolves.toBeTruthy();

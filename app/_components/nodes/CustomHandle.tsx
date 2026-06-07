@@ -93,12 +93,12 @@ export const CustomHandle = ({ className, ...props }: CustomHandleProps) => {
           {...props}
           isConnectable={true}
           isConnectableEnd={true}
-          className="!w-3 !h-3 !bg-transparent !border-none !min-w-0 !min-h-0"
+          className="!w-3 !h-3 !bg-transparent !border-none !min-w-0 !min-h-0 !cursor-default"
         >
             <div className={`
                 h-3.5 w-3.5 rounded-full border-2 border-white/24
                 bg-[#1f1f1f] shadow-[0_0_0_3px_rgba(0,0,0,0.22)]
-                transition-all cursor-crosshair hover:border-openfmv-accent hover:bg-openfmv-accent hover:scale-125
+                !cursor-default transition-colors hover:border-openfmv-accent hover:bg-openfmv-accent
                 ${className || ''}
             `.trim().replace(/\s+/g, ' ')} />
         </Handle>
@@ -110,12 +110,12 @@ export const CustomHandle = ({ className, ...props }: CustomHandleProps) => {
         <Handle
             {...props}
             onClick={handleClick}
-            className="!w-6 !h-6 !bg-transparent !border-none !min-w-0 !min-h-0 flex items-center justify-center z-50"
+            className="!w-6 !h-6 !bg-transparent !border-none !min-w-0 !min-h-0 !cursor-default flex items-center justify-center z-50"
         >
             <div className={`
                 h-6 w-6 rounded-full border-2 border-white/24 bg-[#1f1f1f]
                 flex items-center justify-center
-                shadow-[0_0_0_3px_rgba(0,0,0,0.22)] hover:border-openfmv-accent hover:scale-110 transition-all cursor-pointer group
+                shadow-[0_0_0_3px_rgba(0,0,0,0.22)] !cursor-default transition-colors hover:border-openfmv-accent group
                 ${className || ''}
             `.trim().replace(/\s+/g, ' ')}>
                 <ChevronRight size={14} strokeWidth={3} className="text-openfmv-text-secondary group-hover:text-openfmv-accent ml-0.5 transition-colors" />

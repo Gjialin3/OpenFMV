@@ -19,13 +19,13 @@ import '@xyflow/react/dist/style.css';
 import { useEditorStore } from '../../_store/useEditorStore';
 import { AppNode, NodeType, AppEdge, OpenFMVAsset } from '../../_types';
 import FloatingToolbar from './FloatingToolbar';
-import PropertyPanel from './PropertyPanel';
 import { getLayoutedElements } from '@/app/lib/autoLayout';
 
 import AssetPicker from './AssetPicker';
 import EditorLoading from './EditorLoading';
 import { addAssetsToLocalProject, importAssetFromFile } from '@/app/_utils/localProjects';
 import { isValidGraphConnection } from '@/app/_utils/graphRules';
+import { syncTimelineOutputEdges } from '@/app/_utils/timelineOutputEdges';
 import { getPickerAssetUpdate, PickerAsset } from './canvas/assetBinding';
 import { edgeTypes, nodeTypes } from './canvas/flowTypes';
 import { EmptyCanvasPrompt, FileDropOverlay, PendingConnectMenu, PendingConnectMenuState } from './canvas/CanvasOverlays';
@@ -237,6 +237,12 @@ const EditorContent = ({ projectId }: { projectId?: string | null }) => {
       })),
     [edges]
   );
+
+  React.useEffect(() => {
+    const syncedEdges = syncTimelineOutputEdges(nodes, edges);
+    if (syncedEdges !== edges) setEdges(syncedEdges);
+  }, [edges, nodes, setEdges]);
+
   const handleAddNode = useCallback((type: NodeType) => {
     const { x, y, zoom } = getViewport();
     const centerX = window.innerWidth / 2;
@@ -531,7 +537,6 @@ const EditorContent = ({ projectId }: { projectId?: string | null }) => {
           onOpenAssets={() => setAssetPickerOpen(true)}
         />
       )}
-      <PropertyPanel />
       
       <AssetPicker 
         isOpen={isAssetPickerOpen} 

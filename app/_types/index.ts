@@ -121,31 +121,66 @@ export interface OpenFMVChatResponse {
 export type AppNode = Node<NodeData, NodeType>;
 
 export interface NodeTimeline {
-  version: 1;
-  duration?: number;
+  version: 2;
+  duration: number;
   tracks: TimelineTrack[];
+  bookmarks: TimelineBookmark[];
+  playheadTime?: number;
+  zoom?: number;
+}
+
+export type TimelineTrackType = 'media' | 'interaction';
+
+export interface TimelineBookmark {
+  id: string;
+  time: number;
+  label?: string;
+  color?: string;
 }
 
 export interface TimelineTrack {
   id: string;
-  type: 'video' | 'interaction' | 'logic';
+  type: TimelineTrackType;
   name: string;
+  mediaRole?: 'main' | 'overlay' | 'audio';
   locked?: boolean;
   hidden?: boolean;
+  muted?: boolean;
+  collapsed?: boolean;
   clips: TimelineClip[];
 }
 
-export type TimelineClipType = 'button' | 'hotspot' | 'pauseGate';
+export type TimelineMediaClipType = 'video' | 'image' | 'audio';
+export type TimelineInteractionClipType = 'button' | 'hotspot' | 'pauseGate' | 'text';
+export type TimelineTimedActionClipType = 'branch' | 'variable';
+export type TimelineClipType = TimelineMediaClipType | TimelineInteractionClipType | TimelineTimedActionClipType;
+export type TimelineKeyframeProperty = 'opacity' | 'rotation' | 'x' | 'y' | 'width' | 'height' | 'volume';
+export type TimelineKeyframeInterpolation = 'linear' | 'hold';
 
-export type TimelineClip = ButtonChoiceClip | HotspotClip | PauseGateClip;
+export interface TimelineClipKeyframe {
+  id: string;
+  property: TimelineKeyframeProperty;
+  time: number;
+  value: number;
+  interpolation?: TimelineKeyframeInterpolation;
+}
+
+export type TimelineClip = TimelineMediaClip | TimelineInteractionClip | TimelineTimedActionClip;
 
 export interface BaseTimelineClip {
   id: string;
   type: TimelineClipType;
   startTime: number;
-  endTime?: number;
+  duration: number;
+  sourceStart?: number;
+  sourceDuration?: number;
   name?: string;
   enabled: boolean;
+  hidden?: boolean;
+  opacity?: number;
+  rotation?: number;
+  linkGroupId?: string;
+  keyframes?: TimelineClipKeyframe[];
 }
 
 export interface OverlayRect {
@@ -161,6 +196,23 @@ export interface TimelineAction {
   nodeId?: string | null;
   key?: string;
   value?: unknown;
+}
+
+export interface TimelineMediaClip extends BaseTimelineClip {
+  type: TimelineMediaClipType;
+  src: string;
+  assetId?: string;
+  poster?: string;
+  playbackId?: string;
+  muted?: boolean;
+  volume?: number;
+  playbackRate?: number;
+  preservePitch?: boolean;
+  freezeFrameTime?: number;
+  fit?: 'contain' | 'cover';
+  rect?: OverlayRect;
+  sourceAudioEnabled?: boolean;
+  sourceVideoClipId?: string;
 }
 
 export interface ButtonChoiceClip extends BaseTimelineClip {
@@ -189,11 +241,28 @@ export interface PauseGateClip extends BaseTimelineClip {
   resumeOnClick: boolean;
 }
 
+export interface TextOverlayClip extends BaseTimelineClip {
+  type: 'text';
+  text: string;
+  rect: OverlayRect;
+  fontSize?: number;
+  color?: string;
+  backgroundColor?: string;
+  align?: 'left' | 'center' | 'right';
+}
+
+export interface TimelineTimedActionClip extends BaseTimelineClip {
+  type: TimelineTimedActionClipType;
+  action: TimelineAction;
+}
+
+export type TimelineInteractionClip = ButtonChoiceClip | HotspotClip | PauseGateClip | TextOverlayClip;
+
 export type NodeData = 
-  | { type: 'story'; title: string; content: string; fullText?: string; image?: string; video?: string; videoPlaybackId?: string; videoThumbnail?: string; timeline?: NodeTimeline }
-  | { type: 'interaction'; title?: string; rules: InteractionRule[]; elseLabel?: string; video?: string; videoPlaybackId?: string; image?: string; videoThumbnail?: string; prompt?: string; buttonText?: string; interactionMode?: InteractionMode; sliderConfig?: SliderConfig; content?: string; fullText?: string; timeLimit?: number; timeline?: NodeTimeline }
-  | { type: 'start'; label?: string; video?: string; videoPlaybackId?: string; videoThumbnail?: string; content?: string; fullText?: string; image?: string; rules?: InteractionRule[]; elseLabel?: string; prompt?: string; buttonText?: string; interactionMode?: InteractionMode; sliderConfig?: SliderConfig; timeLimit?: number; timeline?: NodeTimeline }
-  | { type: 'end'; label?: string; video?: string; videoPlaybackId?: string; videoThumbnail?: string; content?: string; fullText?: string; image?: string; timeline?: NodeTimeline };
+  | { type: 'story'; title: string; content: string; fullText?: string; timeline?: NodeTimeline }
+  | { type: 'interaction'; title?: string; rules: InteractionRule[]; elseLabel?: string; prompt?: string; buttonText?: string; interactionMode?: InteractionMode; sliderConfig?: SliderConfig; content?: string; fullText?: string; timeLimit?: number; timeline?: NodeTimeline }
+  | { type: 'start'; label?: string; content?: string; fullText?: string; rules?: InteractionRule[]; elseLabel?: string; prompt?: string; buttonText?: string; interactionMode?: InteractionMode; sliderConfig?: SliderConfig; timeLimit?: number; timeline?: NodeTimeline }
+  | { type: 'end'; label?: string; content?: string; fullText?: string; timeline?: NodeTimeline };
 
 export interface InteractionRule {
   id: string;

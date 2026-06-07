@@ -68,8 +68,10 @@
     "nodeMode": "노드",
     "preview": "미리보기",
     "export": "내보내기",
+    "blueprintMode": "Editor",
+    "nodeMode": "노드",
     "startNode": "시작",
-    "storyTitlePrefix": "스토리 노드",
+    "storyTitlePrefix": "장면",
     "endNode": "끝",
     "cancel": "취소",
     "deleteNodeConfirm": "이 노드를 삭제할까요?",
@@ -121,15 +123,54 @@
     "clearLocalCacheConfirm": "로컬 캐시를 지울까요? 로컬에 저장된 에디터 데이터가 삭제됩니다.",
     "assetStoryFallback": "소재 스토리",
     "emptyCanvasTitle": "만들기 시작",
-    "emptyCanvasDescription": "시작 노드를 추가한 뒤 스토리와 인터랙션 노드를 연결하세요.",
+    "emptyCanvasDescription": "시작 노드를 추가한 뒤 장면을 연결하세요.",
     "addStartNode": "시작 노드 추가",
     "dropFilesTitle": "파일을 드롭해 소재 가져오기",
     "dropFilesDescription": "이미지, 비디오, 텍스트는 노드에 연결할 수 있고 오디오는 소재 라이브러리에 저장됩니다.",
+    "nodePreview": {
+      "outputs": "Outputs",
+      "noOutputs": "No outputs",
+      "continue": "Continue",
+      "branch": "Branch",
+      "noAction": "No action",
+      "noMatch": "No match",
+      "fallback": "Fallback",
+      "choiceResult": "Choice result {index}",
+      "clicked": "{label} clicked",
+      "inputMatched": "{label} matched",
+      "sliderSucceeded": "{label} succeeded",
+      "defaultOutput": "Default",
+      "unlinked": "Unlinked",
+      "noMedia": "No media preview",
+      "video": "Video",
+      "image": "Image",
+      "audioOnly": "Audio only",
+      "previewAlt": "Node media preview",
+      "videoCount": "{count, plural, one {# video} other {# videos}}",
+      "imageCount": "{count, plural, one {# image} other {# images}}",
+      "audioCount": "{count, plural, one {# audio} other {# audio}}",
+      "interactionCount": "{count, plural, one {# interaction} other {# interactions}}",
+      "autoBranchAt": "{time}s auto branch",
+      "endState": "End state",
+      "openInNodes": "Nodes에서 편집"
+    },
     "nodeTypes": {
-      "start": { "name": "시작 노드", "description": "스토리 진입점" },
-      "story": { "name": "스토리 조각", "description": "미디어와 내러티브 텍스트 표시" },
-      "interaction": { "name": "인터랙션 노드", "description": "선택, 입력, 슬라이더, 타이머" },
-      "end": { "name": "종료 노드", "description": "스토리 끝점" }
+      "start": {
+        "name": "시작 노드",
+        "description": "스토리 진입점"
+      },
+      "story": {
+        "name": "장면",
+        "description": "재생 미디어와 인터랙션"
+      },
+      "interaction": {
+        "name": "레거시 인터랙션 노드",
+        "description": "이전 프로젝트 호환 노드"
+      },
+      "end": {
+        "name": "종료 노드",
+        "description": "스토리 끝점"
+      }
     },
     "loading": {
       "start": "OpenFMV 편집기 시작 중...",
@@ -138,6 +179,241 @@
       "calibrateConnections": "인터랙션 연결 보정 중...",
       "prepareAssets": "로컬 소재 준비 중...",
       "enterEditor": "곧 편집기로 이동합니다..."
+    }
+  },
+  "nodeTimeline": {
+    "fallback": {
+      "start": "시작",
+      "end": "끝",
+      "interaction": "인터랙션",
+      "story": "장면",
+      "branch": "분기",
+      "sliderSuccess": "슬라이더 성공",
+      "defaultBranch": "기본 분기"
+    },
+    "empty": {
+      "noNodesTitle": "아직 노드가 없습니다",
+      "noNodesDescription": "Editor 모드에서 스토리 노드를 만든 뒤 여기에서 각 노드 타임라인을 편집하세요.",
+      "blueprint": "Editor"
+    },
+    "tabs": {
+      "assets": "에셋",
+      "nodes": "노드",
+      "interactions": "인터랙션"
+    },
+    "panel": {
+      "assets": "에셋",
+      "nodeTimeline": "노드 타임라인",
+      "interactionLibrary": "인터랙션 라이브러리",
+      "interactions": "인터랙션",
+      "summary": "{media} 미디어 / {interactions} 인터랙션 / {duration}초",
+      "nodes": "노드",
+      "nodeMeta": "{type} / {clips} clips",
+      "currentNodeClips": "현재 노드 clips",
+      "noInteractionClips": "이 노드에는 아직 인터랙션 clip 이 없습니다.",
+      "listView": "목록 보기",
+      "sort": "정렬",
+      "dropMedia": "동영상, 사진, 오디오 파일을 여기에 드래그 앤 드롭",
+      "dropAudio": "오디오 파일을 여기로 드래그앤드롭",
+      "dropText": "텍스트 파일을 여기로 드래그앤드롭",
+      "gridView": "그리드 보기",
+      "sortByName": "이름순 정렬",
+      "sortByRecent": "최근 가져오기순 정렬",
+      "dragMediaToTimeline": "클릭해 재생 헤드에 추가하거나 미디어 트랙으로 드래그하세요.",
+      "dragAudioToTimeline": "클릭해 재생헤드에 오디오를 추가하거나 미디어 트랙으로 드래그하세요.",
+      "clickTextToApply": "텍스트 에셋을 클릭해 재생 헤드에 추가하세요.",
+      "dragTextToTimeline": "클릭해 재생 헤드에 텍스트를 추가하거나 인터랙션 트랙으로 드래그하세요.",
+      "addToTimeline": "타임라인에 추가",
+      "removeAsset": "소재 제거",
+      "removeAssetConfirm": "\"{projectTitle}\"에서 소재 \"{assetName}\"을(를) 제거할까요?",
+      "removeAssetFailed": "소재 제거에 실패했습니다.",
+      "applyTextToNode": "텍스트를 타임라인에 추가",
+      "addTextToTimeline": "텍스트를 타임라인에 추가",
+      "textTemplate": "텍스트",
+      "emptyTextAsset": "빈 텍스트 에셋",
+      "importing": "가져오는 중",
+      "unsupportedMedia": "노드 타임라인에서는 비디오, 이미지, 오디오, 텍스트 에셋만 사용할 수 있습니다.",
+      "importFailed": "미디어 가져오기에 실패했습니다.",
+      "quotaExceeded": "가져오기 실패: 브라우저 저장 공간이 부족합니다.",
+      "selectProjectBeforeImport": "에셋을 가져오기 전에 프로젝트를 선택하거나 생성하세요."
+    },
+    "rail": {
+      "audio": "오디오",
+      "text": "텍스트"
+    },
+    "actions": {
+      "addMediaClip": "미디어 clip 추가",
+      "addInteraction": "인터랙션 추가",
+      "import": "가져오기",
+      "play": "재생",
+      "continueCurrentMedia": "현재 미디어 계속",
+      "deleteClip": "clip 삭제",
+      "delete": "삭제",
+      "branch": "분기",
+      "setVariable": "변수 설정",
+      "pause": "일시정지"
+    },
+    "clipTypes": {
+      "button": "버튼",
+      "hotspot": "핫스팟",
+      "pauseGate": "일시정지 게이트",
+      "text": "텍스트",
+      "branch": "분기",
+      "variable": "변수"
+    },
+    "preview": {
+      "noVisualMedia": "현재 시점에 시각 미디어가 없습니다",
+      "zoomMode": "Preview zoom",
+      "fit": "Fit",
+      "fill": "Fill",
+      "actualSize": "100%"
+    },
+    "inspector": {
+      "title": "인스펙터",
+      "noClipSelected": "선택한 clip 없음",
+      "empty": "타임라인 clip 을 선택해 시간, 트림, 오버레이 영역, 액션을 편집하세요.",
+      "timedActionStored": "이 시간 기반 인터랙션은 노드에 저장되며 재생 헤드가 도달하면 실행됩니다."
+    },
+    "timeline": {
+      "title": "NodeTimeline v2",
+      "zoom": "타임라인 확대/축소",
+      "zoomOut": "축소",
+      "zoomIn": "확대",
+      "zoomFit": "타임라인 맞춤",
+      "seekTimeline": "타임라인 탐색",
+      "addMedia": "미디어 추가",
+      "mainScene": "메인 씬",
+      "toolbar": {
+        "undo": "실행 취소",
+        "redo": "다시 실행",
+        "split": "분할",
+        "splitLeft": "왼쪽 자르기",
+        "splitRight": "오른쪽 자르기",
+        "extractAudio": "오디오 추출",
+        "recoverAudio": "오디오 복구",
+        "link": "연결",
+        "duplicate": "복제",
+        "freeze": "프리즈 프레임",
+        "marker": "마커",
+        "snap": "스냅",
+        "showTrack": "트랙 표시",
+        "hideTrack": "트랙 숨기기",
+        "muteTrack": "트랙 음소거",
+        "unmuteTrack": "트랙 음소거 해제",
+        "showClips": "클립 표시",
+        "hideClips": "클립 숨기기",
+        "muteClips": "클립 음소거",
+        "unmuteClips": "클립 음소거 해제",
+        "lockTrack": "트랙 잠금",
+        "unlockTrack": "트랙 잠금 해제",
+        "collapseTrack": "트랙 접기",
+        "expandTrack": "트랙 펼치기",
+        "addTrack": "트랙 추가",
+        "moveTrackUp": "트랙 위로 이동",
+        "moveTrackDown": "트랙 아래로 이동",
+        "enableSnap": "스냅 켜기",
+        "disableSnap": "스냅 끄기",
+        "removeMarker": "마커 제거",
+        "unlink": "연결 해제",
+        "enableRipple": "리플 편집 사용",
+        "disableRipple": "리플 편집 사용 안 함",
+        "expandKeyframes": "키프레임 펼치기",
+        "collapseKeyframes": "키프레임 접기"
+      },
+      "context": {
+        "copy": "복사",
+        "cut": "잘라내기",
+        "paste": "붙여넣기",
+        "duplicate": "복제",
+        "link": "연결",
+        "unlink": "연결 해제",
+        "split": "분할",
+        "splitLeft": "왼쪽 자르기",
+        "splitRight": "오른쪽 자르기",
+        "extractAudio": "오디오 추출",
+        "recoverAudio": "오디오 복구",
+        "freeze": "프리즈 프레임",
+        "delete": "삭제",
+        "deleteTrack": "트랙 삭제",
+        "addMarker": "마커 추가",
+        "removeMarker": "마커 제거",
+        "addMedia": "미디어 추가",
+        "enableClips": "클립 사용",
+        "disableClips": "클립 사용 안 함",
+        "showClips": "클립 표시",
+        "hideClips": "클립 숨기기",
+        "muteClips": "클립 음소거",
+        "unmuteClips": "클립 음소거 해제",
+        "seekToKeyframe": "키프레임으로 이동",
+        "linearKeyframes": "선형 보간",
+        "holdKeyframes": "홀드 보간",
+        "deleteKeyframe": "키프레임 삭제",
+        "expandKeyframes": "키프레임 펼치기",
+        "collapseKeyframes": "키프레임 접기"
+      },
+      "addMediaTrack": "미디어 트랙 추가",
+      "addInteractionTrack": "인터랙션 트랙 추가",
+      "markerAt": "{time}초 마커",
+      "markerLabel": "마커 {time}초",
+      "keyframeAt": "{time}s 키프레임"
+    },
+    "tracks": {
+      "media": "미디어",
+      "overlay": "오버레이",
+      "audio": "오디오",
+      "interaction": "인터랙션"
+    },
+    "fields": {
+      "name": "이름",
+      "label": "라벨",
+      "text": "텍스트",
+      "start": "시작",
+      "duration": "길이",
+      "sourceIn": "소스 시작",
+      "sourceDuration": "소스 길이",
+      "sourceOut": "소스 종료",
+      "freezeFrame": "프리즈 프레임",
+      "volume": "볼륨",
+      "opacity": "불투명도",
+      "rotation": "회전",
+      "speed": "속도",
+      "preservePitch": "피치 유지",
+      "fontSize": "글자 크기",
+      "color": "색상",
+      "background": "배경",
+      "align": "정렬",
+      "alignLeft": "왼쪽",
+      "alignCenter": "가운데",
+      "alignRight": "오른쪽",
+      "source": "소스",
+      "action": "액션",
+      "variableKey": "변수 키",
+      "variableValue": "값",
+      "pauseOnShow": "표시 시 일시정지",
+      "resumeOnClick": "클릭 시 재개",
+      "showHint": "힌트 표시",
+      "enabled": "사용",
+      "hidden": "숨김",
+      "muted": "음소거",
+      "fit": "Fit",
+      "fitContain": "Contain",
+      "fitCover": "Cover",
+      "keyframes": "키프레임",
+      "keyframeCount": "키프레임 {count}개",
+      "addOpacityKeyframe": "불투명도 키프레임 추가",
+      "addRotationKeyframe": "회전 키프레임 추가",
+      "addPositionKeyframe": "위치 키프레임 추가",
+      "addVolumeKeyframe": "볼륨 키프레임 추가",
+      "x": "X",
+      "y": "Y",
+      "width": "너비",
+      "height": "높이"
+    },
+    "mediaTypes": {
+      "image": "이미지",
+      "video": "동영상",
+      "audio": "오디오",
+      "text": "텍스트"
     }
   },
   "assets": {
@@ -222,10 +498,22 @@
     "startCreating": "창작 시작",
     "featuresTitle": "제품 기능",
     "features": {
-      "nodeStory": { "title": "노드 스토리텔링", "description": "스토리 분기 구성" },
-      "interactivePreview": { "title": "인터랙티브 미리보기", "description": "스토리를 바로 플레이" },
-      "assetManagement": { "title": "소재 관리", "description": "소재를 한곳에서 관리" },
-      "localExport": { "title": "로컬 내보내기", "description": "스토리 패키지 내보내기" }
+      "nodeStory": {
+        "title": "노드 스토리텔링",
+        "description": "스토리 분기 구성"
+      },
+      "interactivePreview": {
+        "title": "인터랙티브 미리보기",
+        "description": "스토리를 바로 플레이"
+      },
+      "assetManagement": {
+        "title": "소재 관리",
+        "description": "소재를 한곳에서 관리"
+      },
+      "localExport": {
+        "title": "로컬 내보내기",
+        "description": "스토리 패키지 내보내기"
+      }
     },
     "localDrafts": "로컬 초안",
     "draftSummary": "프로젝트 {projects}개 · 노드 {nodes}개 · 소재 {assets}개",
@@ -250,7 +538,9 @@
     "projectCardStats": "노드 {nodes}개 · 소재 {assets}개",
     "nodesCount": "노드 {count}개",
     "edgesCount": "연결 {count}개",
-    "assetsCount": "소재 {count}개"
+    "assetsCount": "소재 {count}개",
+    "openBlueprint": "Editor",
+    "openNodeTimeline": "노드"
   },
   "locale": {
     "zh-CN": "简体中文",
@@ -304,19 +594,43 @@
       "eyebrow": "OpenFMV 로컬 에디터",
       "title": "개인정보",
       "description": "OpenFMV는 현재 계정, 클라우드 동기화, 호스팅 백엔드가 없는 로컬 우선 데스크톱 앱입니다.",
-      "localData": { "title": "로컬 데이터", "body": "프로젝트, 설정, 소재 인덱스는 기본적으로 이 기기에 저장됩니다." },
-      "assets": { "title": "소재 파일", "body": "가져온 소재는 로컬 프로젝트 폴더 또는 브라우저 로컬 저장소에 복사됩니다." },
-      "ai": { "title": "AI 설정", "body": "AI 채팅은 설정에서 선택한 로컬 CLI를 통해 실행됩니다." },
-      "updates": { "title": "변경", "body": "향후 네트워크 기능을 추가하면 이 개인정보 안내도 함께 업데이트해야 합니다." }
+      "localData": {
+        "title": "로컬 데이터",
+        "body": "프로젝트, 설정, 소재 인덱스는 기본적으로 이 기기에 저장됩니다."
+      },
+      "assets": {
+        "title": "소재 파일",
+        "body": "가져온 소재는 로컬 프로젝트 폴더 또는 브라우저 로컬 저장소에 복사됩니다."
+      },
+      "ai": {
+        "title": "AI 설정",
+        "body": "AI 채팅은 설정에서 선택한 로컬 CLI를 통해 실행됩니다."
+      },
+      "updates": {
+        "title": "변경",
+        "body": "향후 네트워크 기능을 추가하면 이 개인정보 안내도 함께 업데이트해야 합니다."
+      }
     },
     "terms": {
       "eyebrow": "OpenFMV 로컬 에디터",
       "title": "이용 약관",
       "description": "현재 로컬 버전의 사용 범위를 설명합니다.",
-      "localFirst": { "title": "로컬 우선", "body": "OpenFMV는 로컬 창작 워크플로를 위한 앱이며 계정이나 클라우드 동기화를 포함하지 않습니다." },
-      "content": { "title": "창작 콘텐츠", "body": "가져온 소재와 생성 콘텐츠의 권리, 저장, 백업은 사용자 책임입니다." },
-      "exports": { "title": "내보내기", "body": "내보낸 스토리 패키지는 사용자가 선택한 로컬 디렉터리에 기록됩니다." },
-      "responsibility": { "title": "책임", "body": "게시 전 인터랙션 흐름, 소재 경로, 내보내기 결과를 직접 테스트하세요." }
+      "localFirst": {
+        "title": "로컬 우선",
+        "body": "OpenFMV는 로컬 창작 워크플로를 위한 앱이며 계정이나 클라우드 동기화를 포함하지 않습니다."
+      },
+      "content": {
+        "title": "창작 콘텐츠",
+        "body": "가져온 소재와 생성 콘텐츠의 권리, 저장, 백업은 사용자 책임입니다."
+      },
+      "exports": {
+        "title": "내보내기",
+        "body": "내보낸 스토리 패키지는 사용자가 선택한 로컬 디렉터리에 기록됩니다."
+      },
+      "responsibility": {
+        "title": "책임",
+        "body": "게시 전 인터랙션 흐름, 소재 경로, 내보내기 결과를 직접 테스트하세요."
+      }
     }
   },
   "debug": {

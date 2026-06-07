@@ -68,8 +68,10 @@
     "nodeMode": "节点",
     "preview": "预览",
     "export": "导出",
+    "blueprintMode": "Editor",
+    "nodeMode": "节点",
     "startNode": "开始",
-    "storyTitlePrefix": "剧情节点",
+    "storyTitlePrefix": "场景",
     "endNode": "结束",
     "cancel": "取消",
     "deleteNodeConfirm": "确定删除这个节点吗？",
@@ -121,15 +123,54 @@
     "clearLocalCacheConfirm": "清除本地缓存？这会移除本地保存的编辑器数据。",
     "assetStoryFallback": "素材剧情",
     "emptyCanvasTitle": "开始搭建",
-    "emptyCanvasDescription": "添加开始节点，然后连接剧情和交互节点。",
+    "emptyCanvasDescription": "添加开始节点，然后连接场景。",
     "addStartNode": "添加开始节点",
     "dropFilesTitle": "拖放文件以导入素材",
     "dropFilesDescription": "图片、视频和文本可以绑定到节点；音频会保存到素材库。",
+    "nodePreview": {
+      "outputs": "Outputs",
+      "noOutputs": "No outputs",
+      "continue": "Continue",
+      "branch": "Branch",
+      "noAction": "No action",
+      "noMatch": "No match",
+      "fallback": "Fallback",
+      "choiceResult": "Choice result {index}",
+      "clicked": "{label} clicked",
+      "inputMatched": "{label} matched",
+      "sliderSucceeded": "{label} succeeded",
+      "defaultOutput": "Default",
+      "unlinked": "Unlinked",
+      "noMedia": "No media preview",
+      "video": "Video",
+      "image": "Image",
+      "audioOnly": "Audio only",
+      "previewAlt": "Node media preview",
+      "videoCount": "{count, plural, one {# video} other {# videos}}",
+      "imageCount": "{count, plural, one {# image} other {# images}}",
+      "audioCount": "{count, plural, one {# audio} other {# audio}}",
+      "interactionCount": "{count, plural, one {# interaction} other {# interactions}}",
+      "autoBranchAt": "{time}s auto branch",
+      "endState": "End state",
+      "openInNodes": "进入 Nodes 编辑"
+    },
     "nodeTypes": {
-      "start": { "name": "开始节点", "description": "故事入口" },
-      "story": { "name": "剧情片段", "description": "展示画面和叙事文本" },
-      "interaction": { "name": "交互节点", "description": "选择、输入、滑动和倒计时" },
-      "end": { "name": "结束节点", "description": "剧情终点" }
+      "start": {
+        "name": "开始节点",
+        "description": "故事入口"
+      },
+      "story": {
+        "name": "场景",
+        "description": "承载可播放媒体和交互"
+      },
+      "interaction": {
+        "name": "旧版交互节点",
+        "description": "旧项目兼容节点"
+      },
+      "end": {
+        "name": "结束节点",
+        "description": "剧情终点"
+      }
     },
     "loading": {
       "start": "启动 OpenFMV 编辑器...",
@@ -138,6 +179,241 @@
       "calibrateConnections": "校准交互连线...",
       "prepareAssets": "准备本地素材...",
       "enterEditor": "即将进入编辑器..."
+    }
+  },
+  "nodeTimeline": {
+    "fallback": {
+      "start": "开始",
+      "end": "结束",
+      "interaction": "交互",
+      "story": "场景",
+      "branch": "分支",
+      "sliderSuccess": "滑动成功",
+      "defaultBranch": "默认分支"
+    },
+    "empty": {
+      "noNodesTitle": "还没有节点",
+      "noNodesDescription": "先在 Editor 模式创建剧情节点，再在这里编辑每个节点的时间线。",
+      "blueprint": "Editor"
+    },
+    "tabs": {
+      "assets": "素材",
+      "nodes": "节点",
+      "interactions": "交互"
+    },
+    "panel": {
+      "assets": "素材",
+      "nodeTimeline": "节点时间线",
+      "interactionLibrary": "交互库",
+      "interactions": "交互",
+      "summary": "{media} 个媒体 / {interactions} 个交互 / {duration}秒",
+      "nodes": "节点",
+      "nodeMeta": "{type} / {clips} 个 clip",
+      "currentNodeClips": "当前节点 clip",
+      "noInteractionClips": "当前节点还没有交互 clip。",
+      "listView": "列表视图",
+      "gridView": "网格视图",
+      "sort": "排序",
+      "sortByName": "按名称排序",
+      "sortByRecent": "按最近导入排序",
+      "dropMedia": "将视频、图片和音频文件拖到这里",
+      "dropAudio": "将音频文件拖到这里",
+      "dropText": "将文本文件拖到这里",
+      "dragMediaToTimeline": "点击添加到播放头，或将素材拖到媒体轨。",
+      "dragAudioToTimeline": "点击将音频添加到播放头，或拖到媒体轨。",
+      "clickTextToApply": "点击文本素材添加到播放头。",
+      "dragTextToTimeline": "点击将文本添加到播放头，或拖到交互轨。",
+      "addToTimeline": "添加到时间线",
+      "removeAsset": "移除素材",
+      "removeAssetConfirm": "确定从《{projectTitle}》移除素材「{assetName}」吗？",
+      "removeAssetFailed": "移除素材失败。",
+      "applyTextToNode": "添加文本到时间线",
+      "addTextToTimeline": "添加文本到时间线",
+      "textTemplate": "文本",
+      "emptyTextAsset": "空文本素材",
+      "importing": "导入中",
+      "unsupportedMedia": "节点时间线只能使用视频、图片、音频和文本素材。",
+      "importFailed": "媒体导入失败。",
+      "quotaExceeded": "导入失败：浏览器存储空间不足。",
+      "selectProjectBeforeImport": "请先选择或创建项目，再导入素材。"
+    },
+    "rail": {
+      "audio": "音频",
+      "text": "文本"
+    },
+    "actions": {
+      "addMediaClip": "添加媒体 clip",
+      "addInteraction": "添加交互",
+      "import": "导入",
+      "play": "播放",
+      "pause": "暂停",
+      "continueCurrentMedia": "继续当前媒体",
+      "deleteClip": "删除 clip",
+      "delete": "删除",
+      "branch": "分支",
+      "setVariable": "设置变量"
+    },
+    "clipTypes": {
+      "button": "按钮",
+      "hotspot": "热区",
+      "pauseGate": "暂停门",
+      "text": "文本",
+      "branch": "分支",
+      "variable": "变量"
+    },
+    "mediaTypes": {
+      "image": "图片",
+      "video": "视频",
+      "audio": "音频",
+      "text": "文本"
+    },
+    "preview": {
+      "noVisualMedia": "当前时间没有视觉媒体",
+      "zoomMode": "预览缩放",
+      "fit": "适应",
+      "fill": "填充",
+      "actualSize": "100%"
+    },
+    "inspector": {
+      "title": "检查器",
+      "noClipSelected": "未选中 clip",
+      "empty": "选择一个 timeline clip 来编辑时间、修剪、覆盖区域和 action。",
+      "timedActionStored": "该定时交互动作会随节点保存，并在播放头到达时触发。"
+    },
+    "timeline": {
+      "title": "NodeTimeline v2",
+      "zoom": "时间线缩放",
+      "zoomOut": "缩小",
+      "zoomIn": "放大",
+      "zoomFit": "适配时间线",
+      "seekTimeline": "定位时间线",
+      "addMedia": "添加媒体",
+      "addMediaTrack": "添加媒体轨道",
+      "addInteractionTrack": "添加交互轨道",
+      "markerAt": "{time}秒标记",
+      "markerLabel": "标记 {time}秒",
+      "mainScene": "主场景",
+      "toolbar": {
+        "undo": "撤销",
+        "redo": "重做",
+        "split": "分割",
+        "splitLeft": "切除左侧",
+        "splitRight": "切除右侧",
+        "extractAudio": "拆分原声",
+        "recoverAudio": "恢复原声",
+        "link": "链接",
+        "unlink": "取消链接",
+        "duplicate": "复制",
+        "freeze": "冻结帧",
+        "marker": "标记",
+        "removeMarker": "移除标记",
+        "snap": "吸附",
+        "enableSnap": "启用吸附",
+        "disableSnap": "关闭吸附",
+        "enableRipple": "启用波纹编辑",
+        "disableRipple": "关闭波纹编辑",
+        "showTrack": "显示轨道",
+        "hideTrack": "隐藏轨道",
+        "muteTrack": "静音轨道",
+        "unmuteTrack": "取消静音轨道",
+        "showClips": "显示片段",
+        "hideClips": "隐藏片段",
+        "muteClips": "静音片段",
+        "unmuteClips": "取消静音片段",
+        "lockTrack": "锁定轨道",
+        "unlockTrack": "解锁轨道",
+        "collapseTrack": "折叠轨道",
+        "expandTrack": "展开轨道",
+        "addTrack": "添加轨道",
+        "moveTrackUp": "上移轨道",
+        "moveTrackDown": "下移轨道",
+        "expandKeyframes": "展开关键帧",
+        "collapseKeyframes": "折叠关键帧"
+      },
+      "context": {
+        "copy": "复制",
+        "cut": "剪切",
+        "paste": "粘贴",
+        "duplicate": "复制副本",
+        "link": "链接",
+        "unlink": "取消链接",
+        "split": "分割",
+        "splitLeft": "切除左侧",
+        "splitRight": "切除右侧",
+        "extractAudio": "拆分原声",
+        "recoverAudio": "恢复原声",
+        "freeze": "冻结帧",
+        "delete": "删除",
+        "deleteTrack": "删除轨道",
+        "addMarker": "添加标记",
+        "removeMarker": "移除标记",
+        "addMedia": "添加媒体",
+        "enableClips": "启用片段",
+        "disableClips": "禁用片段",
+        "showClips": "显示片段",
+        "hideClips": "隐藏片段",
+        "muteClips": "静音片段",
+        "unmuteClips": "取消静音片段",
+        "seekToKeyframe": "定位到关键帧",
+        "linearKeyframes": "线性插值",
+        "holdKeyframes": "保持插值",
+        "deleteKeyframe": "删除关键帧",
+        "expandKeyframes": "展开关键帧",
+        "collapseKeyframes": "折叠关键帧"
+      },
+      "keyframeAt": "{time}s 关键帧"
+    },
+    "tracks": {
+      "media": "媒体",
+      "overlay": "叠加",
+      "audio": "音频",
+      "interaction": "交互"
+    },
+    "fields": {
+      "name": "名称",
+      "label": "标签",
+      "text": "文本",
+      "start": "开始",
+      "duration": "时长",
+      "sourceIn": "源入点",
+      "sourceDuration": "源时长",
+      "sourceOut": "源出点",
+      "freezeFrame": "冻结帧",
+      "volume": "音量",
+      "opacity": "不透明度",
+      "rotation": "旋转",
+      "speed": "速度",
+      "preservePitch": "保持音调",
+      "fontSize": "字号",
+      "color": "颜色",
+      "background": "背景",
+      "align": "对齐",
+      "alignLeft": "左对齐",
+      "alignCenter": "居中",
+      "alignRight": "右对齐",
+      "source": "源",
+      "action": "动作",
+      "variableKey": "变量名",
+      "variableValue": "值",
+      "pauseOnShow": "显示时暂停",
+      "resumeOnClick": "点击后继续",
+      "showHint": "显示提示",
+      "enabled": "启用",
+      "hidden": "隐藏",
+      "muted": "静音",
+      "fit": "适配",
+      "fitContain": "包含",
+      "fitCover": "覆盖",
+      "keyframes": "关键帧",
+      "keyframeCount": "{count} 个关键帧",
+      "addOpacityKeyframe": "添加不透明度关键帧",
+      "addRotationKeyframe": "添加旋转关键帧",
+      "addPositionKeyframe": "添加位置关键帧",
+      "addVolumeKeyframe": "添加音量关键帧",
+      "x": "X",
+      "y": "Y",
+      "width": "宽度",
+      "height": "高度"
     }
   },
   "assets": {
@@ -222,10 +498,22 @@
     "startCreating": "开始创作",
     "featuresTitle": "产品特性",
     "features": {
-      "nodeStory": { "title": "节点叙事", "description": "组织剧情分支" },
-      "interactivePreview": { "title": "互动预览", "description": "直接试玩故事" },
-      "assetManagement": { "title": "素材管理", "description": "集中管理素材" },
-      "localExport": { "title": "本地导出", "description": "导出故事包" }
+      "nodeStory": {
+        "title": "节点叙事",
+        "description": "组织剧情分支"
+      },
+      "interactivePreview": {
+        "title": "互动预览",
+        "description": "直接试玩故事"
+      },
+      "assetManagement": {
+        "title": "素材管理",
+        "description": "集中管理素材"
+      },
+      "localExport": {
+        "title": "本地导出",
+        "description": "导出故事包"
+      }
     },
     "localDrafts": "本地草稿",
     "draftSummary": "{projects} 个项目 · {nodes} 个节点 · {assets} 个素材",
@@ -250,7 +538,9 @@
     "projectCardStats": "{nodes} 节点 · {assets} 素材",
     "nodesCount": "{count} 节点",
     "edgesCount": "{count} 连线",
-    "assetsCount": "{count} 素材"
+    "assetsCount": "{count} 素材",
+    "openBlueprint": "Editor",
+    "openNodeTimeline": "节点"
   },
   "locale": {
     "zh-CN": "简体中文",
@@ -304,19 +594,43 @@
       "eyebrow": "OpenFMV 本地编辑器",
       "title": "隐私",
       "description": "OpenFMV 当前是本地优先桌面应用，不提供账号、云同步或托管后端。",
-      "localData": { "title": "本地数据", "body": "项目、设置和素材索引默认保存在你的设备上。" },
-      "assets": { "title": "素材文件", "body": "导入素材会复制到本地项目目录或浏览器本地存储中。" },
-      "ai": { "title": "AI 设置", "body": "AI 聊天通过你在设置中选择的本地 CLI 运行。" },
-      "updates": { "title": "变更", "body": "如果未来加入网络功能，隐私说明应随功能一起更新。" }
+      "localData": {
+        "title": "本地数据",
+        "body": "项目、设置和素材索引默认保存在你的设备上。"
+      },
+      "assets": {
+        "title": "素材文件",
+        "body": "导入素材会复制到本地项目目录或浏览器本地存储中。"
+      },
+      "ai": {
+        "title": "AI 设置",
+        "body": "AI 聊天通过你在设置中选择的本地 CLI 运行。"
+      },
+      "updates": {
+        "title": "变更",
+        "body": "如果未来加入网络功能，隐私说明应随功能一起更新。"
+      }
     },
     "terms": {
       "eyebrow": "OpenFMV 本地编辑器",
       "title": "使用条款",
       "description": "这些条款说明当前本地版本的使用边界。",
-      "localFirst": { "title": "本地优先", "body": "OpenFMV 面向本地创作工作流，不包含账号或云端同步。" },
-      "content": { "title": "创作内容", "body": "你负责导入素材和生成内容的授权、保存和备份。" },
-      "exports": { "title": "导出", "body": "导出的故事包会写入你选择的本地目录。" },
-      "responsibility": { "title": "责任", "body": "请在发布前自行测试互动流程、素材路径和导出结果。" }
+      "localFirst": {
+        "title": "本地优先",
+        "body": "OpenFMV 面向本地创作工作流，不包含账号或云端同步。"
+      },
+      "content": {
+        "title": "创作内容",
+        "body": "你负责导入素材和生成内容的授权、保存和备份。"
+      },
+      "exports": {
+        "title": "导出",
+        "body": "导出的故事包会写入你选择的本地目录。"
+      },
+      "responsibility": {
+        "title": "责任",
+        "body": "请在发布前自行测试互动流程、素材路径和导出结果。"
+      }
     }
   },
   "debug": {

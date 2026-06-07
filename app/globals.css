@@ -75,6 +75,19 @@ select {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
 }
 
+.openfmv-dark-select {
+  color-scheme: dark;
+}
+
+.openfmv-dark-select option {
+  color: var(--text-main);
+  background-color: #171717;
+}
+
+.openfmv-dark-select option:checked {
+  background-color: #2a2a2a;
+}
+
 .openfmv-infinite-canvas {
   background:
     radial-gradient(circle at 18% 10%, rgba(56, 189, 248, 0.05), transparent 24%),
@@ -95,6 +108,55 @@ select {
 
 .openfmv-flow-surface {
   background: transparent !important;
+}
+
+.openfmv-flow-surface,
+.openfmv-flow-surface .react-flow__container,
+.openfmv-flow-surface .react-flow__pane,
+.openfmv-flow-surface .react-flow__pane.selection,
+.openfmv-flow-surface .react-flow__renderer,
+.openfmv-flow-surface .react-flow__viewport,
+.openfmv-flow-surface .react-flow__nodes,
+.openfmv-flow-surface .react-flow__node,
+.openfmv-flow-surface .react-flow__node.selectable,
+.openfmv-flow-surface .react-flow__node.draggable,
+.openfmv-flow-surface .react-flow__edges,
+.openfmv-flow-surface .react-flow__edges svg,
+.openfmv-flow-surface .react-flow__edge,
+.openfmv-flow-surface .react-flow__edge.selectable,
+.openfmv-flow-surface .react-flow__edge-path,
+.openfmv-flow-surface .react-flow__edge-interaction,
+.openfmv-flow-surface .react-flow__handle,
+.openfmv-flow-surface .react-flow__handle.connectionindicator,
+.openfmv-flow-surface .react-flow__nodesselection-rect {
+  cursor: default !important;
+}
+
+.openfmv-flow-surface .react-flow__pane.dragging,
+.openfmv-flow-surface .react-flow__node.dragging,
+.openfmv-flow-surface .react-flow__nodesselection-rect:active {
+  cursor: default !important;
+}
+
+.openfmv-flow-surface button,
+.openfmv-flow-surface [role="button"] {
+  cursor: default !important;
+}
+
+.openfmv-flow-surface input,
+.openfmv-flow-surface textarea,
+.openfmv-flow-surface [contenteditable="true"] {
+  cursor: default !important;
+}
+
+body:has(.openfmv-editor-shell),
+body:has(.openfmv-editor-shell) * {
+  cursor: default !important;
+}
+
+body:has(.openfmv-editor-shell) .openfmv-editor-shell,
+body:has(.openfmv-editor-shell) .openfmv-editor-shell * {
+  cursor: default !important;
 }
 
 .react-flow__background {

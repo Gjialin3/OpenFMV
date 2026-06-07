@@ -53,6 +53,7 @@ const MOJIBAKE_PATTERN = new RegExp([
   '\\u6d93',
   '\\u6d58',
 ].join('|'));
+const MESSAGE_PLACEHOLDER_PATTERN = /\?{2,}/;
 
 const shouldScanFile = (filePath) => TEXT_EXTENSIONS.has(path.extname(filePath).toLowerCase());
 
@@ -83,22 +84,25 @@ for (const filePath of walk(ROOT)) {
   const lines = content.split(/\r?\n/);
   lines.forEach((line, index) => {
     const match = MOJIBAKE_PATTERN.exec(line);
-    if (!match) return;
+    const relativePath = path.relative(ROOT, filePath);
+    const placeholderMatch = relativePath.startsWith(`messages${path.sep}`) ? MESSAGE_PLACEHOLDER_PATTERN.exec(line) : null;
+    if (!match && !placeholderMatch) return;
+    const activeMatch = match || placeholderMatch;
     findings.push({
-      filePath: path.relative(ROOT, filePath),
+      filePath: relativePath,
       line: index + 1,
-      column: match.index + 1,
+      column: activeMatch.index + 1,
       text: line.trim(),
     });
   });
 }
 
 if (findings.length > 0) {
-  console.error('Locale guard found possible mojibake text:');
+  console.error('Locale guard found possible mojibake or placeholder text:');
   for (const finding of findings) {
     console.error(`${finding.filePath}:${finding.line}:${finding.column} ${finding.text}`);
   }
   process.exit(1);
 }
 
-console.log('Locale guard passed: no common mojibake patterns found.');
+console.log('Locale guard passed: no common mojibake or placeholder patterns found.');

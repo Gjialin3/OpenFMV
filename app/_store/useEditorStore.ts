@@ -10,7 +10,14 @@ import {
 } from '@xyflow/react';
 
 import { AppNode, AppEdge } from '../_types';
-import { addGraphEdge, addNodeAndGraphEdge, filterEdgesForNodes } from '../_utils/graphRules';
+import { addGraphEdge, filterEdgesForNodes } from '../_utils/graphRules';
+import {
+  isTimelineOutputHandleId,
+  syncTimelineOutputEdges,
+  updateTimelineOutputActionForConnection,
+  updateTimelineOutputActionsForEdges,
+  upsertTimelineOutputEdge,
+} from '../_utils/timelineOutputEdges';
 
 export type EdgeCurveStyle = 'smoothstep' | 'bezier' | 'straight';
 
@@ -54,6 +61,10 @@ const DEFAULT_AUTO_SAVE_ENABLED = true;
 
 const ensureNodes = (nodes: AppNode[] | undefined): AppNode[] => {
   return Array.isArray(nodes) && nodes.length > 0 ? nodes : createInitialNodes();
+};
+
+const getSelectedNode = (nodes: AppNode[], selectedNodeId: string | null) => {
+  return selectedNodeId ? (nodes.find((node) => node.id === selectedNodeId) ?? null) : null;
 };
 
 interface EditorState {
@@ -104,23 +115,54 @@ export const useEditorStore = create<EditorState>()(
       setCurrentProjectId: (id) => set({ currentProjectId: id }),
       setNodes: (nodes) => {
         const ensuredNodes = ensureNodes(nodes);
-        set({ nodes: ensuredNodes, edges: filterEdgesForNodes(get().edges, ensuredNodes) });
+        const edges = syncTimelineOutputEdges(ensuredNodes, filterEdgesForNodes(get().edges, ensuredNodes));
+        set({ nodes: ensuredNodes, edges, selectedNode: getSelectedNode(ensuredNodes, get().selectedNodeId) });
       },
-      setEdges: (edges) => set({ edges: filterEdgesForNodes(edges, get().nodes) }),
+      setEdges: (edges) => {
+        const { nodes, edges: previousEdges, selectedNodeId } = get();
+        const filteredEdges = filterEdgesForNodes(edges, nodes);
+        const nextNodes = updateTimelineOutputActionsForEdges(nodes, previousEdges, filteredEdges);
+        set({
+          nodes: nextNodes,
+          edges: syncTimelineOutputEdges(nextNodes, filteredEdges),
+          selectedNode: getSelectedNode(nextNodes, selectedNodeId),
+        });
+      },
 
       onNodesChange: (changes) => {
+        const { edges: previousEdges, selectedNodeId } = get();
         const nodes = applyNodeChanges(changes, get().nodes) as AppNode[];
-        set({ nodes, edges: filterEdgesForNodes(get().edges, nodes) });
+        const filteredEdges = filterEdgesForNodes(previousEdges, nodes);
+        const nextNodes = updateTimelineOutputActionsForEdges(nodes, previousEdges, filteredEdges);
+        set({
+          nodes: nextNodes,
+          edges: syncTimelineOutputEdges(nextNodes, filteredEdges),
+          selectedNode: getSelectedNode(nextNodes, selectedNodeId),
+        });
       },
 
       onEdgesChange: (changes) => {
-        const edges = applyEdgeChanges(changes, get().edges) as AppEdge[];
-        set({ edges: filterEdgesForNodes(edges, get().nodes) });
+        const { nodes, edges: previousEdges, selectedNodeId } = get();
+        const filteredEdges = filterEdgesForNodes(applyEdgeChanges(changes, previousEdges) as AppEdge[], nodes);
+        const nextNodes = updateTimelineOutputActionsForEdges(nodes, previousEdges, filteredEdges);
+        set({
+          nodes: nextNodes,
+          edges: syncTimelineOutputEdges(nextNodes, filteredEdges),
+          selectedNode: getSelectedNode(nextNodes, selectedNodeId),
+        });
       },
 
       onConnect: (connection) => {
-        const { nodes, edges } = get();
-        set({ edges: addGraphEdge(connection, edges, nodes) });
+        const { nodes, edges, selectedNodeId } = get();
+        const nextNodes = updateTimelineOutputActionForConnection(nodes, connection);
+        const nextEdges = isTimelineOutputHandleId(connection.sourceHandle)
+          ? upsertTimelineOutputEdge(connection, edges, nextNodes)
+          : addGraphEdge(connection, edges, nextNodes);
+        set({
+          nodes: nextNodes,
+          edges: syncTimelineOutputEdges(nextNodes, nextEdges),
+          selectedNode: getSelectedNode(nextNodes, selectedNodeId),
+        });
       },
 
       addNode: (node) => {
@@ -128,8 +170,26 @@ export const useEditorStore = create<EditorState>()(
       },
 
       addNodeAndConnect: (node, connection) => {
-        const { nodes, edges } = get();
-        set(addNodeAndGraphEdge(node, connection, nodes, edges));
+        const { nodes, edges, selectedNodeId } = get();
+        if (isTimelineOutputHandleId(connection.sourceHandle)) {
+          const nodesWithNewNode = [...nodes, node];
+          const nextNodes = updateTimelineOutputActionForConnection(nodesWithNewNode, connection);
+          set({
+            nodes: nextNodes,
+            edges: syncTimelineOutputEdges(nextNodes, upsertTimelineOutputEdge(connection, edges, nextNodes)),
+            selectedNode: getSelectedNode(nextNodes, selectedNodeId),
+          });
+          return;
+        }
+
+        const nextEdges = addGraphEdge(connection, edges, [...nodes, node]);
+        if (nextEdges === edges) return;
+        const nextNodes = updateTimelineOutputActionForConnection([...nodes, node], connection);
+        set({
+          nodes: nextNodes,
+          edges: syncTimelineOutputEdges(nextNodes, nextEdges),
+          selectedNode: getSelectedNode(nextNodes, selectedNodeId),
+        });
       },
 
       updateNodeData: (id, data) => {
@@ -141,16 +201,23 @@ export const useEditorStore = create<EditorState>()(
             data: { ...node.data, ...data } as AppNode['data'],
           };
         });
-        const updatedSelectedNode = selectedNodeId === id ? (updatedNodes.find((node) => node.id === id) ?? null) : get().selectedNode;
-        set({ nodes: updatedNodes, selectedNode: updatedSelectedNode });
+        set({
+          nodes: updatedNodes,
+          edges: syncTimelineOutputEdges(updatedNodes, get().edges),
+          selectedNode: getSelectedNode(updatedNodes, selectedNodeId),
+        });
       },
 
       removeNode: (id) => {
-        const { selectedNodeId } = get();
+        const { edges, selectedNodeId } = get();
+        const nodes = get().nodes.filter((node) => node.id !== id);
+        const filteredEdges = edges.filter((edge) => edge.source !== id && edge.target !== id);
+        const nextNodes = updateTimelineOutputActionsForEdges(nodes, edges, filteredEdges);
         set({
-          nodes: get().nodes.filter((node) => node.id !== id),
-          edges: get().edges.filter((edge) => edge.source !== id && edge.target !== id),
+          nodes: nextNodes,
+          edges: syncTimelineOutputEdges(nextNodes, filteredEdges),
           ...(selectedNodeId === id ? { selectedNodeId: null, selectedNode: null } : {}),
+          ...(selectedNodeId !== id ? { selectedNode: getSelectedNode(nextNodes, selectedNodeId) } : {}),
         });
       },
 
@@ -189,10 +256,11 @@ export const useEditorStore = create<EditorState>()(
       merge: (persistedState, currentState) => {
         const state = { ...currentState, ...(persistedState as Partial<EditorState>) };
         const nodes = ensureNodes(state.nodes);
+        const edges = syncTimelineOutputEdges(nodes, filterEdgesForNodes(state.edges, nodes));
         return {
           ...state,
           nodes,
-          edges: filterEdgesForNodes(state.edges, nodes),
+          edges,
           selectedNodeId: null,
           selectedNode: null,
         };

@@ -68,8 +68,10 @@
     "nodeMode": "Nodes",
     "preview": "Preview",
     "export": "Export",
+    "blueprintMode": "Editor",
+    "nodeMode": "Nodes",
     "startNode": "Start",
-    "storyTitlePrefix": "Story node",
+    "storyTitlePrefix": "Scene",
     "endNode": "End",
     "cancel": "Cancel",
     "deleteNodeConfirm": "Delete this node?",
@@ -121,15 +123,54 @@
     "clearLocalCacheConfirm": "Clear local cache? This removes locally saved editor data.",
     "assetStoryFallback": "Asset story",
     "emptyCanvasTitle": "Start building",
-    "emptyCanvasDescription": "Add a start node, then connect story and interaction nodes.",
+    "emptyCanvasDescription": "Add a start node, then connect scenes.",
     "addStartNode": "Add start node",
     "dropFilesTitle": "Drop files to import assets",
     "dropFilesDescription": "Images, videos, and text can be bound to nodes; audio is saved to the asset library.",
+    "nodePreview": {
+      "outputs": "Outputs",
+      "noOutputs": "No outputs",
+      "continue": "Continue",
+      "branch": "Branch",
+      "noAction": "No action",
+      "noMatch": "No match",
+      "fallback": "Fallback",
+      "choiceResult": "Choice result {index}",
+      "clicked": "{label} clicked",
+      "inputMatched": "{label} matched",
+      "sliderSucceeded": "{label} succeeded",
+      "defaultOutput": "Default",
+      "unlinked": "Unlinked",
+      "noMedia": "No media preview",
+      "video": "Video",
+      "image": "Image",
+      "audioOnly": "Audio only",
+      "previewAlt": "Node media preview",
+      "videoCount": "{count, plural, one {# video} other {# videos}}",
+      "imageCount": "{count, plural, one {# image} other {# images}}",
+      "audioCount": "{count, plural, one {# audio} other {# audio}}",
+      "interactionCount": "{count, plural, one {# interaction} other {# interactions}}",
+      "autoBranchAt": "{time}s auto branch",
+      "endState": "End state",
+      "openInNodes": "Edit in Nodes"
+    },
     "nodeTypes": {
-      "start": { "name": "Start node", "description": "Story entry point" },
-      "story": { "name": "Story segment", "description": "Show media and narrative text" },
-      "interaction": { "name": "Interaction node", "description": "Choices, input, sliders, and timers" },
-      "end": { "name": "End node", "description": "Story ending" }
+      "start": {
+        "name": "Start node",
+        "description": "Story entry point"
+      },
+      "story": {
+        "name": "Scene",
+        "description": "Playable media and interactions"
+      },
+      "interaction": {
+        "name": "Legacy interaction",
+        "description": "Compatibility node from older projects"
+      },
+      "end": {
+        "name": "End node",
+        "description": "Story ending"
+      }
     },
     "loading": {
       "start": "Starting OpenFMV editor...",
@@ -138,6 +179,241 @@
       "calibrateConnections": "Calibrating connections...",
       "prepareAssets": "Preparing local assets...",
       "enterEditor": "Entering editor..."
+    }
+  },
+  "nodeTimeline": {
+    "fallback": {
+      "start": "Start",
+      "end": "End",
+      "interaction": "Interaction",
+      "story": "Scene",
+      "branch": "Branch",
+      "sliderSuccess": "Slider success",
+      "defaultBranch": "Default branch"
+    },
+    "empty": {
+      "noNodesTitle": "No nodes yet",
+      "noNodesDescription": "Create scenes in editor mode, then edit each node timeline here.",
+      "blueprint": "Editor"
+    },
+    "tabs": {
+      "assets": "Assets",
+      "nodes": "Nodes",
+      "interactions": "Interactions"
+    },
+    "panel": {
+      "assets": "Assets",
+      "nodeTimeline": "Node timeline",
+      "interactionLibrary": "Interaction library",
+      "interactions": "Interactions",
+      "summary": "{media} media / {interactions} interactions / {duration}s",
+      "nodes": "Nodes",
+      "nodeMeta": "{type} / {clips} clips",
+      "currentNodeClips": "Current node clips",
+      "noInteractionClips": "No interaction clips on this node yet.",
+      "listView": "List view",
+      "gridView": "Grid view",
+      "sort": "Sort",
+      "sortByName": "Sort by name",
+      "sortByRecent": "Sort by recent imports",
+      "dropMedia": "Drag and drop videos, photos, and audio files here",
+      "dropAudio": "Drag and drop audio files here",
+      "dropText": "Drag and drop text files here",
+      "dragMediaToTimeline": "Click to add to the playhead, or drag an asset to the media track.",
+      "dragAudioToTimeline": "Click to add audio at the playhead, or drag it to the media track.",
+      "clickTextToApply": "Click a text asset to add it at the playhead.",
+      "dragTextToTimeline": "Click to add text at the playhead, or drag it to the interaction track.",
+      "addToTimeline": "Add to timeline",
+      "removeAsset": "Remove asset",
+      "removeAssetConfirm": "Remove asset \"{assetName}\" from \"{projectTitle}\"?",
+      "removeAssetFailed": "Failed to remove asset.",
+      "applyTextToNode": "Add text to timeline",
+      "addTextToTimeline": "Add text to timeline",
+      "textTemplate": "Text",
+      "emptyTextAsset": "Empty text asset",
+      "importing": "Importing",
+      "unsupportedMedia": "Only video, image, audio, and text assets can be used in the node timeline.",
+      "importFailed": "Failed to import media.",
+      "quotaExceeded": "Import failed: browser storage quota exceeded.",
+      "selectProjectBeforeImport": "Select or create a project before importing assets."
+    },
+    "rail": {
+      "audio": "Audio",
+      "text": "Text"
+    },
+    "actions": {
+      "addMediaClip": "Add media clip",
+      "addInteraction": "Add interaction",
+      "import": "Import",
+      "play": "Play",
+      "pause": "Pause",
+      "continueCurrentMedia": "Continue current media",
+      "deleteClip": "Delete clip",
+      "delete": "Delete",
+      "branch": "Branch",
+      "setVariable": "Set variable"
+    },
+    "clipTypes": {
+      "button": "Button",
+      "hotspot": "Hotspot",
+      "pauseGate": "Pause gate",
+      "text": "Text",
+      "branch": "Branch",
+      "variable": "Variable"
+    },
+    "mediaTypes": {
+      "image": "Image",
+      "video": "Video",
+      "audio": "Audio",
+      "text": "Text"
+    },
+    "preview": {
+      "noVisualMedia": "No visual media at this time",
+      "zoomMode": "Preview zoom",
+      "fit": "Fit",
+      "fill": "Fill",
+      "actualSize": "100%"
+    },
+    "inspector": {
+      "title": "Inspector",
+      "noClipSelected": "No clip selected",
+      "empty": "Select a timeline clip to edit timing, trims, overlay area, and action.",
+      "timedActionStored": "This timed interaction action is saved with the node and runs when the playhead reaches it."
+    },
+    "timeline": {
+      "title": "NodeTimeline v2",
+      "zoom": "Timeline zoom",
+      "zoomOut": "Zoom out",
+      "zoomIn": "Zoom in",
+      "zoomFit": "Fit timeline",
+      "seekTimeline": "Seek timeline",
+      "addMedia": "Add media",
+      "addMediaTrack": "Add media track",
+      "addInteractionTrack": "Add interaction track",
+      "markerAt": "Marker at {time}s",
+      "markerLabel": "Marker {time}s",
+      "mainScene": "Main scene",
+      "toolbar": {
+        "undo": "Undo",
+        "redo": "Redo",
+        "split": "Split",
+        "splitLeft": "Split left",
+        "splitRight": "Split right",
+        "extractAudio": "Extract audio",
+        "recoverAudio": "Recover audio",
+        "link": "Link",
+        "unlink": "Unlink",
+        "duplicate": "Duplicate",
+        "freeze": "Freeze frame",
+        "marker": "Marker",
+        "removeMarker": "Remove marker",
+        "snap": "Snap",
+        "enableSnap": "Enable snap",
+        "disableSnap": "Disable snap",
+        "enableRipple": "Enable ripple editing",
+        "disableRipple": "Disable ripple editing",
+        "showTrack": "Show track",
+        "hideTrack": "Hide track",
+        "muteTrack": "Mute track",
+        "unmuteTrack": "Unmute track",
+        "showClips": "Show clips",
+        "hideClips": "Hide clips",
+        "muteClips": "Mute clips",
+        "unmuteClips": "Unmute clips",
+        "lockTrack": "Lock track",
+        "unlockTrack": "Unlock track",
+        "collapseTrack": "Collapse track",
+        "expandTrack": "Expand track",
+        "addTrack": "Add track",
+        "moveTrackUp": "Move track up",
+        "moveTrackDown": "Move track down",
+        "expandKeyframes": "Expand keyframes",
+        "collapseKeyframes": "Collapse keyframes"
+      },
+      "context": {
+        "copy": "Copy",
+        "cut": "Cut",
+        "paste": "Paste",
+        "duplicate": "Duplicate",
+        "link": "Link",
+        "unlink": "Unlink",
+        "split": "Split",
+        "splitLeft": "Split left",
+        "splitRight": "Split right",
+        "extractAudio": "Extract audio",
+        "recoverAudio": "Recover audio",
+        "freeze": "Freeze frame",
+        "delete": "Delete",
+        "deleteTrack": "Delete track",
+        "addMarker": "Add marker",
+        "removeMarker": "Remove marker",
+        "addMedia": "Add media",
+        "enableClips": "Enable clips",
+        "disableClips": "Disable clips",
+        "showClips": "Show clips",
+        "hideClips": "Hide clips",
+        "muteClips": "Mute clips",
+        "unmuteClips": "Unmute clips",
+        "seekToKeyframe": "Seek to keyframe",
+        "linearKeyframes": "Linear interpolation",
+        "holdKeyframes": "Hold interpolation",
+        "deleteKeyframe": "Delete keyframe",
+        "expandKeyframes": "Expand keyframes",
+        "collapseKeyframes": "Collapse keyframes"
+      },
+      "keyframeAt": "Keyframe at {time}s"
+    },
+    "tracks": {
+      "media": "Media",
+      "overlay": "Overlay",
+      "audio": "Audio",
+      "interaction": "Interaction"
+    },
+    "fields": {
+      "name": "Name",
+      "label": "Label",
+      "text": "Text",
+      "start": "Start",
+      "duration": "Duration",
+      "sourceIn": "Source in",
+      "sourceDuration": "Source duration",
+      "sourceOut": "Source out",
+      "freezeFrame": "Freeze frame",
+      "volume": "Volume",
+      "opacity": "Opacity",
+      "rotation": "Rotation",
+      "speed": "Speed",
+      "preservePitch": "Preserve pitch",
+      "fontSize": "Font size",
+      "color": "Color",
+      "background": "Background",
+      "align": "Align",
+      "alignLeft": "Left",
+      "alignCenter": "Center",
+      "alignRight": "Right",
+      "source": "Source",
+      "action": "Action",
+      "variableKey": "Variable key",
+      "variableValue": "Value",
+      "pauseOnShow": "Pause on show",
+      "resumeOnClick": "Resume on click",
+      "showHint": "Show hint",
+      "enabled": "Enabled",
+      "hidden": "Hidden",
+      "muted": "Muted",
+      "fit": "Fit",
+      "fitContain": "Contain",
+      "fitCover": "Cover",
+      "keyframes": "Keyframes",
+      "keyframeCount": "{count} keyframes",
+      "addOpacityKeyframe": "Opacity keyframe",
+      "addRotationKeyframe": "Rotation keyframe",
+      "addPositionKeyframe": "Position keyframe",
+      "addVolumeKeyframe": "Volume keyframe",
+      "x": "X",
+      "y": "Y",
+      "width": "Width",
+      "height": "Height"
     }
   },
   "assets": {
@@ -222,10 +498,22 @@
     "startCreating": "Start creating",
     "featuresTitle": "Product features",
     "features": {
-      "nodeStory": { "title": "Node storytelling", "description": "Organize branching stories" },
-      "interactivePreview": { "title": "Interactive preview", "description": "Play through stories directly" },
-      "assetManagement": { "title": "Asset management", "description": "Manage assets in one place" },
-      "localExport": { "title": "Local export", "description": "Export story packages" }
+      "nodeStory": {
+        "title": "Node storytelling",
+        "description": "Organize branching stories"
+      },
+      "interactivePreview": {
+        "title": "Interactive preview",
+        "description": "Play through stories directly"
+      },
+      "assetManagement": {
+        "title": "Asset management",
+        "description": "Manage assets in one place"
+      },
+      "localExport": {
+        "title": "Local export",
+        "description": "Export story packages"
+      }
     },
     "localDrafts": "Local drafts",
     "draftSummary": "{projects} projects · {nodes} nodes · {assets} assets",
@@ -250,7 +538,9 @@
     "projectCardStats": "{nodes} nodes · {assets} assets",
     "nodesCount": "{count} nodes",
     "edgesCount": "{count} edges",
-    "assetsCount": "{count} assets"
+    "assetsCount": "{count} assets",
+    "openBlueprint": "Editor",
+    "openNodeTimeline": "Nodes"
   },
   "locale": {
     "zh-CN": "简体中文",
@@ -304,19 +594,43 @@
       "eyebrow": "OpenFMV local editor",
       "title": "Privacy",
       "description": "OpenFMV is currently a local-first desktop app with no accounts, cloud sync, or hosted backend.",
-      "localData": { "title": "Local data", "body": "Projects, settings, and asset indexes are saved on your device by default." },
-      "assets": { "title": "Asset files", "body": "Imported assets are copied into local project folders or browser local storage." },
-      "ai": { "title": "AI settings", "body": "AI chat runs through the local CLI selected in settings." },
-      "updates": { "title": "Changes", "body": "If network features are added later, this privacy note should be updated with them." }
+      "localData": {
+        "title": "Local data",
+        "body": "Projects, settings, and asset indexes are saved on your device by default."
+      },
+      "assets": {
+        "title": "Asset files",
+        "body": "Imported assets are copied into local project folders or browser local storage."
+      },
+      "ai": {
+        "title": "AI settings",
+        "body": "AI chat runs through the local CLI selected in settings."
+      },
+      "updates": {
+        "title": "Changes",
+        "body": "If network features are added later, this privacy note should be updated with them."
+      }
     },
     "terms": {
       "eyebrow": "OpenFMV local editor",
       "title": "Terms",
       "description": "These terms describe the current local version's operating boundaries.",
-      "localFirst": { "title": "Local first", "body": "OpenFMV is built for local creative workflows and does not include accounts or cloud sync." },
-      "content": { "title": "Creative content", "body": "You are responsible for the rights, storage, and backups of imported assets and generated content." },
-      "exports": { "title": "Exports", "body": "Exported story packages are written to the local directory you select." },
-      "responsibility": { "title": "Responsibility", "body": "Test interactive flows, asset paths, and exported builds before publishing." }
+      "localFirst": {
+        "title": "Local first",
+        "body": "OpenFMV is built for local creative workflows and does not include accounts or cloud sync."
+      },
+      "content": {
+        "title": "Creative content",
+        "body": "You are responsible for the rights, storage, and backups of imported assets and generated content."
+      },
+      "exports": {
+        "title": "Exports",
+        "body": "Exported story packages are written to the local directory you select."
+      },
+      "responsibility": {
+        "title": "Responsibility",
+        "body": "Test interactive flows, asset paths, and exported builds before publishing."
+      }
     }
   },
   "debug": {

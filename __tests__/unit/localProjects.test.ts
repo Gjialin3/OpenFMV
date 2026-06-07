@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { OpenFMVAsset, OpenFMVProject } from '@/app/_types';
-import { addAssetsToLocalProject } from '@/app/_utils/localProjects';
+import { addAssetsToLocalProject, importAssetFromFile, removeAssetFromLocalProject } from '@/app/_utils/localProjects';
+
+vi.mock('@/app/_utils/browserAssets', () => ({
+  saveBrowserAssetFile: vi.fn(async () => 'openfmv-idb://asset-2'),
+}));
 
 const PROJECTS_KEY = 'openfmv-local-projects';
 
@@ -48,6 +52,11 @@ describe('localProjects', () => {
   let storage: Record<string, string>;
 
   beforeEach(() => {
+    vi.restoreAllMocks();
+    vi.stubGlobal('crypto', {
+      randomUUID: vi.fn(() => 'asset-id'),
+    });
+
     storage = {
       [PROJECTS_KEY]: JSON.stringify([project]),
     };
@@ -85,5 +94,100 @@ describe('localProjects', () => {
 
     expect(savedProjects[0].assets).toHaveLength(2);
     expect(savedProjects[0].assets.map((asset) => asset.id)).toEqual(['asset-1', 'asset-2']);
+  });
+
+  it('removes an asset from the library without mutating graph timeline clips', async () => {
+    storage[PROJECTS_KEY] = JSON.stringify([{
+      ...project,
+      graphData: {
+        ...project.graphData,
+        nodes: [
+          {
+            ...project.graphData.nodes[0],
+            data: {
+              ...project.graphData.nodes[0].data,
+              timeline: {
+                version: 2,
+                duration: 6,
+                zoom: 64,
+                bookmarks: [],
+                tracks: [
+                  {
+                    id: 'media-track-main',
+                    type: 'media',
+                    name: 'Media',
+                    clips: [
+                      {
+                        id: 'clip-1',
+                        type: 'image',
+                        src: 'assets/scene.png',
+                        assetId: 'asset-1',
+                        startTime: 0,
+                        duration: 6,
+                        enabled: true,
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+        ],
+      },
+    } satisfies OpenFMVProject]);
+
+    await removeAssetFromLocalProject('project-1', 'asset-1');
+
+    const savedProjects = JSON.parse(storage[PROJECTS_KEY]) as OpenFMVProject[];
+    const timeline = savedProjects[0].graphData.nodes[0].data.timeline as { tracks: Array<{ clips: Array<{ assetId?: string }> }> };
+
+    expect(savedProjects[0].assets).toEqual([]);
+    expect(timeline.tracks[0].clips[0].assetId).toBe('asset-1');
+  });
+
+  it('reads browser video metadata during asset import', async () => {
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: vi.fn(() => 'blob:clip'),
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: vi.fn(),
+    });
+    const originalCreateElement = document.createElement.bind(document);
+    vi.spyOn(document, 'createElement').mockImplementation(((tagName: string, options?: ElementCreationOptions) => {
+      if (tagName !== 'video') return originalCreateElement(tagName, options);
+      const video = {
+        duration: 12.345,
+        videoWidth: 1920,
+        videoHeight: 1080,
+        preload: '',
+        src: '',
+        onloadedmetadata: null as ((event: Event) => void) | null,
+        onerror: null as ((event: Event) => void) | null,
+        removeAttribute: vi.fn(),
+        load: vi.fn(function load(this: { onloadedmetadata: ((event: Event) => void) | null }) {
+          this.onloadedmetadata?.(new Event('loadedmetadata'));
+        }),
+      };
+      return video as unknown as HTMLVideoElement;
+    }) as typeof document.createElement);
+
+    const asset = await importAssetFromFile(new File([new Uint8Array([1, 2, 3])], 'clip.mp4', { type: 'video/mp4' }));
+
+    expect(asset).toMatchObject({
+      id: 'asset-id',
+      type: 'video',
+      name: 'clip.mp4',
+      path: 'openfmv-idb://asset-2',
+      metadata: {
+        duration: 12.345,
+        width: 1920,
+        height: 1080,
+        size: 3,
+        mimeType: 'video/mp4',
+      },
+    });
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:clip');
   });
 });

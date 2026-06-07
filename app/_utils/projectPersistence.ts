@@ -72,9 +72,17 @@ export const collectProjectAssetsFromGraph = (
 
   for (const node of graphData.nodes || []) {
     const data = node.data as Record<string, unknown>;
-    addAsset(data.image, `${node.id}-image`);
-    addAsset(data.video, `${node.id}-video`);
-    addAsset(data.videoThumbnail, `${node.id}-thumbnail`);
+    const tracks = Array.isArray((data.timeline as { tracks?: unknown[] } | undefined)?.tracks)
+      ? ((data.timeline as { tracks: Array<{ clips?: unknown[] }> }).tracks)
+      : [];
+    for (const track of tracks) {
+      const clips = Array.isArray(track.clips) ? track.clips : [];
+      for (const clip of clips) {
+        const mediaClip = clip as Record<string, unknown>;
+        addAsset(mediaClip.src, `${node.id}-timeline-media`);
+        addAsset(mediaClip.poster, `${node.id}-timeline-poster`);
+      }
+    }
   }
 
   return Array.from(assetsByPath.values());
@@ -101,7 +109,21 @@ export const createProjectSnapshot = (
   };
   const coverImage = graphData.nodes
     .map((node) => node.data as Record<string, unknown>)
-    .map((data) => data.image || data.videoThumbnail)
+    .map((data) => {
+      const tracks = Array.isArray((data.timeline as { tracks?: unknown[] } | undefined)?.tracks)
+        ? ((data.timeline as { tracks: Array<{ clips?: unknown[] }> }).tracks)
+        : [];
+      for (const track of tracks) {
+        const clips = Array.isArray(track.clips) ? track.clips : [];
+        const mediaClip = clips.find((clip) => {
+          const type = (clip as Record<string, unknown>).type;
+          return type === 'image' || type === 'video';
+        }) as Record<string, unknown> | undefined;
+        if (typeof mediaClip?.poster === 'string') return mediaClip.poster;
+        if (mediaClip?.type === 'image' && typeof mediaClip.src === 'string') return mediaClip.src;
+      }
+      return undefined;
+    })
     .find((value): value is string => typeof value === 'string' && value.length > 0);
 
   return {

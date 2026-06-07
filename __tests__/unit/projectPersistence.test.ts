@@ -11,7 +11,24 @@ const storyNode: AppNode = {
   id: 'story',
   type: 'story',
   position: { x: 0, y: 0 },
-  data: { type: 'story', title: 'Story', content: '', image: 'assets/scene.png' },
+  data: {
+    type: 'story',
+    title: 'Story',
+    content: '',
+    timeline: {
+      version: 2,
+      duration: 24,
+      bookmarks: [],
+      tracks: [
+        {
+          id: 'media-track',
+          type: 'media',
+          name: 'Media',
+          clips: [{ id: 'scene-clip', type: 'image', src: 'assets/scene.png', startTime: 0, duration: 4, enabled: true }],
+        },
+      ],
+    },
+  },
 };
 
 describe('projectPersistence', () => {
@@ -55,9 +72,22 @@ describe('projectPersistence', () => {
           ...storyNode,
           data: {
             ...storyNode.data,
-            image: 'blob:http://localhost/1',
-            video: 'data:video/mp4;base64,AAAA',
-            videoThumbnail: 'https://example.com/poster.png',
+            timeline: {
+              version: 2,
+              duration: 24,
+              bookmarks: [],
+              tracks: [
+                {
+                  id: 'media-track',
+                  type: 'media',
+                  name: 'Media',
+                  clips: [
+                    { id: 'blob-clip', type: 'image', src: 'blob:http://localhost/1', startTime: 0, duration: 4, enabled: true },
+                    { id: 'data-clip', type: 'video', src: 'data:video/mp4;base64,AAAA', poster: 'https://example.com/poster.png', startTime: 4, duration: 4, enabled: true },
+                  ],
+                },
+              ],
+            },
           },
         },
         {
@@ -65,7 +95,19 @@ describe('projectPersistence', () => {
           id: 'unknown-relative',
           data: {
             ...storyNode.data,
-            image: 'scene.png',
+            timeline: {
+              version: 2,
+              duration: 24,
+              bookmarks: [],
+              tracks: [
+                {
+                  id: 'media-track',
+                  type: 'media',
+                  name: 'Media',
+                  clips: [{ id: 'unknown-clip', type: 'image', src: 'scene.png', startTime: 0, duration: 4, enabled: true }],
+                },
+              ],
+            },
           },
         },
       ],

@@ -27,7 +27,7 @@ class NodeRegistry {
     if (!definition) {
       throw new Error(`[NodeRegistry] Unknown node type: ${type}`);
     }
-    return definition.createDefaultData({ storyCount: context?.storyCount ?? 0 });
+    return definition.createDefaultData({ ...context, storyCount: context?.storyCount ?? 0 });
   }
 }
 

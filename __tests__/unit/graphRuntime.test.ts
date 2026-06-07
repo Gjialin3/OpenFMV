@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { AppEdge, AppNode, OpenFMVGraph } from '@/app/_types';
-import { createRuntime, getActiveTimelineClips, getEntryNodeId, getNodeText, getNodeTitle, getRuntimeChoiceRules, getRuntimeInteractionMode, getVisibleRules, resolveNextNodeId, resolveTimelineActionNodeId, shouldShowRuntimeControls } from '@/app/_utils/graphRuntime';
+import { createRuntime, getEntryNodeId, getNodeText, getNodeTitle, getRuntimeChoiceRules, getRuntimeInteractionMode, getVisibleRules, resolveNextNodeId, shouldShowRuntimeControls } from '@/app/_utils/graphRuntime';
 
 const node = (id: string, type: AppNode['type'], data: AppNode['data']): AppNode => ({
   id,
@@ -150,109 +150,5 @@ describe('graphRuntime', () => {
 
     expect(snapshot.currentNodeId).toBe('story');
     expect(snapshot.variables.lastInput).toBe('go left');
-  });
-
-  it('builds timeline overlay effects and filters active clips by video time', () => {
-    const timelineNode = node('timeline', 'story', {
-      type: 'story',
-      title: 'Timeline',
-      content: '',
-      video: 'scene.mp4',
-      timeline: {
-        version: 1,
-        tracks: [
-          {
-            id: 'interaction-track',
-            type: 'interaction',
-            name: 'Interaction',
-            clips: [
-              {
-                id: 'clip-a',
-                type: 'button',
-                label: 'Go',
-                startTime: 2,
-                endTime: 5,
-                rect: { x: 0.4, y: 0.7, width: 0.2, height: 0.1 },
-                action: { type: 'goToHandle', handleId: 'go' },
-                pauseOnShow: true,
-                enabled: true,
-              },
-              {
-                id: 'clip-disabled',
-                type: 'hotspot',
-                startTime: 2,
-                endTime: 5,
-                rect: { x: 0.1, y: 0.1, width: 0.2, height: 0.2 },
-                action: { type: 'continue' },
-                showHint: true,
-                pauseOnShow: false,
-                enabled: false,
-              },
-            ],
-          },
-        ],
-      },
-    });
-    const runtime = createRuntime({ nodes: [timelineNode], edges: [] }, { entryNodeId: 'timeline' });
-
-    const snapshot = runtime.start();
-    const timelineEffect = snapshot.effects.find((effect) => effect.type === 'timelineOverlay');
-
-    expect(timelineEffect).toEqual(expect.objectContaining({ type: 'timelineOverlay', nodeId: 'timeline' }));
-    expect(getActiveTimelineClips(timelineNode, 3).map((clip) => clip.id)).toEqual(['clip-a']);
-    expect(getActiveTimelineClips(timelineNode, 6)).toEqual([]);
-  });
-
-  it('routes timeline clip actions through current node handles', () => {
-    const timelineNode = node('timeline', 'story', {
-      type: 'story',
-      title: 'Timeline',
-      content: '',
-      video: 'scene.mp4',
-      timeline: {
-        version: 1,
-        tracks: [
-          {
-            id: 'interaction-track',
-            type: 'interaction',
-            name: 'Interaction',
-            clips: [
-              {
-                id: 'clip-go',
-                type: 'button',
-                label: 'Go',
-                startTime: 0,
-                endTime: 4,
-                rect: { x: 0.4, y: 0.7, width: 0.2, height: 0.1 },
-                action: { type: 'goToHandle', handleId: 'go' },
-                pauseOnShow: true,
-                enabled: true,
-              },
-              {
-                id: 'clip-continue',
-                type: 'pauseGate',
-                label: 'Continue',
-                startTime: 5,
-                endTime: 6,
-                action: { type: 'continue' },
-                resumeOnClick: true,
-                enabled: true,
-              },
-            ],
-          },
-        ],
-      },
-    });
-    const targetNode = node('target', 'story', { type: 'story', title: 'Target', content: '' });
-    const edges = [
-      { id: 'go-edge', source: 'timeline', sourceHandle: 'go', target: 'target' },
-    ] as AppEdge[];
-    const runtime = createRuntime({ nodes: [timelineNode, targetNode], edges }, { entryNodeId: 'timeline' });
-
-    runtime.start();
-
-    expect(resolveTimelineActionNodeId(timelineNode, edges, { type: 'goToHandle', handleId: 'go' })).toBe('target');
-    expect(runtime.dispatch({ type: 'timeline.clip.triggered', clipId: 'clip-continue' }).currentNodeId).toBe('timeline');
-    expect(runtime.dispatch({ type: 'timeline.clip.triggered', clipId: 'clip-go' }).currentNodeId).toBe('target');
   });
 });

@@ -8,8 +8,8 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import { useEditorStore } from '@/app/_store/useEditorStore';
 import { usePlayerStore } from '@/app/_store/usePlayerStore';
 import { useRuntimeGraphStore } from '@/app/_store/useRuntimeGraphStore';
-import { getLocalizedPath, stripLocaleFromPath } from '@/app/_utils/localePaths';
 import { ensureGraphData, getLocalProject, saveLocalProject } from '@/app/_utils/localProjects';
+import { getLocalizedPath, stripLocaleFromPath } from '@/app/_utils/localePaths';
 import { createProjectSnapshot } from '@/app/_utils/projectPersistence';
 import { OpenFMVProject } from '@/app/_types';
 import { Header } from '../ui/Header';
@@ -28,15 +28,6 @@ export default function TopBar() {
   const pathname = usePathname();
   const projectId = searchParams.get('id');
   const initialTitleFromQuery = searchParams.get('title')?.trim();
-  const querySuffix = projectId
-    ? `?id=${encodeURIComponent(projectId)}`
-    : initialTitleFromQuery
-      ? `?title=${encodeURIComponent(initialTitleFromQuery)}`
-      : '';
-  const pathWithoutLocale = stripLocaleFromPath(pathname || '/editor');
-  const isNodeMode = pathWithoutLocale.startsWith('/nodes');
-  const blueprintHref = getLocalizedPath(locale, `/editor${querySuffix}`);
-  const nodesHref = getLocalizedPath(locale, `/nodes${querySuffix}`);
   const [project, setProject] = useState<OpenFMVProject | null>(null);
   const [title, setTitle] = useState(initialTitleFromQuery || t('untitledProject'));
   const [isSaving, setIsSaving] = useState(false);
@@ -48,6 +39,11 @@ export default function TopBar() {
   const isFirstGraphChange = useRef(true);
   const settingsRef = useRef<HTMLDivElement>(null);
   const exportStatusTimerRef = useRef<number | null>(null);
+  const queryString = searchParams.toString();
+  const querySuffix = queryString ? `?${queryString}` : '';
+  const isNodeMode = stripLocaleFromPath(pathname).startsWith('/nodes');
+  const blueprintHref = getLocalizedPath(locale, `/editor${querySuffix}`);
+  const nodesHref = getLocalizedPath(locale, `/nodes${querySuffix}`);
 
   useClickOutside(settingsRef as React.RefObject<HTMLElement>, () => {
     if (isSettingsOpen) setIsSettingsOpen(false);
@@ -202,79 +198,92 @@ export default function TopBar() {
   };
 
   return (
-    <Header position="absolute" className="h-14 border-transparent bg-transparent px-4 shadow-none">
-      <div className="pointer-events-auto flex min-w-0 items-center gap-3">
-        <div className="flex h-9 min-w-0 items-center gap-2 rounded-full border border-white/10 bg-black/32 px-2.5 pr-4 shadow-[0_10px_34px_rgba(0,0,0,0.28)] backdrop-blur-2xl">
-          <div className="h-6 w-6 shrink-0 rounded-full bg-[radial-gradient(circle_at_30%_24%,#fff7ad,transparent_31%),radial-gradient(circle_at_66%_25%,#7dd3fc,transparent_34%),radial-gradient(circle_at_42%_70%,#c084fc,transparent_38%),linear-gradient(135deg,#f97316,#14b8a6)] shadow-[0_0_16px_rgba(125,211,252,0.18)]" />
-          <Input type="text" value={title} onChange={(event) => setTitle(event.target.value)} className="h-auto w-36 min-w-0 border-0 bg-transparent px-0 py-0 text-sm font-semibold tracking-normal text-white shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 md:w-64" />
-        </div>
-      </div>
-
-      <nav className="pointer-events-auto absolute left-1/2 hidden h-9 -translate-x-1/2 items-center gap-1 rounded-full border border-white/10 bg-white/[0.09] p-1 shadow-[0_10px_34px_rgba(0,0,0,0.26)] backdrop-blur-2xl lg:flex">
-        <Link href={blueprintHref} className={`inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition ${isNodeMode ? 'text-openfmv-sub hover:bg-white/[0.08] hover:text-white' : 'bg-white/[0.17] text-white'}`} title={t('blueprintMode')}>
-          <GitBranch size={13} />
-          {t('blueprintMode')}
-        </Link>
-        <Link href={nodesHref} className={`inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition ${isNodeMode ? 'bg-white/[0.17] text-white' : 'text-openfmv-sub hover:bg-white/[0.08] hover:text-white'}`} title={t('nodeMode')}>
-          <Film size={13} />
-          {t('nodeMode')}
-        </Link>
-      </nav>
-
-      <div className="pointer-events-auto flex items-center gap-1.5 md:gap-2">
-        <div className="hidden h-9 items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.09] px-3 text-xs text-openfmv-sub shadow-[0_10px_34px_rgba(0,0,0,0.26)] backdrop-blur-2xl md:flex" title={lastSaved ? t('lastSaved', { time: lastSaved.toLocaleTimeString() }) : t('autoSaveEnabled')} suppressHydrationWarning>
-          <SaveStatusIcon size={12} className={`${saveStatus.className} ${saveStatus.spin ? 'animate-spin' : ''}`} />
-          <span className={saveStatus.className}>{saveStatus.label}</span>
+    <Header position="absolute" className="h-14 border-b border-white/[0.06] bg-black/24 px-3 shadow-[0_16px_44px_rgba(0,0,0,0.24)]">
+      <div className="grid w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+        <div className="pointer-events-auto flex min-w-0 items-center">
+          <div className="flex h-9 min-w-0 items-center gap-2 rounded-full border border-white/10 bg-white/[0.075] px-2.5 shadow-[0_10px_28px_rgba(0,0,0,0.18)] backdrop-blur-2xl">
+            <div className="h-6 w-6 shrink-0 rounded-full bg-[radial-gradient(circle_at_30%_24%,#fff7ad,transparent_31%),radial-gradient(circle_at_66%_25%,#7dd3fc,transparent_34%),radial-gradient(circle_at_42%_70%,#c084fc,transparent_38%),linear-gradient(135deg,#f97316,#14b8a6)] shadow-[0_0_16px_rgba(125,211,252,0.18)]" />
+            <Input type="text" value={title} onChange={(event) => setTitle(event.target.value)} className="h-auto w-32 min-w-0 border-0 bg-transparent px-0 py-0 text-sm font-semibold tracking-normal text-white shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 md:w-56" />
+            <div className="h-5 w-px shrink-0 bg-white/10" />
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-black/20" title={lastSaved ? t('lastSaved', { time: lastSaved.toLocaleTimeString() }) : t('autoSaveEnabled')} suppressHydrationWarning>
+              <SaveStatusIcon size={14} className={`${saveStatus.className} ${saveStatus.spin ? 'animate-spin' : ''}`} />
+            </div>
+          </div>
         </div>
 
-        <div className="relative" ref={settingsRef}>
-          <Button onClick={() => setIsSettingsOpen((value) => !value)} variant="icon" size="icon" className={`h-9 w-9 rounded-full border border-white/10 bg-white/[0.09] shadow-[0_10px_34px_rgba(0,0,0,0.26)] backdrop-blur-2xl ${isSettingsOpen ? 'text-openfmv-accent' : 'text-openfmv-sub'}`} title={t('settings')}>
-            <Settings size={16} />
-          </Button>
+        <nav className="pointer-events-auto flex h-9 items-center gap-1 rounded-full border border-white/10 bg-white/[0.075] p-1 shadow-[0_10px_28px_rgba(0,0,0,0.18)] backdrop-blur-2xl">
+          <Link href={blueprintHref} className={`inline-flex h-7 min-w-[94px] items-center justify-center gap-1.5 rounded-full px-3 text-xs font-bold transition ${isNodeMode ? 'text-openfmv-sub hover:bg-white/[0.08] hover:text-white' : 'bg-white/[0.18] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]'}`} title={t('blueprintMode')}>
+            <GitBranch size={13} />
+            <span className="hidden sm:inline">{t('blueprintMode')}</span>
+          </Link>
+          <Link href={nodesHref} className={`inline-flex h-7 min-w-[88px] items-center justify-center gap-1.5 rounded-full px-3 text-xs font-bold transition ${isNodeMode ? 'bg-white/[0.18] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]' : 'text-openfmv-sub hover:bg-white/[0.08] hover:text-white'}`} title={t('nodeMode')}>
+            <Film size={13} />
+            <span className="hidden sm:inline">{t('nodeMode')}</span>
+          </Link>
+        </nav>
 
-          {isSettingsOpen && (
-            <div className="absolute right-0 top-full z-50 mt-3 w-64 overflow-hidden rounded-[22px] border border-white/15 bg-white/[0.10] p-2 shadow-[0_24px_80px_rgba(0,0,0,0.42)] backdrop-blur-3xl">
-              <div className="rounded-2xl px-3 py-2">
-                <div className="text-sm text-openfmv-text">{t('autoSave')}</div>
-                <div className="mt-1 text-xs leading-5 text-openfmv-muted">{autoSaveEnabled ? t('autoSaveOnDescription') : t('autoSaveOffDescription')}</div>
-              </div>
-              <Button onClick={() => setAutoSaveEnabled(!autoSaveEnabled)} variant="ghost" className="w-full justify-start rounded-2xl px-3 py-2 text-sm text-openfmv-text hover:bg-white/[0.045]">
-                {autoSaveEnabled ? t('pauseAutoSave') : t('enableAutoSave')}
+        <div className="pointer-events-auto flex min-w-0 items-center justify-end">
+          <div className="flex h-9 items-center gap-1 rounded-full border border-white/10 bg-white/[0.075] p-1 shadow-[0_10px_28px_rgba(0,0,0,0.18)] backdrop-blur-2xl">
+            <div className="relative" ref={settingsRef}>
+              <Button onClick={() => setIsSettingsOpen((value) => !value)} variant="icon" size="icon" className={`h-7 w-7 rounded-full border-0 bg-transparent shadow-none ${isSettingsOpen ? 'text-openfmv-accent' : 'text-openfmv-sub'}`} title={t('settings')}>
+                <Settings size={15} />
               </Button>
-              <Button onClick={() => { setIsSettingsOpen(false); void handleSaveAs(); }} variant="ghost" className="mt-1 w-full justify-start rounded-2xl px-3 py-2 text-sm text-openfmv-text hover:bg-white/[0.045]">
-                {t('saveAs')}
-              </Button>
-              <div className="mt-1 rounded-2xl px-3 py-2 hover:bg-white/[0.045]">
-                <div className="mb-2 text-sm text-openfmv-text">{t('edgeStyle')}</div>
-                <Select value={edgeCurveStyle} onValueChange={(value) => setEdgeCurveStyle(value as 'smoothstep' | 'bezier' | 'straight')}>
-                  <SelectTrigger className="nodrag h-9 rounded-2xl border-white/15 bg-white/[0.08] text-xs text-openfmv-text">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="border-white/15 bg-openfmv-node text-openfmv-text">
-                    <SelectItem value="smoothstep">{t('smoothStep')}</SelectItem>
-                    <SelectItem value="bezier">{t('bezier')}</SelectItem>
-                    <SelectItem value="straight">{t('straight')}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+
+              {isSettingsOpen && (
+                <div className="absolute right-0 top-full z-50 mt-3 w-72 overflow-hidden rounded-[18px] border border-white/15 bg-[#15171c]/95 p-1.5 shadow-[0_24px_80px_rgba(0,0,0,0.56)] ring-1 ring-black/40 backdrop-blur-xl">
+                  <div className="px-3 py-3">
+                    <div className="flex items-center gap-3">
+                      <button type="button" role="switch" aria-checked={autoSaveEnabled} onClick={() => setAutoSaveEnabled(!autoSaveEnabled)} className={`flex h-6 w-11 shrink-0 items-center rounded-full border p-0.5 transition ${autoSaveEnabled ? 'border-emerald-300/40 bg-emerald-400/25' : 'border-white/15 bg-white/[0.08]'}`} title={autoSaveEnabled ? t('pauseAutoSave') : t('enableAutoSave')}>
+                        <span className={`h-5 w-5 rounded-full bg-white shadow-[0_3px_10px_rgba(0,0,0,0.35)] transition-transform ${autoSaveEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                      </button>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-openfmv-text">
+                          {t('autoSave')}
+                          <SaveStatusIcon size={13} className={`${saveStatus.className} ${saveStatus.spin ? 'animate-spin' : ''}`} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-white/[0.08] px-1.5 py-1.5">
+                    <Button onClick={() => { setIsSettingsOpen(false); void handleSaveAs(); }} variant="ghost" className="h-9 w-full justify-start rounded-[12px] px-2.5 text-sm font-semibold text-openfmv-text hover:bg-white/[0.075]">
+                      {t('saveAs')}
+                    </Button>
+                  </div>
+
+                  <div className="border-t border-white/[0.08] px-3 py-3">
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-openfmv-muted">{t('edgeStyle')}</div>
+                    <Select value={edgeCurveStyle} onValueChange={(value) => setEdgeCurveStyle(value as 'smoothstep' | 'bezier' | 'straight')}>
+                      <SelectTrigger className="nodrag h-9 rounded-[12px] border-white/15 bg-white/[0.075] text-sm text-openfmv-text">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="border-white/15 bg-openfmv-node text-openfmv-text">
+                        <SelectItem value="smoothstep">{t('smoothStep')}</SelectItem>
+                        <SelectItem value="bezier">{t('bezier')}</SelectItem>
+                        <SelectItem value="straight">{t('straight')}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <Button onClick={handlePlay} size="pill" className="h-7 rounded-full bg-white/[0.16] px-3 text-xs font-bold text-white shadow-none hover:bg-white/[0.22]">
+              <Play size={13} fill="currentColor" />
+              <span className="hidden sm:inline">{t('preview')}</span>
+            </Button>
+
+            <Button onClick={() => void handleExport()} disabled={isExporting} variant="outline" size="pill" className="h-7 rounded-full border-0 bg-transparent px-2.5 text-xs font-bold text-openfmv-sub shadow-none hover:bg-white/[0.10] hover:text-white">
+              {isExporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+              <span className="hidden sm:inline">{t('export')}</span>
+            </Button>
+          </div>
+          {exportStatus && (
+            <div className="absolute right-4 top-[58px] z-50 max-w-[360px] truncate rounded-[12px] border border-emerald-300/20 bg-black/72 px-3 py-2 text-xs font-medium text-emerald-100 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-2xl" title={exportStatus}>
+              {exportStatus}
             </div>
           )}
         </div>
-
-        <Button onClick={handlePlay} size="pill" className="h-9 bg-white/[0.12] px-3.5 text-sm text-white shadow-[0_10px_34px_rgba(0,0,0,0.26)] backdrop-blur-2xl hover:bg-white/[0.18]">
-          <Play size={14} fill="currentColor" />
-          {t('preview')}
-        </Button>
-
-        <Button onClick={() => void handleExport()} disabled={isExporting} variant="outline" size="pill" className="h-9 border-white/10 bg-white/[0.09] px-3.5 text-sm text-openfmv-sub shadow-[0_10px_34px_rgba(0,0,0,0.26)] backdrop-blur-2xl hover:border-white/20 hover:bg-white/[0.14] hover:text-white">
-          {isExporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-          <span className="hidden sm:inline">{t('export')}</span>
-        </Button>
-        {exportStatus && (
-          <div className="absolute right-4 top-[58px] z-50 max-w-[360px] truncate rounded-[12px] border border-emerald-300/20 bg-black/72 px-3 py-2 text-xs font-medium text-emerald-100 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-2xl" title={exportStatus}>
-            {exportStatus}
-          </div>
-        )}
       </div>
     </Header>
   );

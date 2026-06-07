@@ -70,6 +70,112 @@ const readAsDataUrl = (file: File) => {
   });
 };
 
+const getAssetTypeFromFile = (file: File): OpenFMVAsset['type'] => {
+  const lowerName = file.name.toLowerCase();
+  if (file.type.startsWith('video/') || /\.(mp4|webm|mov|mkv)$/.test(lowerName)) return 'video';
+  if (file.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp)$/.test(lowerName)) return 'image';
+  if (file.type.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|aac|flac)$/.test(lowerName)) return 'audio';
+  return 'text';
+};
+
+const roundAssetMetadataNumber = (value: number) => Math.round(value * 1000) / 1000;
+
+const readMediaElementMetadata = (src: string, type: 'video' | 'audio') => {
+  if (typeof document === 'undefined' || typeof window === 'undefined') return Promise.resolve({});
+
+  return new Promise<Record<string, unknown>>((resolve) => {
+    const element = document.createElement(type);
+    let finished = false;
+    const timeoutId = window.setTimeout(() => finish(), 5000);
+
+    const finish = (metadata: Record<string, unknown> = {}) => {
+      if (finished) return;
+      finished = true;
+      window.clearTimeout(timeoutId);
+      element.removeAttribute('src');
+      element.load();
+      resolve(metadata);
+    };
+
+    element.preload = 'metadata';
+    element.onloadedmetadata = () => {
+      const metadata: Record<string, unknown> = {};
+      if (Number.isFinite(element.duration) && element.duration > 0) {
+        metadata.duration = roundAssetMetadataNumber(element.duration);
+      }
+      if (type === 'video') {
+        const video = element as HTMLVideoElement;
+        if (Number.isFinite(video.videoWidth) && video.videoWidth > 0) metadata.width = video.videoWidth;
+        if (Number.isFinite(video.videoHeight) && video.videoHeight > 0) metadata.height = video.videoHeight;
+      }
+      finish(metadata);
+    };
+    element.onerror = () => finish();
+    element.src = src;
+    element.load();
+  });
+};
+
+const readImageSourceMetadata = (src: string) => {
+  if (typeof window === 'undefined' || typeof Image === 'undefined') return Promise.resolve({});
+
+  return new Promise<Record<string, unknown>>((resolve) => {
+    const image = new Image();
+    let finished = false;
+    const timeoutId = window.setTimeout(() => finish(), 5000);
+
+    const finish = (metadata: Record<string, unknown> = {}) => {
+      if (finished) return;
+      finished = true;
+      window.clearTimeout(timeoutId);
+      image.onload = null;
+      image.onerror = null;
+      resolve(metadata);
+    };
+
+    image.onload = () => {
+      const metadata: Record<string, unknown> = {};
+      if (Number.isFinite(image.naturalWidth) && image.naturalWidth > 0) metadata.width = image.naturalWidth;
+      if (Number.isFinite(image.naturalHeight) && image.naturalHeight > 0) metadata.height = image.naturalHeight;
+      finish(metadata);
+    };
+    image.onerror = () => finish();
+    image.src = src;
+  });
+};
+
+const readAssetSourceMetadata = (src: string, type: OpenFMVAsset['type']) => {
+  if (type === 'video' || type === 'audio') return readMediaElementMetadata(src, type);
+  if (type === 'image') return readImageSourceMetadata(src);
+  return Promise.resolve({});
+};
+
+export const readBrowserAssetMetadata = async (file: File): Promise<Record<string, unknown>> => {
+  const type = getAssetTypeFromFile(file);
+  if (type === 'text' || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') return {};
+
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    return await readAssetSourceMetadata(objectUrl, type);
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+};
+
+const enrichAssetMetadata = async (asset: OpenFMVAsset): Promise<OpenFMVAsset> => {
+  if (asset.type === 'text') return asset;
+  const source = asset.relativePath || asset.path;
+  const metadata = source ? await readAssetSourceMetadata(source, asset.type) : {};
+  if (Object.keys(metadata).length === 0) return asset;
+  return {
+    ...asset,
+    metadata: {
+      ...metadata,
+      ...asset.metadata,
+    },
+  };
+};
+
 const resolveProjectForEditor = (project: OpenFMVProject): OpenFMVProject => {
   const projectDirectory = project.metadata?.projectDirectory;
   if (!projectDirectory) return project;
@@ -77,10 +183,17 @@ const resolveProjectForEditor = (project: OpenFMVProject): OpenFMVProject => {
   const graphData = ensureGraphData(JSON.parse(JSON.stringify(project.graphData)) as OpenFMVProject['graphData']);
   for (const node of graphData.nodes) {
     if (!node.data) continue;
-    for (const key of ['image', 'video', 'videoThumbnail'] as const) {
-      const value = (node.data as Record<string, unknown>)[key];
-      if (isRelativeAssetPath(value)) {
-        (node.data as Record<string, unknown>)[key] = toFileUrl(`${projectDirectory}\\${value}`);
+    const timeline = (node.data as Record<string, unknown>).timeline as { tracks?: Array<{ clips?: Array<Record<string, unknown>> }> } | undefined;
+    const tracks = Array.isArray(timeline?.tracks) ? timeline.tracks : [];
+    for (const track of tracks) {
+      const clips = Array.isArray(track.clips) ? track.clips : [];
+      for (const clip of clips) {
+        for (const key of ['src', 'poster'] as const) {
+          const value = clip[key];
+          if (isRelativeAssetPath(value)) {
+            clip[key] = toFileUrl(`${projectDirectory}\\${value}`);
+          }
+        }
       }
     }
   }
@@ -179,6 +292,19 @@ export const addAssetsToLocalProject = async (projectId: string | null | undefin
 
 export const addAssetToLocalProject = addAssetsToLocalProject;
 
+export const removeAssetFromLocalProject = async (projectId: string | null | undefined, assetId: string) => {
+  const project = getStoredLocalProject(projectId);
+  if (!project) return null;
+
+  const nextAssets = (project.assets || []).filter((asset) => asset.id !== assetId);
+  if (nextAssets.length === (project.assets || []).length) return project;
+
+  return saveLocalProject({
+    ...project,
+    assets: nextAssets,
+  });
+};
+
 export const registerLocalProject = (project: OpenFMVProject): OpenFMVProject => {
   const normalizedProject = { ...project, graphData: ensureGraphData(project.graphData) };
   const projects = listLocalProjects();
@@ -234,20 +360,23 @@ export const exportProjectJson = (project: OpenFMVProject) => {
 export const importAssetFromFile = async (file: File): Promise<OpenFMVAsset> => {
   const fileWithPath = file as File & { path?: string };
   if (typeof window !== 'undefined' && fileWithPath.path && window.openfmv?.importAsset) {
-    return window.openfmv.importAsset(fileWithPath.path);
+    return enrichAssetMetadata(await window.openfmv.importAsset(fileWithPath.path));
   }
 
-  const isText = file.type.startsWith('text/') || file.name.endsWith('.txt') || file.name.endsWith('.md');
+  const type = getAssetTypeFromFile(file);
+  const isText = type === 'text';
   const content = isText ? await file.arrayBuffer().then(decodeTextBuffer).catch(() => '') : undefined;
+  const mediaMetadata = isText ? {} : await readBrowserAssetMetadata(file);
   const assetPath = isText ? await readAsDataUrl(file) : await saveBrowserAssetFile(file);
   return {
     id: crypto.randomUUID(),
-    type: file.type.startsWith('video/') ? 'video' : file.type.startsWith('image/') ? 'image' : file.type.startsWith('audio/') ? 'audio' : 'text',
+    type,
     name: file.name,
     path: assetPath,
     relativePath: assetPath,
     importedAt: now(),
     metadata: {
+      ...mediaMetadata,
       size: file.size,
       mimeType: file.type,
       ...(content !== undefined ? { content, title: file.name.replace(/\.[^/.]+$/, '') } : {}),
@@ -261,5 +390,6 @@ export const canUseNativeAssetPicker = () => {
 
 export const importAssetFromNativePicker = async (): Promise<OpenFMVAsset | null> => {
   if (!canUseNativeAssetPicker()) return null;
-  return window.openfmv?.selectAsset?.() ?? null;
+  const asset = await window.openfmv?.selectAsset?.();
+  return asset ? enrichAssetMetadata(asset) : null;
 };

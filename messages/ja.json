@@ -68,8 +68,10 @@
     "nodeMode": "ノード",
     "preview": "プレビュー",
     "export": "書き出し",
+    "blueprintMode": "Editor",
+    "nodeMode": "ノード",
     "startNode": "開始",
-    "storyTitlePrefix": "ストーリーノード",
+    "storyTitlePrefix": "シーン",
     "endNode": "終了",
     "cancel": "キャンセル",
     "deleteNodeConfirm": "このノードを削除しますか？",
@@ -121,15 +123,54 @@
     "clearLocalCacheConfirm": "ローカルキャッシュをクリアしますか？保存済みのエディターデータが削除されます。",
     "assetStoryFallback": "素材ストーリー",
     "emptyCanvasTitle": "作成を開始",
-    "emptyCanvasDescription": "開始ノードを追加し、ストーリーとインタラクションノードを接続します。",
+    "emptyCanvasDescription": "開始ノードを追加し、シーンを接続します。",
     "addStartNode": "開始ノードを追加",
     "dropFilesTitle": "ファイルをドロップして素材を読み込む",
     "dropFilesDescription": "画像、動画、テキストはノードに関連付けられます。音声は素材ライブラリに保存されます。",
+    "nodePreview": {
+      "outputs": "Outputs",
+      "noOutputs": "No outputs",
+      "continue": "Continue",
+      "branch": "Branch",
+      "noAction": "No action",
+      "noMatch": "No match",
+      "fallback": "Fallback",
+      "choiceResult": "Choice result {index}",
+      "clicked": "{label} clicked",
+      "inputMatched": "{label} matched",
+      "sliderSucceeded": "{label} succeeded",
+      "defaultOutput": "Default",
+      "unlinked": "Unlinked",
+      "noMedia": "No media preview",
+      "video": "Video",
+      "image": "Image",
+      "audioOnly": "Audio only",
+      "previewAlt": "Node media preview",
+      "videoCount": "{count, plural, one {# video} other {# videos}}",
+      "imageCount": "{count, plural, one {# image} other {# images}}",
+      "audioCount": "{count, plural, one {# audio} other {# audio}}",
+      "interactionCount": "{count, plural, one {# interaction} other {# interactions}}",
+      "autoBranchAt": "{time}s auto branch",
+      "endState": "End state",
+      "openInNodes": "Nodes で編集"
+    },
     "nodeTypes": {
-      "start": { "name": "開始ノード", "description": "ストーリーの入口" },
-      "story": { "name": "ストーリー断片", "description": "映像と物語テキストを表示" },
-      "interaction": { "name": "インタラクションノード", "description": "選択、入力、スライダー、タイマー" },
-      "end": { "name": "終了ノード", "description": "ストーリーの終点" }
+      "start": {
+        "name": "開始ノード",
+        "description": "ストーリーの入口"
+      },
+      "story": {
+        "name": "シーン",
+        "description": "再生メディアとインタラクション"
+      },
+      "interaction": {
+        "name": "旧インタラクションノード",
+        "description": "旧プロジェクト互換ノード"
+      },
+      "end": {
+        "name": "終了ノード",
+        "description": "ストーリーの終点"
+      }
     },
     "loading": {
       "start": "OpenFMV エディターを起動中...",
@@ -138,6 +179,241 @@
       "calibrateConnections": "接続を調整中...",
       "prepareAssets": "ローカル素材を準備中...",
       "enterEditor": "エディターに入ります..."
+    }
+  },
+  "nodeTimeline": {
+    "fallback": {
+      "start": "開始",
+      "end": "終了",
+      "interaction": "インタラクション",
+      "story": "シーン",
+      "branch": "分岐",
+      "sliderSuccess": "スライダー成功",
+      "defaultBranch": "デフォルト分岐"
+    },
+    "empty": {
+      "noNodesTitle": "ノードがありません",
+      "noNodesDescription": "Editorモードでストーリーノードを作成してから、ここで各ノードのタイムラインを編集します。",
+      "blueprint": "Editor"
+    },
+    "tabs": {
+      "assets": "アセット",
+      "nodes": "ノード",
+      "interactions": "インタラクション"
+    },
+    "panel": {
+      "assets": "アセット",
+      "nodeTimeline": "ノードタイムライン",
+      "interactionLibrary": "インタラクションライブラリ",
+      "interactions": "インタラクション",
+      "summary": "{media} メディア / {interactions} インタラクション / {duration}秒",
+      "nodes": "ノード",
+      "nodeMeta": "{type} / {clips} clips",
+      "currentNodeClips": "現在のノード clips",
+      "noInteractionClips": "このノードにはまだインタラクション clip がありません。",
+      "listView": "リスト表示",
+      "sort": "並べ替え",
+      "dropMedia": "動画、写真、音声ファイルをここにドラッグ＆ドロップ",
+      "dropAudio": "音声ファイルをここにドラッグ＆ドロップ",
+      "dropText": "テキストファイルをここにドラッグ＆ドロップ",
+      "gridView": "グリッド表示",
+      "sortByName": "名前順",
+      "sortByRecent": "最近の読み込み順",
+      "dragMediaToTimeline": "クリックして再生ヘッドに追加するか、メディアトラックにドラッグします。",
+      "dragAudioToTimeline": "クリックして再生ヘッドに音声を追加するか、メディアトラックにドラッグします。",
+      "clickTextToApply": "テキストアセットをクリックして再生ヘッドに追加します。",
+      "dragTextToTimeline": "クリックして再生ヘッドにテキストを追加するか、インタラクショントラックへドラッグします。",
+      "addToTimeline": "タイムラインに追加",
+      "removeAsset": "素材を削除",
+      "removeAssetConfirm": "「{projectTitle}」から素材「{assetName}」を削除しますか？",
+      "removeAssetFailed": "素材の削除に失敗しました。",
+      "applyTextToNode": "テキストをタイムラインに追加",
+      "addTextToTimeline": "テキストをタイムラインに追加",
+      "textTemplate": "テキスト",
+      "emptyTextAsset": "空のテキストアセット",
+      "importing": "読み込み中",
+      "unsupportedMedia": "ノードタイムラインでは動画、画像、音声、テキストアセットのみ使用できます。",
+      "importFailed": "メディアの読み込みに失敗しました。",
+      "quotaExceeded": "読み込みに失敗しました: ブラウザの保存容量が不足しています。",
+      "selectProjectBeforeImport": "素材を読み込む前に、プロジェクトを選択または作成してください。"
+    },
+    "rail": {
+      "audio": "音声",
+      "text": "テキスト"
+    },
+    "actions": {
+      "addMediaClip": "メディア clip を追加",
+      "addInteraction": "インタラクションを追加",
+      "import": "読み込み",
+      "play": "再生",
+      "continueCurrentMedia": "現在のメディアを続ける",
+      "deleteClip": "clip を削除",
+      "delete": "削除",
+      "branch": "分岐",
+      "setVariable": "変数を設定",
+      "pause": "一時停止"
+    },
+    "clipTypes": {
+      "button": "ボタン",
+      "hotspot": "ホットスポット",
+      "pauseGate": "一時停止ゲート",
+      "text": "テキスト",
+      "branch": "分岐",
+      "variable": "変数"
+    },
+    "preview": {
+      "noVisualMedia": "この時点に表示メディアはありません",
+      "zoomMode": "Preview zoom",
+      "fit": "Fit",
+      "fill": "Fill",
+      "actualSize": "100%"
+    },
+    "inspector": {
+      "title": "インスペクター",
+      "noClipSelected": "clip が選択されていません",
+      "empty": "タイムライン clip を選択して、タイミング、トリム、オーバーレイ領域、アクションを編集します。",
+      "timedActionStored": "このタイミング付きインタラクションはノードに保存され、再生ヘッドが到達したときに実行されます。"
+    },
+    "timeline": {
+      "title": "NodeTimeline v2",
+      "zoom": "タイムラインズーム",
+      "zoomOut": "縮小",
+      "zoomIn": "拡大",
+      "zoomFit": "タイムラインに合わせる",
+      "seekTimeline": "タイムラインをシーク",
+      "addMedia": "メディアを追加",
+      "mainScene": "メインシーン",
+      "toolbar": {
+        "undo": "取り消し",
+        "redo": "やり直し",
+        "split": "分割",
+        "splitLeft": "左側を切り取る",
+        "splitRight": "右側を切り取る",
+        "extractAudio": "音声を抽出",
+        "recoverAudio": "音声を復元",
+        "link": "リンク",
+        "duplicate": "複製",
+        "freeze": "フリーズフレーム",
+        "marker": "マーカー",
+        "snap": "スナップ",
+        "showTrack": "トラックを表示",
+        "hideTrack": "トラックを非表示",
+        "muteTrack": "トラックをミュート",
+        "unmuteTrack": "トラックのミュート解除",
+        "showClips": "クリップを表示",
+        "hideClips": "クリップを非表示",
+        "muteClips": "クリップをミュート",
+        "unmuteClips": "クリップのミュート解除",
+        "lockTrack": "トラックをロック",
+        "unlockTrack": "トラックのロック解除",
+        "collapseTrack": "トラックを折りたたむ",
+        "expandTrack": "トラックを展開",
+        "addTrack": "トラックを追加",
+        "moveTrackUp": "トラックを上へ移動",
+        "moveTrackDown": "トラックを下へ移動",
+        "enableSnap": "スナップを有効化",
+        "disableSnap": "スナップを無効化",
+        "removeMarker": "マーカーを削除",
+        "unlink": "リンク解除",
+        "enableRipple": "リップル編集を有効化",
+        "disableRipple": "リップル編集を無効化",
+        "expandKeyframes": "キーフレームを展開",
+        "collapseKeyframes": "キーフレームを折りたたむ"
+      },
+      "context": {
+        "copy": "コピー",
+        "cut": "カット",
+        "paste": "貼り付け",
+        "duplicate": "複製",
+        "link": "リンク",
+        "unlink": "リンク解除",
+        "split": "分割",
+        "splitLeft": "左側を切り取る",
+        "splitRight": "右側を切り取る",
+        "extractAudio": "音声を抽出",
+        "recoverAudio": "音声を復元",
+        "freeze": "フリーズフレーム",
+        "delete": "削除",
+        "deleteTrack": "トラックを削除",
+        "addMarker": "マーカーを追加",
+        "removeMarker": "マーカーを削除",
+        "addMedia": "メディアを追加",
+        "enableClips": "クリップを有効化",
+        "disableClips": "クリップを無効化",
+        "showClips": "クリップを表示",
+        "hideClips": "クリップを非表示",
+        "muteClips": "クリップをミュート",
+        "unmuteClips": "クリップのミュート解除",
+        "seekToKeyframe": "キーフレームへ移動",
+        "linearKeyframes": "リニア補間",
+        "holdKeyframes": "ホールド補間",
+        "deleteKeyframe": "キーフレームを削除",
+        "expandKeyframes": "キーフレームを展開",
+        "collapseKeyframes": "キーフレームを折りたたむ"
+      },
+      "addMediaTrack": "メディアトラックを追加",
+      "addInteractionTrack": "インタラクショントラックを追加",
+      "markerAt": "{time}秒のマーカー",
+      "markerLabel": "マーカー {time}秒",
+      "keyframeAt": "{time}s のキーフレーム"
+    },
+    "tracks": {
+      "media": "メディア",
+      "overlay": "オーバーレイ",
+      "audio": "オーディオ",
+      "interaction": "インタラクション"
+    },
+    "fields": {
+      "name": "名前",
+      "label": "ラベル",
+      "text": "テキスト",
+      "start": "開始",
+      "duration": "長さ",
+      "sourceIn": "ソース開始",
+      "sourceDuration": "ソース長",
+      "sourceOut": "ソース終了",
+      "freezeFrame": "フリーズフレーム",
+      "volume": "音量",
+      "opacity": "不透明度",
+      "rotation": "回転",
+      "speed": "速度",
+      "preservePitch": "ピッチを保持",
+      "fontSize": "フォントサイズ",
+      "color": "色",
+      "background": "背景",
+      "align": "配置",
+      "alignLeft": "左",
+      "alignCenter": "中央",
+      "alignRight": "右",
+      "source": "ソース",
+      "action": "アクション",
+      "variableKey": "変数キー",
+      "variableValue": "値",
+      "pauseOnShow": "表示時に一時停止",
+      "resumeOnClick": "クリックで再開",
+      "showHint": "ヒントを表示",
+      "enabled": "有効",
+      "hidden": "非表示",
+      "muted": "ミュート",
+      "fit": "Fit",
+      "fitContain": "Contain",
+      "fitCover": "Cover",
+      "keyframes": "キーフレーム",
+      "keyframeCount": "{count} キーフレーム",
+      "addOpacityKeyframe": "不透明度キーフレームを追加",
+      "addRotationKeyframe": "回転キーフレームを追加",
+      "addPositionKeyframe": "位置キーフレームを追加",
+      "addVolumeKeyframe": "音量キーフレームを追加",
+      "x": "X",
+      "y": "Y",
+      "width": "幅",
+      "height": "高さ"
+    },
+    "mediaTypes": {
+      "image": "画像",
+      "video": "動画",
+      "audio": "音声",
+      "text": "テキスト"
     }
   },
   "assets": {
@@ -222,10 +498,22 @@
     "startCreating": "制作を開始",
     "featuresTitle": "機能",
     "features": {
-      "nodeStory": { "title": "ノードストーリー", "description": "ストーリー分岐を整理" },
-      "interactivePreview": { "title": "インタラクティブプレビュー", "description": "その場でストーリーを再生" },
-      "assetManagement": { "title": "素材管理", "description": "素材を一元管理" },
-      "localExport": { "title": "ローカル書き出し", "description": "ストーリーパッケージを書き出し" }
+      "nodeStory": {
+        "title": "ノードストーリー",
+        "description": "ストーリー分岐を整理"
+      },
+      "interactivePreview": {
+        "title": "インタラクティブプレビュー",
+        "description": "その場でストーリーを再生"
+      },
+      "assetManagement": {
+        "title": "素材管理",
+        "description": "素材を一元管理"
+      },
+      "localExport": {
+        "title": "ローカル書き出し",
+        "description": "ストーリーパッケージを書き出し"
+      }
     },
     "localDrafts": "ローカル下書き",
     "draftSummary": "{projects} 件のプロジェクト · {nodes} 件のノード · {assets} 件の素材",
@@ -250,7 +538,9 @@
     "projectCardStats": "{nodes} ノード · {assets} 素材",
     "nodesCount": "{count} ノード",
     "edgesCount": "{count} 接続",
-    "assetsCount": "{count} 素材"
+    "assetsCount": "{count} 素材",
+    "openBlueprint": "Editor",
+    "openNodeTimeline": "ノード"
   },
   "locale": {
     "zh-CN": "简体中文",
@@ -304,19 +594,43 @@
       "eyebrow": "OpenFMV ローカルエディター",
       "title": "プライバシー",
       "description": "OpenFMV は現在、アカウント、クラウド同期、ホスト型バックエンドを持たないローカル優先のデスクトップアプリです。",
-      "localData": { "title": "ローカルデータ", "body": "プロジェクト、設定、素材インデックスは既定でこのデバイスに保存されます。" },
-      "assets": { "title": "素材ファイル", "body": "読み込んだ素材はローカルのプロジェクトフォルダーまたはブラウザーのローカルストレージにコピーされます。" },
-      "ai": { "title": "AI 設定", "body": "AI チャットは設定で選択したローカル CLI を通じて実行されます。" },
-      "updates": { "title": "変更", "body": "将来ネットワーク機能を追加する場合、このプライバシー説明も更新する必要があります。" }
+      "localData": {
+        "title": "ローカルデータ",
+        "body": "プロジェクト、設定、素材インデックスは既定でこのデバイスに保存されます。"
+      },
+      "assets": {
+        "title": "素材ファイル",
+        "body": "読み込んだ素材はローカルのプロジェクトフォルダーまたはブラウザーのローカルストレージにコピーされます。"
+      },
+      "ai": {
+        "title": "AI 設定",
+        "body": "AI チャットは設定で選択したローカル CLI を通じて実行されます。"
+      },
+      "updates": {
+        "title": "変更",
+        "body": "将来ネットワーク機能を追加する場合、このプライバシー説明も更新する必要があります。"
+      }
     },
     "terms": {
       "eyebrow": "OpenFMV ローカルエディター",
       "title": "利用条件",
       "description": "現在のローカル版の利用範囲を説明します。",
-      "localFirst": { "title": "ローカル優先", "body": "OpenFMV はローカル制作ワークフロー向けで、アカウントやクラウド同期を含みません。" },
-      "content": { "title": "制作コンテンツ", "body": "読み込んだ素材と生成コンテンツの権利、保存、バックアップは利用者の責任です。" },
-      "exports": { "title": "エクスポート", "body": "エクスポートしたストーリーパッケージは選択したローカルディレクトリに書き込まれます。" },
-      "responsibility": { "title": "責任", "body": "公開前にインタラクション、素材パス、エクスポート結果をテストしてください。" }
+      "localFirst": {
+        "title": "ローカル優先",
+        "body": "OpenFMV はローカル制作ワークフロー向けで、アカウントやクラウド同期を含みません。"
+      },
+      "content": {
+        "title": "制作コンテンツ",
+        "body": "読み込んだ素材と生成コンテンツの権利、保存、バックアップは利用者の責任です。"
+      },
+      "exports": {
+        "title": "エクスポート",
+        "body": "エクスポートしたストーリーパッケージは選択したローカルディレクトリに書き込まれます。"
+      },
+      "responsibility": {
+        "title": "責任",
+        "body": "公開前にインタラクション、素材パス、エクスポート結果をテストしてください。"
+      }
     }
   },
   "debug": {

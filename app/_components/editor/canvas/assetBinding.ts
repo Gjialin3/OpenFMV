@@ -16,20 +16,6 @@ export const canReceiveAsset = (node: AppNode) => {
 export const getPickerAssetUpdate = (targetNode: AppNode, asset: PickerAsset) => {
   if (!canReceiveAsset(targetNode)) return null;
 
-  if (asset.type === 'image') {
-    return { image: asset.url, video: undefined, videoThumbnail: undefined };
-  }
-
-  if (asset.type === 'video') {
-    const metadata = typeof asset.metadata === 'object' && asset.metadata ? asset.metadata as Record<string, unknown> : {};
-    return {
-      video: asset.url,
-      videoPlaybackId: typeof metadata.playbackId === 'string' ? metadata.playbackId : undefined,
-      videoThumbnail: undefined,
-      image: undefined,
-    };
-  }
-
   if (asset.type === 'text') {
     const metadata = typeof asset.metadata === 'object' && asset.metadata ? asset.metadata as Record<string, unknown> : {};
     const content = typeof metadata.content === 'string' ? metadata.content : asset.prompt || '';
