@@ -1,13 +1,5 @@
-import React from 'react';
-import dynamic from 'next/dynamic';
-
-import EditorLoading from '@/app/_components/editor/EditorLoading';
-
-const NodeTimelinePage = dynamic(() => import('@/app/_components/editor/timeline/NodeTimelinePage'), {
-  ssr: false,
-  loading: () => <EditorLoading />,
-});
+import NodeTimelinePageClient from '@/app/_components/editor/timeline/NodeTimelinePageClient';
 
 export default function NodesPage() {
-  return <NodeTimelinePage />;
+  return <NodeTimelinePageClient />;
 }

@@ -1,24 +1,8 @@
-import React from 'react';
-import dynamic from 'next/dynamic';
+import EditorPageClient from '@/app/_components/editor/EditorPageClient';
 
-import TopBar from '@/app/_components/editor/TopBar';
-import PlayerOverlay from '@/app/_components/player/PlayerOverlay';
-import EditorLoading from '@/app/_components/editor/EditorLoading';
+export default async function EditorPage({ searchParams }: { searchParams: Promise<{ id?: string }> }) {
+  const { id } = await searchParams;
 
-const EditorCanvas = dynamic(() => import('@/app/_components/editor/EditorCanvas'), {
-  ssr: false,
-  loading: () => <EditorLoading />,
-});
-
-export default function EditorPage({ searchParams }: { searchParams: { id?: string } }) {
-  return (
-    <main className="openfmv-editor-shell relative h-full w-full overflow-hidden bg-[#020202]">
-      <TopBar />
-      <div className="absolute inset-0">
-        <EditorCanvas projectId={searchParams.id} />
-      </div>
-      <PlayerOverlay />
-    </main>
-  );
+  return <EditorPageClient projectId={id} />;
 }
 
