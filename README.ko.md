@@ -14,7 +14,7 @@
 
 OpenFMV는 인터랙티브 영상, 분기형 스토리, 인터랙티브 숏드라마, 독립 실행 가능한 데스크톱 스토리 경험을 만들기 위한 로컬 우선 비주얼 비선형 스토리텔링 에디터입니다.
 
-현재 프로젝트는 Next.js 14 + Electron 데스크톱 앱입니다. React Flow를 사용해 스토리 그래프 편집 캔버스를 구성합니다. 프로젝트 파일, 가져온 에셋, 내보낸 콘텐츠는 모두 로컬에 저장되며, 계정 시스템, 데이터베이스, 클라우드 스토리지에 의존하지 않습니다.
+현재 프로젝트는 Next.js 16 + Electron 데스크톱 앱입니다. React Flow를 사용해 스토리 그래프 편집 캔버스를 구성합니다. 프로젝트 파일, 가져온 에셋, 내보낸 콘텐츠는 모두 로컬에 저장되며, 계정 시스템, 데이터베이스, 클라우드 스토리지에 의존하지 않습니다.
 
 ![OpenFMV 에디터 개요](./public/readme/openfmv-editor-overview.png)
 
@@ -40,9 +40,9 @@ OpenFMV는 인터랙티브 영상, 분기형 스토리, 인터랙티브 숏드�
 
 ## 기술 스택
 
-- Next.js 14 App Router
+- Next.js 16 App Router
 - TypeScript
-- React 18
+- React 19
 - React Flow
 - Zustand
 - Tailwind CSS

@@ -1,4 +1,4 @@
-import { AppNode, NodeTimeline, TimelineInteractionClip, TimelineTimedActionClip, TimelineMediaClip } from '@/app/_types';
+import { AppNode, NodeTimeline, TimelineInteractionClip, TimelineMediaClip } from '@/app/_types';
 
 import {
   ensureNodeTimeline,
@@ -13,7 +13,6 @@ export interface CompiledNodeTimeline {
   mediaClips: TimelineMediaClip[];
   visualMediaClips: TimelineMediaClip[];
   interactionClips: TimelineInteractionClip[];
-  timedActionClips: TimelineTimedActionClip[];
   primaryMediaClip: TimelineMediaClip | null;
 }
 
@@ -42,14 +41,7 @@ export const compileNodeTimeline = (nodeOrTimeline?: AppNode | NodeTimeline | nu
     visibleTracks
       .filter((track) => track.type === 'interaction')
       .flatMap((track) => track.clips)
-      .filter((clip): clip is TimelineInteractionClip => clip.type === 'button' || clip.type === 'hotspot' || clip.type === 'pauseGate' || clip.type === 'text')
-      .filter((clip) => clip.enabled && !clip.hidden)
-  );
-  const timedActionClips = sortByTime(
-    visibleTracks
-      .filter((track) => track.type === 'interaction')
-      .flatMap((track) => track.clips)
-      .filter((clip): clip is TimelineTimedActionClip => clip.type === 'branch' || clip.type === 'variable')
+      .filter((clip): clip is TimelineInteractionClip => clip.type === 'button')
       .filter((clip) => clip.enabled && !clip.hidden)
   );
 
@@ -60,7 +52,6 @@ export const compileNodeTimeline = (nodeOrTimeline?: AppNode | NodeTimeline | nu
     mediaClips,
     visualMediaClips,
     interactionClips,
-    timedActionClips,
     primaryMediaClip: visualMediaClips[0] ?? mediaClips[0] ?? null,
   };
 };

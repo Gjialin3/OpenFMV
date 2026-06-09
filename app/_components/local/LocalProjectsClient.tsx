@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
-import { Clock3, Copy, Download, Edit3, FileJson, FileText, Film, Grid2X2, Image as ImageIcon, Layout, Library, List, MoreHorizontal, PackageOpen, Play, Plus, Search, Settings, Trash2, Upload } from 'lucide-react';
+import { CheckSquare2, Clock3, Copy, Download, Edit3, FileJson, FileText, Film, Grid2X2, Image as ImageIcon, Layout, Library, List, MoreHorizontal, PackageOpen, Play, Plus, Search, Settings, Square, Trash2, Upload, X } from 'lucide-react';
 import BorderGlow from '@/app/_components/ui/BorderGlow';
 import OpenFMVAiSettingsCenter from '@/app/_components/local/OpenFMVAiSettingsCenter';
 import { AppNode, OpenFMVAsset, OpenFMVProject } from '@/app/_types';
@@ -144,6 +144,8 @@ export default function LocalProjectsClient() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortMode, setSortMode] = useState<'recent' | 'oldest'>('recent');
   const [selectedProjectId, setSelectedProjectId] = useState('');
+  const [isProjectSelectionMode, setIsProjectSelectionMode] = useState(false);
+  const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
   const [assetQuery, setAssetQuery] = useState('');
   const [assetFilter, setAssetFilter] = useState<AssetFilter>('all');
   const [isImportingAssets, setIsImportingAssets] = useState(false);
@@ -158,6 +160,14 @@ export default function LocalProjectsClient() {
   useEffect(() => {
     refreshProjects();
   }, []);
+
+  useEffect(() => {
+    const projectIds = new Set(projects.map((project) => project.id));
+    setSelectedProjectIds((ids) => {
+      const nextIds = ids.filter((id) => projectIds.has(id));
+      return nextIds.length === ids.length ? ids : nextIds;
+    });
+  }, [projects]);
 
 
   const filteredProjects = useMemo(() => {
@@ -176,6 +186,10 @@ export default function LocalProjectsClient() {
   const nodeTotal = projects.reduce((total, project) => total + (project.graphData?.nodes?.length ?? 0), 0);
   const assetTotal = projects.reduce((total, project) => total + (project.assets?.length ?? 0), 0);
   const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? null;
+  const selectedProjectIdSet = useMemo(() => new Set(selectedProjectIds), [selectedProjectIds]);
+  const selectedProjects = useMemo(() => projects.filter((project) => selectedProjectIdSet.has(project.id)), [projects, selectedProjectIdSet]);
+  const selectedVisibleProjectCount = filteredProjects.filter((project) => selectedProjectIdSet.has(project.id)).length;
+  const allFilteredProjectsSelected = filteredProjects.length > 0 && selectedVisibleProjectCount === filteredProjects.length;
 
   const assets = useMemo<ProjectAsset[]>(() => {
     return projects.flatMap((project) => (project.assets || []).map((asset) => ({ project, asset })));
@@ -239,6 +253,42 @@ export default function LocalProjectsClient() {
   const handleDelete = (projectId: string, projectTitle: string) => {
     if (!window.confirm(t('deleteProjectConfirm', { title: projectTitle }))) return;
     deleteLocalProject(projectId);
+    setSelectedProjectIds((ids) => ids.filter((id) => id !== projectId));
+    refreshProjects();
+  };
+
+  const clearProjectSelection = () => {
+    setIsProjectSelectionMode(false);
+    setSelectedProjectIds([]);
+  };
+
+  const toggleProjectSelection = (projectId: string) => {
+    setIsProjectSelectionMode(true);
+    setSelectedProjectIds((ids) => (
+      ids.includes(projectId) ? ids.filter((id) => id !== projectId) : [...ids, projectId]
+    ));
+  };
+
+  const toggleAllFilteredProjects = () => {
+    setIsProjectSelectionMode(true);
+    setSelectedProjectIds((ids) => {
+      const filteredProjectIds = filteredProjects.map((project) => project.id);
+      if (filteredProjectIds.length === 0) return ids;
+      const filteredProjectIdSet = new Set(filteredProjectIds);
+      const idsOutsideFilter = ids.filter((id) => !filteredProjectIdSet.has(id));
+      return allFilteredProjectsSelected ? idsOutsideFilter : [...idsOutsideFilter, ...filteredProjectIds];
+    });
+  };
+
+  const handleExportSelectedProjects = () => {
+    selectedProjects.forEach((project) => exportProjectJson(project));
+  };
+
+  const handleDeleteSelectedProjects = () => {
+    if (selectedProjects.length === 0) return;
+    if (!window.confirm(t('deleteSelectedProjectsConfirm', { count: selectedProjects.length }))) return;
+    selectedProjects.forEach((project) => deleteLocalProject(project.id));
+    clearProjectSelection();
     refreshProjects();
   };
 
@@ -473,8 +523,34 @@ export default function LocalProjectsClient() {
                   <h2 className="text-[26px] font-bold text-white">{t('localDrafts')}</h2>
                   <div className="mt-1 text-sm text-openfmv-muted">{t('draftSummary', { projects: filteredProjects.length, nodes: nodeTotal, assets: assetTotal })}</div>
                 </div>
-                {projects.length > 0 && (
+                {projects.length > 0 && isProjectSelectionMode ? (
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    <div className="mr-1 rounded-full border border-sky-300/20 bg-sky-400/10 px-3 py-2 text-sm font-semibold text-sky-100">
+                      {t('selectedProjects', { count: selectedProjectIds.length })}
+                    </div>
+                    <button type="button" onClick={toggleAllFilteredProjects} className="inline-flex h-10 items-center gap-2 rounded-[12px] border border-white/10 bg-white/[0.06] px-4 text-sm font-semibold text-openfmv-sub transition hover:border-white/25 hover:text-white">
+                      {allFilteredProjectsSelected ? <CheckSquare2 size={16} /> : <Square size={16} />}
+                      {allFilteredProjectsSelected ? t('clearVisibleSelection') : t('selectAllProjects')}
+                    </button>
+                    <button type="button" onClick={handleExportSelectedProjects} disabled={selectedProjectIds.length === 0} className="inline-flex h-10 items-center gap-2 rounded-[12px] border border-white/10 bg-white/[0.06] px-4 text-sm font-semibold text-openfmv-sub transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-45">
+                      <Download size={16} />
+                      {t('exportSelectedProjects')}
+                    </button>
+                    <button type="button" onClick={handleDeleteSelectedProjects} disabled={selectedProjectIds.length === 0} className="inline-flex h-10 items-center gap-2 rounded-[12px] border border-red-400/20 bg-red-500/10 px-4 text-sm font-semibold text-red-200 transition hover:border-red-300/45 hover:bg-red-500/16 disabled:cursor-not-allowed disabled:opacity-45">
+                      <Trash2 size={16} />
+                      {t('deleteSelectedProjects')}
+                    </button>
+                    <button type="button" onClick={clearProjectSelection} className="inline-flex h-10 items-center gap-2 rounded-[12px] border border-white/10 bg-white/[0.06] px-4 text-sm font-semibold text-openfmv-sub transition hover:border-white/25 hover:text-white">
+                      <X size={16} />
+                      {t('cancelSelection')}
+                    </button>
+                  </div>
+                ) : projects.length > 0 && (
                   <div className="flex items-center gap-3">
+                    <button type="button" onClick={() => setIsProjectSelectionMode(true)} className="inline-flex h-10 items-center gap-2 rounded-[12px] border border-white/10 bg-white/[0.06] px-4 text-sm font-semibold text-openfmv-sub transition hover:border-white/25 hover:text-white">
+                      <CheckSquare2 size={16} />
+                      {t('selectProjects')}
+                    </button>
                     <div className="hidden overflow-hidden rounded-[12px] border border-white/10 bg-white/[0.06] lg:flex">
                       <input value={title} onChange={(event) => setTitle(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void handleCreate(); }} placeholder={t('projectName')} className="h-10 w-52 bg-transparent px-4 text-sm text-white outline-none placeholder:text-openfmv-muted" />
                       <button onClick={() => void handleCreate()} className="px-4 text-sm font-semibold text-white transition hover:bg-white/[0.08]">{t('create')}</button>
@@ -532,10 +608,19 @@ export default function LocalProjectsClient() {
                   {filteredProjects.map((project) => {
                     const stats = getProjectStats(project);
                     const cover = getProjectCover(project);
+                    const isSelected = selectedProjectIdSet.has(project.id);
                     return (
-                      <article key={project.id} className="group relative min-w-0">
-                        <Link href={getEditorHref(locale, project.id)} className="block">
-                          <BorderGlow className="aspect-square overflow-hidden transition group-hover:-translate-y-1" edgeSensitivity={24} glowColor="198 80 76" backgroundColor="#1f1f1f" borderRadius={14} glowRadius={22} glowIntensity={0.34} coneSpread={20} colors={['#67e8f9', '#a5b4fc', '#f0abfc']} fillOpacity={0.1}>
+                      <article key={project.id} className={`group relative min-w-0 ${isSelected ? 'text-sky-100' : ''}`}>
+                        <Link
+                          href={getEditorHref(locale, project.id)}
+                          onClick={(event) => {
+                            if (!isProjectSelectionMode) return;
+                            event.preventDefault();
+                            toggleProjectSelection(project.id);
+                          }}
+                          className="block"
+                        >
+                          <BorderGlow className={`aspect-square overflow-hidden transition group-hover:-translate-y-1 ${isSelected ? 'ring-2 ring-sky-300/80 ring-offset-2 ring-offset-[#181818]' : ''}`} edgeSensitivity={24} glowColor="198 80 76" backgroundColor="#1f1f1f" borderRadius={14} glowRadius={22} glowIntensity={0.34} coneSpread={20} colors={['#67e8f9', '#a5b4fc', '#f0abfc']} fillOpacity={0.1}>
                             <div className="relative h-full overflow-hidden rounded-[14px] bg-[radial-gradient(circle_at_30%_16%,rgba(125,211,252,0.10),transparent_32%),linear-gradient(135deg,rgba(255,255,255,0.10),rgba(255,255,255,0.035))]">
                               {cover ? (
                                 <img src={cover} alt={project.title} className="absolute inset-0 h-full w-full object-cover opacity-90 transition group-hover:scale-105" />
@@ -549,23 +634,30 @@ export default function LocalProjectsClient() {
                             </div>
                           </BorderGlow>
                         </Link>
-                        <Link href={getEditorHref(locale, project.id)} className="absolute left-1/2 top-[90px] z-20 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/45 text-white opacity-0 shadow-[0_16px_42px_rgba(0,0,0,0.36)] backdrop-blur-3xl transition hover:scale-105 hover:bg-white/15 group-hover:opacity-100" title={t('openBlueprint')}>
-                          <Play size={22} fill="currentColor" className="ml-0.5" />
-                        </Link>
-                        <div className="absolute left-7 right-7 top-1 z-20 flex items-center justify-between opacity-0 transition group-hover:opacity-100">
-                          <button onClick={() => void handleRename(project)} className="flex h-8 w-8 items-center justify-center rounded-full bg-black/35 text-openfmv-sub backdrop-blur-3xl hover:text-white" title={t('rename')}>
-                            <Edit3 size={14} />
-                          </button>
-                          <button onClick={() => void handleDuplicate(project)} className="flex h-8 w-8 items-center justify-center rounded-full bg-black/35 text-openfmv-sub backdrop-blur-3xl hover:text-white" title={t('duplicate')}>
-                            <Copy size={14} />
-                          </button>
-                          <button onClick={() => exportProjectJson(project)} className="flex h-8 w-8 items-center justify-center rounded-full bg-black/35 text-openfmv-sub backdrop-blur-3xl hover:text-white" title={t('exportBackup')}>
-                            <Download size={14} />
-                          </button>
-                          <button onClick={() => handleDelete(project.id, project.title)} className="flex h-8 w-8 items-center justify-center rounded-full bg-black/35 text-openfmv-sub backdrop-blur-3xl hover:text-red-300" title={t('deleteProject')}>
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
+                        <button type="button" onClick={() => toggleProjectSelection(project.id)} aria-pressed={isSelected} className={`absolute left-3 top-3 z-30 flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-black/55 text-white shadow-[0_14px_34px_rgba(0,0,0,0.34)] backdrop-blur-3xl transition hover:border-sky-200/60 hover:text-sky-100 ${isProjectSelectionMode || isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`} title={isSelected ? t('deselectProject') : t('selectProject')}>
+                          {isSelected ? <CheckSquare2 size={17} className="text-sky-200" /> : <Square size={17} />}
+                        </button>
+                        {!isProjectSelectionMode && (
+                          <>
+                            <Link href={getEditorHref(locale, project.id)} className="absolute left-1/2 top-[90px] z-20 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/45 text-white opacity-0 shadow-[0_16px_42px_rgba(0,0,0,0.36)] backdrop-blur-3xl transition hover:scale-105 hover:bg-white/15 group-hover:opacity-100" title={t('openBlueprint')}>
+                              <Play size={22} fill="currentColor" className="ml-0.5" />
+                            </Link>
+                            <div className="absolute left-7 right-7 top-1 z-20 flex items-center justify-between opacity-0 transition group-hover:opacity-100">
+                              <button onClick={() => void handleRename(project)} className="flex h-8 w-8 items-center justify-center rounded-full bg-black/35 text-openfmv-sub backdrop-blur-3xl hover:text-white" title={t('rename')}>
+                                <Edit3 size={14} />
+                              </button>
+                              <button onClick={() => void handleDuplicate(project)} className="flex h-8 w-8 items-center justify-center rounded-full bg-black/35 text-openfmv-sub backdrop-blur-3xl hover:text-white" title={t('duplicate')}>
+                                <Copy size={14} />
+                              </button>
+                              <button onClick={() => exportProjectJson(project)} className="flex h-8 w-8 items-center justify-center rounded-full bg-black/35 text-openfmv-sub backdrop-blur-3xl hover:text-white" title={t('exportBackup')}>
+                                <Download size={14} />
+                              </button>
+                              <button onClick={() => handleDelete(project.id, project.title)} className="flex h-8 w-8 items-center justify-center rounded-full bg-black/35 text-openfmv-sub backdrop-blur-3xl hover:text-red-300" title={t('deleteProject')}>
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </>
+                        )}
                         <div className="mt-3 min-w-0">
                           <div className="truncate text-base font-semibold text-white">{project.title}</div>
                           <div className="mt-1 flex items-center gap-1 text-xs text-openfmv-muted">
@@ -583,13 +675,37 @@ export default function LocalProjectsClient() {
                   {filteredProjects.map((project) => {
                     const stats = getProjectStats(project);
                     const cover = getProjectCover(project);
+                    const isSelected = selectedProjectIdSet.has(project.id);
                     return (
-                      <article key={project.id} className="group flex items-center gap-4 p-4">
-                        <Link href={getEditorHref(locale, project.id)} className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[18px] border border-white/10 bg-[radial-gradient(circle_at_30%_16%,rgba(255,255,255,0.11),transparent_32%),linear-gradient(135deg,rgba(255,255,255,0.10),rgba(255,255,255,0.035))] text-white/75 transition group-hover:border-white/25">
+                      <article key={project.id} className={`group flex items-center gap-4 p-4 transition ${isSelected ? 'bg-sky-400/10' : ''}`}>
+                        {(isProjectSelectionMode || isSelected) && (
+                          <button type="button" onClick={() => toggleProjectSelection(project.id)} aria-pressed={isSelected} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/[0.055] text-openfmv-sub transition hover:border-sky-200/55 hover:text-sky-100" title={isSelected ? t('deselectProject') : t('selectProject')}>
+                            {isSelected ? <CheckSquare2 size={17} className="text-sky-200" /> : <Square size={17} />}
+                          </button>
+                        )}
+                        <Link
+                          href={getEditorHref(locale, project.id)}
+                          onClick={(event) => {
+                            if (!isProjectSelectionMode) return;
+                            event.preventDefault();
+                            toggleProjectSelection(project.id);
+                          }}
+                          className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-[18px] border bg-[radial-gradient(circle_at_30%_16%,rgba(255,255,255,0.11),transparent_32%),linear-gradient(135deg,rgba(255,255,255,0.10),rgba(255,255,255,0.035))] text-white/75 transition group-hover:border-white/25 ${isSelected ? 'border-sky-300/65' : 'border-white/10'}`}
+                        >
                           {cover ? <img src={cover} alt={project.title} className="h-full w-full rounded-[18px] object-cover" /> : <Layout size={24} />}
                         </Link>
                         <div className="min-w-0 flex-1">
-                          <Link href={getEditorHref(locale, project.id)} className="truncate text-base font-semibold text-white transition hover:text-white/80">{project.title}</Link>
+                          <Link
+                            href={getEditorHref(locale, project.id)}
+                            onClick={(event) => {
+                              if (!isProjectSelectionMode) return;
+                              event.preventDefault();
+                              toggleProjectSelection(project.id);
+                            }}
+                            className="truncate text-base font-semibold text-white transition hover:text-white/80"
+                          >
+                            {project.title}
+                          </Link>
                           <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-openfmv-muted">
                             <span suppressHydrationWarning>{formatProjectTime(project.updatedAt, locale, assetsT('justNow'))}</span>
                             <span>{t('nodesCount', { count: stats.nodes })}</span>
@@ -597,7 +713,7 @@ export default function LocalProjectsClient() {
                             <span>{t('assetsCount', { count: stats.assets })}</span>
                           </div>
                         </div>
-                        <div className="flex shrink-0 items-center gap-2">
+                        {!isProjectSelectionMode && <div className="flex shrink-0 items-center gap-2">
                           <Link href={getEditorHref(locale, project.id)} className="inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-4 text-sm font-semibold text-openfmv-sub transition hover:border-white/25 hover:text-white">
                             <Layout size={14} />
                             {t('openBlueprint')}
@@ -622,7 +738,7 @@ export default function LocalProjectsClient() {
                           <button onClick={() => handleDelete(project.id, project.title)} className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-openfmv-sub transition hover:border-red-400/45 hover:text-red-300" title={t('deleteProject')}>
                             <Trash2 size={14} />
                           </button>
-                        </div>
+                        </div>}
                       </article>
                     );
                   })}

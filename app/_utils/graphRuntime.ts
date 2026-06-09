@@ -1,4 +1,4 @@
-import { AppEdge, AppNode, InteractionMode, InteractionRule, NodeType, OpenFMVGraph, OverlayRect, TimelineAction, TimelineClip, TimelineInteractionClip, TimelineTimedActionClip, TimelineMediaClip } from '../_types';
+import { AppEdge, AppNode, InteractionMode, InteractionRule, NodeType, OpenFMVGraph, OverlayRect, TimelineAction, TimelineClip, TimelineInteractionClip, TimelineMediaClip } from '../_types';
 import {
   buildNodeEffects as buildCoreNodeEffects,
   compileNodeTimeline as compileCoreNodeTimeline,
@@ -61,8 +61,7 @@ export type RuntimeEvent =
   | { type: 'variable.set'; key: string; value: unknown }
   | { type: 'timeline.time.update'; time: number }
   | { type: 'timeline.clip.triggered'; clipId: string; action?: TimelineAction }
-  | { type: 'timeline.clip.timeout'; clipId: string; action?: TimelineAction }
-  | { type: 'timeline.timedAction.triggered'; clipId: string; action?: TimelineAction };
+  | { type: 'timeline.clip.timeout'; clipId: string; action?: TimelineAction };
 
 export type RuntimeEffect =
   | { type: 'scene'; nodeId: string; nodeType: NodeType; title: string; text: string }
@@ -77,7 +76,6 @@ export type RuntimeEffect =
   | { type: 'startTimer'; seconds: number; key: string }
   | { type: 'timelinePlayback'; nodeId: string; duration: number }
   | { type: 'timelineOverlay'; nodeId: string; clips: TimelineInteractionClip[]; duration?: number }
-  | { type: 'timelineTimedActions'; nodeId: string; clips: TimelineTimedActionClip[]; duration?: number }
   | { type: 'end' };
 
 export interface CompiledRuntimeNodeTimeline {
@@ -86,7 +84,6 @@ export interface CompiledRuntimeNodeTimeline {
   mediaClips: TimelineMediaClip[];
   visualMediaClips: TimelineMediaClip[];
   interactionClips: TimelineInteractionClip[];
-  timedActionClips: TimelineTimedActionClip[];
   primaryMediaClip: TimelineMediaClip | null;
 }
 

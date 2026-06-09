@@ -1,4 +1,4 @@
-import { AppEdge, AppNode, InteractionRule, NodeType, OpenFMVGraph, OverlayRect, TimelineAction, TimelineClip, TimelineInteractionClip, TimelineTimedActionClip, TimelineMediaClip } from '../_types';
+import { AppEdge, AppNode, InteractionRule, NodeType, OpenFMVGraph, OverlayRect, TimelineAction, TimelineClip, TimelineInteractionClip, TimelineMediaClip } from '../_types';
 
 export interface RuntimeChoice {
   input?: string;
@@ -34,7 +34,6 @@ export function compileNodeTimeline(node: AppNode): {
   mediaClips: TimelineMediaClip[];
   visualMediaClips: TimelineMediaClip[];
   interactionClips: TimelineInteractionClip[];
-  timedActionClips: TimelineTimedActionClip[];
   primaryMediaClip: TimelineMediaClip | null;
 };
 export function resolveTimelineActionNodeId(node: AppNode, edges: AppEdge[], action?: TimelineAction): string | null;
@@ -62,8 +61,7 @@ export type RuntimeEvent =
   | { type: 'variable.set'; key: string; value: unknown }
   | { type: 'timeline.time.update'; time: number }
   | { type: 'timeline.clip.triggered'; clipId: string; action?: TimelineAction }
-  | { type: 'timeline.clip.timeout'; clipId: string; action?: TimelineAction }
-  | { type: 'timeline.timedAction.triggered'; clipId: string; action?: TimelineAction };
+  | { type: 'timeline.clip.timeout'; clipId: string; action?: TimelineAction };
 export type RuntimeEffect =
   | { type: 'scene'; nodeId: string; nodeType: NodeType; title: string; text: string }
   | { type: 'playMedia'; mediaType: 'video'; src: string; playbackId?: string; poster?: string; timelineStartTime?: number; sourceStart?: number; sourceDuration?: number; duration?: number; timelineDuration?: number; muted?: boolean; rect?: OverlayRect; fit?: 'contain' | 'cover'; opacity?: number; rotation?: number; playbackRate?: number; preservePitch?: boolean; freezeFrameTime?: number }
@@ -77,7 +75,6 @@ export type RuntimeEffect =
   | { type: 'startTimer'; seconds: number; key: string }
   | { type: 'timelinePlayback'; nodeId: string; duration: number }
   | { type: 'timelineOverlay'; nodeId: string; clips: TimelineInteractionClip[]; duration?: number }
-  | { type: 'timelineTimedActions'; nodeId: string; clips: TimelineTimedActionClip[]; duration?: number }
   | { type: 'end' };
 export interface RuntimeSnapshot {
   status: RuntimeStatus;

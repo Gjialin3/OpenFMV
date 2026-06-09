@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 
 import { Film } from 'lucide-react';
 
+import { useProjectSessionStore } from '@/app/_features/project-session/store';
 import { useEditorStore } from '../../_store/useEditorStore';
 import { getLocalizedPath } from '../../_utils/localePaths';
 
@@ -15,7 +16,7 @@ export const useOpenNodeTimeline = (nodeId: string) => {
   const locale = useLocale();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const currentProjectId = useEditorStore((state) => state.currentProjectId);
+  const currentProjectId = useProjectSessionStore((state) => state.projectId);
   const setSelectedNodeId = useEditorStore((state) => state.setSelectedNodeId);
 
   return React.useCallback((event?: React.SyntheticEvent<HTMLElement>) => {

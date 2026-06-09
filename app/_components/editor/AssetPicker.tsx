@@ -4,8 +4,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl';
 import { ChevronLeft, FileText, Image as ImageIcon, Music, Plus, Search, Upload, Video, X } from 'lucide-react';
 
+import { useProjectSessionStore } from '@/app/_features/project-session/store';
 import { useResolvedMediaSrc } from '@/app/_hooks/useResolvedMediaSrc';
-import { useEditorStore } from '@/app/_store/useEditorStore';
 import { OpenFMVAsset } from '@/app/_types';
 import { addAssetToLocalProject, canUseNativeAssetPicker, importAssetFromFile, importAssetFromNativePicker, isStorageQuotaError, listLocalProjects } from '@/app/_utils/localProjects';
 import { Button } from '@/app/_components/ui/button';
@@ -62,7 +62,8 @@ const AssetPreview = ({ asset }: { asset: OpenFMVAsset }) => {
 export default function AssetPicker({ isOpen, onClose, onSelect, allowAudio = false }: AssetPickerProps) {
   const t = useTranslations('assets');
   const inputRef = useRef<HTMLInputElement>(null);
-  const currentProjectId = useEditorStore((state) => state.currentProjectId);
+  const currentProjectId = useProjectSessionStore((state) => state.projectId);
+  const saveProjectSession = useProjectSessionStore((state) => state.saveNow);
   const [isImporting, setIsImporting] = useState(false);
   const [projectAssets, setProjectAssets] = useState<ProjectAsset[]>([]);
   const [query, setQuery] = useState('');
@@ -101,7 +102,8 @@ export default function AssetPicker({ isOpen, onClose, onSelect, allowAudio = fa
   }, [filter, projectAssets, query]);
 
   const persistAssetToCurrentProject = async (asset: OpenFMVAsset) => {
-    const savedProject = await addAssetToLocalProject(currentProjectId, asset);
+    const targetProjectId = currentProjectId ?? (await saveProjectSession())?.id;
+    const savedProject = await addAssetToLocalProject(targetProjectId, asset);
     if (!savedProject) throw new Error(t('selectProjectBeforeImport'));
     refreshProjectAssets();
   };

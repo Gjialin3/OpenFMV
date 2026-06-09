@@ -162,7 +162,7 @@ export const updateTimelineClipRect = ({
       ...track,
       clips: track.clips.map((clip) => {
         if (clip.id !== clipId) return clip;
-        if (clip.type === 'button' || clip.type === 'hotspot' || clip.type === 'pauseGate' || clip.type === 'text') {
+        if (clip.type === 'button') {
           if (areTimelineRectsEqual(clip.rect, safeRect)) return clip;
           didChange = true;
           return { ...clip, rect: safeRect };
@@ -182,9 +182,9 @@ export const updateTimelineClipRect = ({
 const canClipUseTimelineKeyframeProperty = (clip: TimelineClip, property: TimelineKeyframeProperty) => {
   if (property === 'volume') return clip.type === 'video' || clip.type === 'audio';
   if (property === 'x' || property === 'y' || property === 'width' || property === 'height') {
-    return clip.type === 'video' || clip.type === 'image' || clip.type === 'button' || clip.type === 'hotspot' || clip.type === 'pauseGate' || clip.type === 'text';
+    return clip.type === 'video' || clip.type === 'image' || clip.type === 'button';
   }
-  return clip.type !== 'branch' && clip.type !== 'variable';
+  return true;
 };
 
 const getTimelineClipKeyframePropertyValue = (clip: TimelineClip, property: TimelineKeyframeProperty) => {

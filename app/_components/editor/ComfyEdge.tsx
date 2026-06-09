@@ -12,6 +12,7 @@ import {
 } from '@xyflow/react';
 
 import { AppEdge, NodeType } from '@/app/_types';
+import { useProjectSessionStore } from '@/app/_features/project-session/store';
 import { useEditorStore } from '@/app/_store/useEditorStore';
 import { nodeRegistry } from '@/app/_registry/nodeRegistry';
 import { createEditorNode } from './canvas/nodeFactory';
@@ -39,8 +40,8 @@ export default function ComfyEdge(props: EdgeProps) {
   const [menuOpen, setMenuOpen] = React.useState(false);
   const [hovered, setHovered] = React.useState(false);
   const [selectingType, setSelectingType] = React.useState(false);
-  const setEdges = useEditorStore((state) => state.setEdges);
-  const addNode = useEditorStore((state) => state.addNode);
+  const setEdges = useProjectSessionStore((state) => state.setEdges);
+  const addNode = useProjectSessionStore((state) => state.addNode);
   const edgeCurveStyle = useEditorStore((state) => state.edgeCurveStyle);
   const menuRef = React.useRef<HTMLDivElement | null>(null);
 
@@ -93,14 +94,14 @@ export default function ComfyEdge(props: EdgeProps) {
   }, [edgeCurveStyle, sourcePosition, sourceX, sourceY, targetPosition, targetX, targetY]);
 
   const handleDeleteEdge = React.useCallback(() => {
-    const currentEdges = useEditorStore.getState().edges;
+    const currentEdges = useProjectSessionStore.getState().edges;
     setEdges(currentEdges.filter((edge) => edge.id !== id));
     setSelectingType(false);
     setMenuOpen(false);
   }, [id, setEdges]);
 
   const handleInsertNode = React.useCallback((nodeType: NodeType) => {
-    const state = useEditorStore.getState();
+    const state = useProjectSessionStore.getState();
     const currentEdge = state.edges.find((edge) => edge.id === id);
     if (!currentEdge) return;
 

@@ -10,21 +10,24 @@ import TopBar from '@/app/_components/editor/TopBar';
 import PlayerOverlay from '@/app/_components/player/PlayerOverlay';
 import { createMediaClipFromTimelineAsset, ensureNodeTimeline, insertTimelineClip } from '@/app/_features/node-timeline';
 import NodeTimelineEditor, { NodeTimelineAssetRequest } from '@/app/_features/node-timeline/components/NodeTimelineEditor';
+import { useProjectSessionStore } from '@/app/_features/project-session/store';
 import { useEditorStore } from '@/app/_store/useEditorStore';
 import { TimelineMediaClipType } from '@/app/_types';
 
 export default function NodeTimelinePage() {
   const assetsT = useTranslations('assets');
   const [assetRequest, setAssetRequest] = useState<NodeTimelineAssetRequest | null>(null);
+  const { nodes, updateNodeTimeline } = useProjectSessionStore(
+    useShallow((state) => ({
+      nodes: state.nodes,
+      updateNodeTimeline: state.updateNodeTimeline,
+    }))
+  );
   const {
-    nodes,
-    updateNodeData,
     isAssetPickerOpen,
     setAssetPickerOpen,
   } = useEditorStore(
     useShallow((state) => ({
-      nodes: state.nodes,
-      updateNodeData: state.updateNodeData,
       isAssetPickerOpen: state.isAssetPickerOpen,
       setAssetPickerOpen: state.setAssetPickerOpen,
     }))
@@ -59,11 +62,11 @@ export default function NodeTimelinePage() {
       clip,
       trackId: request.trackId,
     });
-    updateNodeData(targetNode.id, { timeline });
+    updateNodeTimeline(targetNode.id, timeline);
 
     setAssetRequest(null);
     setAssetPickerOpen(false);
-  }, [assetRequest, assetsT, nodes, setAssetPickerOpen, updateNodeData]);
+  }, [assetRequest, assetsT, nodes, setAssetPickerOpen, updateNodeTimeline]);
 
   const handleRequestMediaClip = useCallback((request: NodeTimelineAssetRequest) => {
     setAssetRequest(request);

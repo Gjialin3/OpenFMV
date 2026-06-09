@@ -12,6 +12,7 @@ type ResizeDirection = 'top' | 'right' | 'bottom' | 'left' | 'top-left' | 'top-r
 export default function AppWindowFrame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const pathWithoutLocale = stripLocaleFromPath(pathname || '/');
+  const isNodeWorkspace = pathWithoutLocale.startsWith('/nodes');
   const [showChat, setShowChat] = useState(false);
   const [chatFloating, setChatFloating] = useState(false);
   const [chatPosition, setChatPosition] = useState({ x: 620, y: 16 });
@@ -173,8 +174,8 @@ export default function AppWindowFrame({ children }: { children: React.ReactNode
 
   return (
     <div className="h-[100dvh] overflow-hidden bg-[#181818] text-openfmv-text">
-      <AppNavigation chatOpen={showChat} onToggleChat={toggleChat} />
-      <div className="relative h-[calc(100dvh-3.5rem)] overflow-hidden">
+      <AppNavigation chatOpen={showChat} compact={isNodeWorkspace} onToggleChat={toggleChat} />
+      <div className={`relative overflow-hidden ${isNodeWorkspace ? 'h-[calc(100dvh-2.5rem)]' : 'h-[calc(100dvh-3.5rem)]'}`}>
         {children}
         {showChat && (
           <aside

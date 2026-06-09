@@ -14,7 +14,7 @@
 
 OpenFMV 是一个本地优先的可视化非线性叙事编辑器，用于制作互动视频、分支叙事、互动短剧，以及可独立运行的桌面故事体验。
 
-当前项目是 Next.js 14 + Electron 桌面应用。项目文件、导入素材、时间线媒体和导出内容都保存在本地，不依赖账号系统、数据库或云端存储。
+当前项目是 Next.js 16 + Electron 桌面应用。项目文件、导入素材、时间线媒体和导出内容都保存在本地，不依赖账号系统、数据库或云端存储。
 
 ![OpenFMV 编辑器总览](./public/readme/openfmv-editor-overview.png)
 
@@ -53,9 +53,9 @@ OpenFMV 目前有两个核心编辑界面：
 
 ## 技术栈
 
-- Next.js 14 App Router
+- Next.js 16 App Router
 - TypeScript
-- React 18
+- React 19
 - React Flow
 - Zustand
 - Tailwind CSS

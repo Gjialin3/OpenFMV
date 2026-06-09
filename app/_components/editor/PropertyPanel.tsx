@@ -4,6 +4,7 @@ import React from 'react';
 import { useTranslations } from 'next-intl';
 import { Clock, Plus, Trash2, X } from 'lucide-react';
 
+import { useProjectSessionStore } from '@/app/_features/project-session/store';
 import { useEditorStore } from '../../_store/useEditorStore';
 import { AppNode, InteractionMode, InteractionRule } from '../../_types';
 import { Button } from '../ui/button';
@@ -26,11 +27,12 @@ const SectionTitle = ({ children }: { children: React.ReactNode }) => (
 
 export default function PropertyPanel() {
   const t = useTranslations('editor');
-  const selectedNode = useEditorStore((state) => state.selectedNode);
+  const nodes = useProjectSessionStore((state) => state.nodes);
   const selectedNodeId = useEditorStore((state) => state.selectedNodeId);
   const setSelectedNodeId = useEditorStore((state) => state.setSelectedNodeId);
-  const updateNodeData = useEditorStore((state) => state.updateNodeData);
-  const removeNode = useEditorStore((state) => state.removeNode);
+  const updateNodeData = useProjectSessionStore((state) => state.updateNodeData);
+  const removeNode = useProjectSessionStore((state) => state.removeNode);
+  const selectedNode = selectedNodeId ? nodes.find((node) => node.id === selectedNodeId) ?? null : null;
 
   if (!selectedNode) return null;
 

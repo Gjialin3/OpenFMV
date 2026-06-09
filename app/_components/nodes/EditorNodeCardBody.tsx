@@ -5,11 +5,11 @@ import { Position } from '@xyflow/react';
 import { ArrowRight, GitBranch, ImageIcon, ListTree, Music2, Video } from 'lucide-react';
 
 import OpenFMVVideo from '../video/OpenFMVVideo';
+import { useProjectSessionStore } from '@/app/_features/project-session/store';
 import { compileNodeTimeline } from '../../_features/node-timeline/runtime';
 import { getTimelineClipLabel } from '../../_features/node-timeline/schema';
 import { useResolvedMediaSrc } from '../../_hooks/useResolvedMediaSrc';
-import { useEditorStore } from '../../_store/useEditorStore';
-import { AppEdge, AppNode, InteractionRule, TimelineAction, TimelineInteractionClip, TimelineMediaClip, TimelineTimedActionClip } from '../../_types';
+import { AppEdge, AppNode, InteractionRule, TimelineAction, TimelineInteractionClip, TimelineMediaClip } from '../../_types';
 import { getTimelineClipOutputHandleId } from '../../_utils/timelineOutputEdges';
 import { CustomHandle } from './CustomHandle';
 import { useOpenNodeTimeline } from './OpenNodeTimelineButton';
@@ -110,32 +110,20 @@ const getFallbackOutputLabel = (data: EditorNodeData, t: EditorTranslator) => {
 };
 
 const getInteractionClipAction = (clip: TimelineInteractionClip): TimelineAction | undefined => {
-  if (clip.type === 'text') return undefined;
-  if (clip.type === 'pauseGate') return clip.action;
   return clip.action;
 };
 
-const getTimelineOutputLabel = (clip: TimelineInteractionClip | TimelineTimedActionClip, t: EditorTranslator) => {
-  if (clip.type === 'branch') return t('nodePreview.autoBranchAt', { time: formatSeconds(clip.startTime) });
-  if (clip.type === 'button' || clip.type === 'hotspot' || clip.type === 'pauseGate') return t('nodePreview.clicked', { label: getTimelineClipLabel(clip) });
-  return getTimelineClipLabel(clip);
-};
-
-const isTimelineOutputInteractionClip = (clip: TimelineInteractionClip) => {
-  return clip.type === 'button' || clip.type === 'hotspot' || clip.type === 'pauseGate';
-};
+const getTimelineOutputLabel = (clip: TimelineInteractionClip, t: EditorTranslator) => t('nodePreview.clicked', { label: getTimelineClipLabel(clip) });
 
 const buildOutputRows = ({
   data,
   interactionClips,
-  timedActionClips,
   nodesById,
   sourceEdges,
   t,
 }: {
   data: EditorNodeData;
   interactionClips: TimelineInteractionClip[];
-  timedActionClips: TimelineTimedActionClip[];
   nodesById: Map<string, AppNode>;
   sourceEdges: AppEdge[];
   t: EditorTranslator;
@@ -161,7 +149,7 @@ const buildOutputRows = ({
     const rowHandleId = options.handleId ?? null;
     const canConnectRow = Boolean(options.connectable && rowHandleId !== null);
 
-    if (!action || action.type === 'continue' || action.type === 'setVariable') {
+    if (!action || action.type === 'continue') {
       if (options.includeUnlinked) {
         addRow({ key, label, targetLabel: t('nodePreview.unlinked'), handleId: rowHandleId, connectable: canConnectRow, unlinked: true });
       }
@@ -180,23 +168,18 @@ const buildOutputRows = ({
   };
 
   interactionClips.forEach((clip) => {
-    if (!isTimelineOutputInteractionClip(clip)) return;
     addActionRow(`clip:${clip.id}`, getTimelineOutputLabel(clip, t), getInteractionClipAction(clip), {
       includeUnlinked: true,
       handleId: getTimelineClipOutputHandleId(clip.id),
       connectable: true,
     });
-    if (clip.type === 'button' && clip.timeoutAction) {
+    if (clip.timeoutAction) {
       addActionRow(`clip:${clip.id}:timeout`, t('nodePreview.noAction'), clip.timeoutAction, {
         includeUnlinked: true,
         handleId: getTimelineClipOutputHandleId(clip.id, 'timeout'),
         connectable: true,
       });
     }
-  });
-
-  timedActionClips.forEach((clip) => {
-    if (clip.type === 'branch') addActionRow(`timed:${clip.id}`, getTimelineOutputLabel(clip, t), clip.action);
   });
 
   if ((data.type === 'start' || data.type === 'interaction') && rows.length > 0) return rows;
@@ -299,8 +282,8 @@ const OutputHandle = ({ row }: { row: EditorNodeOutputRow }) => {
 
 const EditorNodeCardBody = ({ nodeId, data }: EditorNodeCardBodyProps) => {
   const t = useTranslations('editor');
-  const nodes = useEditorStore((state) => state.nodes);
-  const edges = useEditorStore((state) => state.edges);
+  const nodes = useProjectSessionStore((state) => state.nodes);
+  const edges = useProjectSessionStore((state) => state.edges);
   const compiledTimeline = useMemo(() => compileNodeTimeline(data.timeline), [data.timeline]);
   const nodesById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
   const sourceEdges = useMemo(() => edges.filter((edge) => edge.source === nodeId), [edges, nodeId]);
@@ -308,7 +291,6 @@ const EditorNodeCardBody = ({ nodeId, data }: EditorNodeCardBodyProps) => {
   const outputRows = buildOutputRows({
     data,
     interactionClips: compiledTimeline.interactionClips,
-    timedActionClips: compiledTimeline.timedActionClips,
     nodesById,
     sourceEdges,
     t,
@@ -338,7 +320,7 @@ const EditorNodeCardBody = ({ nodeId, data }: EditorNodeCardBodyProps) => {
           <span className="min-w-0 truncate text-[11px] font-medium text-openfmv-sub">{mediaSummary}</span>
           {compiledTimeline.interactionClips.length > 0 && (
             <span className="shrink-0 text-[10px] font-semibold text-openfmv-muted">
-              {t('nodePreview.interactionCount', { count: compiledTimeline.interactionClips.length + compiledTimeline.timedActionClips.length })}
+              {t('nodePreview.interactionCount', { count: compiledTimeline.interactionClips.length })}
             </span>
           )}
         </div>

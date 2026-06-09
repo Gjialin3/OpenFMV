@@ -16,6 +16,7 @@ import {
 import { useShallow } from 'zustand/react/shallow';
 import '@xyflow/react/dist/style.css';
 
+import { useProjectSessionStore } from '@/app/_features/project-session/store';
 import { useEditorStore } from '../../_store/useEditorStore';
 import { AppNode, NodeType, AppEdge, OpenFMVAsset } from '../../_types';
 import FloatingToolbar from './FloatingToolbar';
@@ -24,8 +25,8 @@ import { getLayoutedElements } from '@/app/lib/autoLayout';
 import AssetPicker from './AssetPicker';
 import EditorLoading from './EditorLoading';
 import { addAssetsToLocalProject, importAssetFromFile } from '@/app/_utils/localProjects';
+import { defaultGraphData } from '@/app/_utils/projectPersistence';
 import { isValidGraphConnection } from '@/app/_utils/graphRules';
-import { syncTimelineOutputEdges } from '@/app/_utils/timelineOutputEdges';
 import { getPickerAssetUpdate, PickerAsset } from './canvas/assetBinding';
 import { edgeTypes, nodeTypes } from './canvas/flowTypes';
 import { EmptyCanvasPrompt, FileDropOverlay, PendingConnectMenu, PendingConnectMenuState } from './canvas/CanvasOverlays';
@@ -83,17 +84,13 @@ const EditorContent = ({ projectId }: { projectId?: string | null }) => {
     onConnectStore, 
     addNode, 
     addNodeAndConnect,
-    setSelectedNodeId, 
     setNodes, 
     setEdges, 
-    reset,
     updateNodeData,
     currentProjectId,
-    isAssetPickerOpen,
-    setAssetPickerOpen,
-    targetNodeIdForAsset,
-    setTargetNodeIdForAsset
-  } = useEditorStore(
+    setGraph,
+    saveProjectSession,
+  } = useProjectSessionStore(
     useShallow((state) => ({
       nodes: state.nodes,
       edges: state.edges,
@@ -102,12 +99,23 @@ const EditorContent = ({ projectId }: { projectId?: string | null }) => {
       onConnectStore: state.onConnect,
       addNode: state.addNode,
       addNodeAndConnect: state.addNodeAndConnect,
-      setSelectedNodeId: state.setSelectedNodeId,
       setNodes: state.setNodes,
       setEdges: state.setEdges,
-      reset: state.reset,
       updateNodeData: state.updateNodeData,
-      currentProjectId: state.currentProjectId,
+      currentProjectId: state.projectId,
+      setGraph: state.setGraph,
+      saveProjectSession: state.saveNow,
+    }))
+  );
+  const {
+    setSelectedNodeId,
+    isAssetPickerOpen,
+    setAssetPickerOpen,
+    targetNodeIdForAsset,
+    setTargetNodeIdForAsset
+  } = useEditorStore(
+    useShallow((state) => ({
+      setSelectedNodeId: state.setSelectedNodeId,
       isAssetPickerOpen: state.isAssetPickerOpen,
       setAssetPickerOpen: state.setAssetPickerOpen,
       targetNodeIdForAsset: state.targetNodeIdForAsset,
@@ -195,9 +203,9 @@ const EditorContent = ({ projectId }: { projectId?: string | null }) => {
 
   const handleReset = useCallback(() => {
     if (confirm(t('resetCanvasConfirm'))) {
-        reset();
+        setGraph(defaultGraphData());
     }
-  }, [reset, t]);
+  }, [setGraph, t]);
 
   const handleClearCache = useCallback(() => {
     if (confirm(t('clearLocalCacheConfirm'))) {
@@ -238,11 +246,6 @@ const EditorContent = ({ projectId }: { projectId?: string | null }) => {
     [edges]
   );
 
-  React.useEffect(() => {
-    const syncedEdges = syncTimelineOutputEdges(nodes, edges);
-    if (syncedEdges !== edges) setEdges(syncedEdges);
-  }, [edges, nodes, setEdges]);
-
   const handleAddNode = useCallback((type: NodeType) => {
     const { x, y, zoom } = getViewport();
     const centerX = window.innerWidth / 2;
@@ -277,7 +280,8 @@ const EditorContent = ({ projectId }: { projectId?: string | null }) => {
           y: event.clientY,
         });
         const importedAssets = await Promise.all(Array.from(event.dataTransfer.files).map((file) => importAssetFromFile(file)));
-        await addAssetsToLocalProject(currentProjectId, importedAssets);
+        const targetProjectId = currentProjectId ?? (await saveProjectSession())?.id;
+        await addAssetsToLocalProject(targetProjectId, importedAssets);
 
         const createdNodes: AppNode[] = [];
         for (const asset of importedAssets) {
@@ -311,7 +315,7 @@ const EditorContent = ({ projectId }: { projectId?: string | null }) => {
       const currentNodes = getNodes();
       addNode(createEditorNode(type, getAvailableNodePosition(position, currentNodes), currentNodes, nodeDefaults));
     },
-    [screenToFlowPosition, addNode, getNodes, currentProjectId, nodeDefaults, t, assetsT],
+    [screenToFlowPosition, addNode, getNodes, currentProjectId, saveProjectSession, nodeDefaults, t, assetsT],
   );
 
   const connectionStartParams = React.useRef<ConnectionStartState>({ nodeId: null, handleId: null, handleType: null });

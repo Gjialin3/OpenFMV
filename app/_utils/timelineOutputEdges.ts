@@ -7,7 +7,7 @@ const TIMELINE_OUTPUT_HANDLE_PREFIX = 'timeline-output:';
 const TIMELINE_TIMEOUT_HANDLE_SUFFIX = ':timeout';
 
 type TimelineOutputKind = 'action' | 'timeout';
-type TimelineOutputClip = Extract<TimelineInteractionClip, { type: 'button' | 'hotspot' | 'pauseGate' }>;
+type TimelineOutputClip = Extract<TimelineInteractionClip, { type: 'button' }>;
 
 interface TimelineOutputHandle {
   clipId: string;
@@ -34,12 +34,11 @@ export const parseTimelineOutputHandleId = (handleId?: string | null): TimelineO
 export const isTimelineOutputHandleId = (handleId?: string | null) => Boolean(parseTimelineOutputHandleId(handleId));
 
 const isTimelineOutputClip = (clip: TimelineClip): clip is TimelineOutputClip => (
-  clip.type === 'button' || clip.type === 'hotspot' || clip.type === 'pauseGate'
+  clip.type === 'button'
 );
 
 const getClipAction = (clip: TimelineOutputClip, kind: TimelineOutputKind): TimelineAction | undefined => {
-  if (kind === 'timeout') return clip.type === 'button' ? clip.timeoutAction : undefined;
-  if (clip.type === 'pauseGate') return clip.action;
+  if (kind === 'timeout') return clip.timeoutAction;
   return clip.action;
 };
 
@@ -47,8 +46,6 @@ const areTimelineActionsEqual = (first: TimelineAction | undefined, second: Time
   (first?.type ?? 'continue') === (second?.type ?? 'continue')
     && (first?.handleId ?? null) === (second?.handleId ?? null)
     && (first?.nodeId ?? null) === (second?.nodeId ?? null)
-    && (first?.key ?? null) === (second?.key ?? null)
-    && first?.value === second?.value
 );
 
 const setClipAction = (clip: TimelineClip, handle: TimelineOutputHandle, action: TimelineAction): TimelineClip => {

@@ -151,9 +151,8 @@ export interface TimelineTrack {
 }
 
 export type TimelineMediaClipType = 'video' | 'image' | 'audio';
-export type TimelineInteractionClipType = 'button' | 'hotspot' | 'pauseGate' | 'text';
-export type TimelineTimedActionClipType = 'branch' | 'variable';
-export type TimelineClipType = TimelineMediaClipType | TimelineInteractionClipType | TimelineTimedActionClipType;
+export type TimelineInteractionClipType = 'button';
+export type TimelineClipType = TimelineMediaClipType | TimelineInteractionClipType;
 export type TimelineKeyframeProperty = 'opacity' | 'rotation' | 'x' | 'y' | 'width' | 'height' | 'volume';
 export type TimelineKeyframeInterpolation = 'linear' | 'hold';
 
@@ -165,7 +164,7 @@ export interface TimelineClipKeyframe {
   interpolation?: TimelineKeyframeInterpolation;
 }
 
-export type TimelineClip = TimelineMediaClip | TimelineInteractionClip | TimelineTimedActionClip;
+export type TimelineClip = TimelineMediaClip | TimelineInteractionClip;
 
 export interface BaseTimelineClip {
   id: string;
@@ -191,11 +190,9 @@ export interface OverlayRect {
 }
 
 export interface TimelineAction {
-  type: 'goToHandle' | 'goToNode' | 'continue' | 'setVariable';
+  type: 'goToHandle' | 'goToNode' | 'continue';
   handleId?: string | null;
   nodeId?: string | null;
-  key?: string;
-  value?: unknown;
 }
 
 export interface TimelineMediaClip extends BaseTimelineClip {
@@ -224,39 +221,7 @@ export interface ButtonChoiceClip extends BaseTimelineClip {
   timeoutAction?: TimelineAction;
 }
 
-export interface HotspotClip extends BaseTimelineClip {
-  type: 'hotspot';
-  rect: OverlayRect;
-  hint?: string;
-  showHint: boolean;
-  action: TimelineAction;
-  pauseOnShow: boolean;
-}
-
-export interface PauseGateClip extends BaseTimelineClip {
-  type: 'pauseGate';
-  label: string;
-  rect?: OverlayRect;
-  action?: TimelineAction;
-  resumeOnClick: boolean;
-}
-
-export interface TextOverlayClip extends BaseTimelineClip {
-  type: 'text';
-  text: string;
-  rect: OverlayRect;
-  fontSize?: number;
-  color?: string;
-  backgroundColor?: string;
-  align?: 'left' | 'center' | 'right';
-}
-
-export interface TimelineTimedActionClip extends BaseTimelineClip {
-  type: TimelineTimedActionClipType;
-  action: TimelineAction;
-}
-
-export type TimelineInteractionClip = ButtonChoiceClip | HotspotClip | PauseGateClip | TextOverlayClip;
+export type TimelineInteractionClip = ButtonChoiceClip;
 
 export type NodeData = 
   | { type: 'story'; title: string; content: string; fullText?: string; timeline?: NodeTimeline }

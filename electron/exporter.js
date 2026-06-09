@@ -336,8 +336,6 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
     .timeline-clip { pointer-events: auto; position: absolute; display: flex; min-width: 48px; min-height: 36px; align-items: center; justify-content: center; box-sizing: border-box; border-radius: 12px; padding: 0 12px; color: white; font-size: 14px; font-weight: 750; cursor: pointer; box-shadow: 0 18px 54px rgba(0,0,0,.32); backdrop-filter: blur(14px); transition: transform .16s ease; }
     .timeline-clip:hover { transform: scale(1.02); }
     .timeline-clip.button { border: 1px solid rgba(253,186,116,.9); background: rgba(249,115,22,.92); }
-    .timeline-clip.hotspot { border: 2px solid rgba(103,232,249,.9); background: rgba(34,211,238,.12); color: #ecfeff; }
-    .timeline-clip.pauseGate { border: 1px solid rgba(196,181,253,.9); background: rgba(139,92,246,.86); }
     .timeline-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     @keyframes timer { from { transform: scaleX(1); } to { transform: scaleX(0); } }
     @media (max-width: 720px) {
@@ -383,13 +381,11 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
 
     const timelineClipLabel = (clip) => {
       if (!clip) return '';
-      if (clip.type === 'hotspot') return clip.showHint ? clip.hint || clip.name || 'Hotspot' : '';
       return clip.label || clip.name || 'Continue';
     };
 
     const timelineClipAction = (clip) => {
       if (!clip) return { type: 'continue' };
-      if (clip.type === 'pauseGate') return clip.action || { type: 'continue' };
       return clip.action || { type: 'continue' };
     };
 
@@ -423,7 +419,7 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
 
         activeClips.forEach((clip) => {
           if (timelineShownClipIds.has(clip.id)) return;
-          if (clip.type === 'pauseGate' || clip.pauseOnShow) {
+          if (clip.pauseOnShow) {
             timelineShownClipIds.add(clip.id);
             video.pause();
           }
@@ -554,21 +550,7 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
 `;
 };
 
-const exportGamePackage = async ({ project, config, electronExecutablePath, electronRuntimeDir, isDev }) => {
-  const gameTitle = sanitizeName(config.gameTitle || project.title);
-  const outputRoot = await ensureDir(config.outputDirectory);
-  const gameDir = path.join(outputRoot, gameTitle);
-  await fs.rm(gameDir, { recursive: true, force: true });
-  await ensureDir(gameDir);
-  await copyElectronRuntime(
-    electronRuntimeDir || (electronExecutablePath ? path.dirname(electronExecutablePath) : null),
-    electronExecutablePath,
-    gameDir,
-    gameTitle
-  );
-  const assetsDir = await ensureDir(path.join(gameDir, 'assets'));
-  const resourcesAppDir = await ensureDir(path.join(gameDir, 'resources', 'app'));
-  const resourcesAssetsDir = await ensureDir(path.join(resourcesAppDir, 'assets'));
+const createExportGamePayload = async ({ project, config, assetsDir }) => {
   const graphData = JSON.parse(JSON.stringify(project.graphData));
   const assets = JSON.parse(JSON.stringify(project.assets || []));
   const pathMap = new Map();
@@ -579,7 +561,7 @@ const exportGamePackage = async ({ project, config, electronExecutablePath, elec
     if (!asset.path) continue;
     if (!isLocalFilePath(asset.path)) continue;
     try {
-      const relativePath = await copyExportAsset(asset.path, resourcesAssetsDir, usedNames, baseDir);
+      const relativePath = await copyExportAsset(asset.path, assetsDir, usedNames, baseDir);
       pathMap.set(asset.path, relativePath);
       if (asset.relativePath) pathMap.set(asset.relativePath, relativePath);
       asset.path = relativePath;
@@ -591,14 +573,10 @@ const exportGamePackage = async ({ project, config, electronExecutablePath, elec
   for (const mediaPath of collectGraphMediaPaths(graphData)) {
     if (pathMap.has(mediaPath)) continue;
     try {
-      const relativePath = await copyExportAsset(mediaPath, resourcesAssetsDir, usedNames, baseDir);
+      const relativePath = await copyExportAsset(mediaPath, assetsDir, usedNames, baseDir);
       pathMap.set(mediaPath, relativePath);
     } catch {
     }
-  }
-
-  if (usedNames.size > 0) {
-    await copyDir(resourcesAssetsDir, assetsDir);
   }
 
   rewriteGraphMediaPaths(graphData, pathMap);
@@ -620,6 +598,46 @@ const exportGamePackage = async ({ project, config, electronExecutablePath, elec
   const { buildGraphRuntimeBrowserScript } = await getGraphRuntimeCore();
   const graphRuntimeScript = buildGraphRuntimeBrowserScript();
 
+  return { gameJson, graphRuntimeScript, copiedAssetCount: usedNames.size };
+};
+
+const exportWebGamePackage = async ({ project, config }) => {
+  const gameTitle = sanitizeName(config.gameTitle || project.title);
+  const outputRoot = await ensureDir(config.outputDirectory);
+  const gameDir = path.join(outputRoot, gameTitle);
+  await fs.rm(gameDir, { recursive: true, force: true });
+  await ensureDir(gameDir);
+  const assetsDir = await ensureDir(path.join(gameDir, 'assets'));
+  const { gameJson, graphRuntimeScript } = await createExportGamePayload({ project, config, assetsDir });
+
+  await fs.writeFile(path.join(gameDir, 'game.json'), gameJson, 'utf8');
+  await fs.writeFile(path.join(gameDir, 'index.html'), createGameShellHtml(gameJson, graphRuntimeScript), 'utf8');
+  await fs.writeFile(path.join(gameDir, 'README.txt'), 'Open index.html in a browser to play the exported OpenFMV web game. Keep the assets folder next to index.html.', 'utf8');
+  return { outputDirectory: gameDir };
+};
+
+const exportGamePackage = async ({ project, config, electronExecutablePath, electronRuntimeDir, isDev }) => {
+  const gameTitle = sanitizeName(config.gameTitle || project.title);
+  const outputRoot = await ensureDir(config.outputDirectory);
+  const gameDir = path.join(outputRoot, gameTitle);
+  await fs.rm(gameDir, { recursive: true, force: true });
+  await ensureDir(gameDir);
+  await copyElectronRuntime(
+    electronRuntimeDir || (electronExecutablePath ? path.dirname(electronExecutablePath) : null),
+    electronExecutablePath,
+    gameDir,
+    gameTitle
+  );
+  const assetsDir = await ensureDir(path.join(gameDir, 'assets'));
+  const resourcesAppDir = await ensureDir(path.join(gameDir, 'resources', 'app'));
+  const resourcesAssetsDir = await ensureDir(path.join(resourcesAppDir, 'assets'));
+
+  const { gameJson, graphRuntimeScript, copiedAssetCount } = await createExportGamePayload({ project, config, assetsDir: resourcesAssetsDir });
+
+  if (copiedAssetCount > 0) {
+    await copyDir(resourcesAssetsDir, assetsDir);
+  }
+
   await fs.writeFile(path.join(gameDir, 'game.json'), gameJson, 'utf8');
   await fs.writeFile(path.join(resourcesAppDir, 'game.json'), gameJson, 'utf8');
   await fs.writeFile(path.join(resourcesAppDir, 'package.json'), JSON.stringify({ name: 'openfmv-exported-game', main: 'main.js' }, null, 2), 'utf8');
@@ -635,6 +653,7 @@ module.exports = {
   createGameShellHtml,
   createGameShellMain,
   exportGamePackage,
+  exportWebGamePackage,
   isLocalFilePath,
   normalizeProjectAssets,
   rewriteGraphMediaPaths,

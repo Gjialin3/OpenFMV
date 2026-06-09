@@ -3,51 +3,113 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
-import { Check, Clock3, Download, Film, GitBranch, Loader2, Play, Settings } from 'lucide-react';
+import { Check, ChevronDown, Clock3, Download, Film, GitBranch, Globe2, Loader2, MonitorDown, Play, Settings } from 'lucide-react';
 import { usePathname, useSearchParams } from 'next/navigation';
+import { useShallow } from 'zustand/react/shallow';
+
+import { useProjectSessionStore } from '@/app/_features/project-session/store';
+import { useRuntimeSessionStore } from '@/app/_features/runtime-session/store';
+import { useClickOutside } from '@/app/_hooks/useClickOutside';
 import { useEditorStore } from '@/app/_store/useEditorStore';
 import { usePlayerStore } from '@/app/_store/usePlayerStore';
-import { useRuntimeGraphStore } from '@/app/_store/useRuntimeGraphStore';
-import { ensureGraphData, getLocalProject, saveLocalProject } from '@/app/_utils/localProjects';
 import { getLocalizedPath, stripLocaleFromPath } from '@/app/_utils/localePaths';
-import { createProjectSnapshot } from '@/app/_utils/projectPersistence';
-import { OpenFMVProject } from '@/app/_types';
 import { Header } from '../ui/Header';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { useClickOutside } from '@/app/_hooks/useClickOutside';
+
+const AUTOSAVE_DELAY_MS = 1200;
 
 export default function TopBar() {
   const locale = useLocale();
   const t = useTranslations('editor');
-  const { nodes, edges, setNodes, setEdges, autoSaveEnabled, setAutoSaveEnabled, edgeCurveStyle, setEdgeCurveStyle, setCurrentProjectId } = useEditorStore();
+  const {
+    project,
+    projectId,
+    title,
+    status,
+    dirty,
+    revision,
+    loadProject,
+    setTitle,
+    saveNow,
+    flushPendingChanges,
+    getGraphSnapshot,
+  } = useProjectSessionStore(
+    useShallow((state) => ({
+      project: state.project,
+      projectId: state.projectId,
+      title: state.title,
+      status: state.status,
+      dirty: state.dirty,
+      revision: state.revision,
+      loadProject: state.loadProject,
+      setTitle: state.setTitle,
+      saveNow: state.saveNow,
+      flushPendingChanges: state.flushPendingChanges,
+      getGraphSnapshot: state.getGraphSnapshot,
+    }))
+  );
+  const {
+    autoSaveEnabled,
+    setAutoSaveEnabled,
+    edgeCurveStyle,
+    setEdgeCurveStyle,
+  } = useEditorStore(
+    useShallow((state) => ({
+      autoSaveEnabled: state.autoSaveEnabled,
+      setAutoSaveEnabled: state.setAutoSaveEnabled,
+      edgeCurveStyle: state.edgeCurveStyle,
+      setEdgeCurveStyle: state.setEdgeCurveStyle,
+    }))
+  );
   const { setIsPlaying, setCurrentNode, reset } = usePlayerStore();
-  const { setGraph } = useRuntimeGraphStore();
+  const startRuntimeSession = useRuntimeSessionStore((state) => state.start);
   const searchParams = useSearchParams();
   const pathname = usePathname();
-  const projectId = searchParams.get('id');
+  const routeProjectId = searchParams.get('id');
   const initialTitleFromQuery = searchParams.get('title')?.trim();
-  const [project, setProject] = useState<OpenFMVProject | null>(null);
-  const [title, setTitle] = useState(initialTitleFromQuery || t('untitledProject'));
   const [isSaving, setIsSaving] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState('');
-  const [lastSaved, setLastSaved] = useState<Date | null>(null);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const isFirstGraphChange = useRef(true);
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
   const exportStatusTimerRef = useRef<number | null>(null);
-  const queryString = searchParams.toString();
+  const navigationParams = new URLSearchParams(searchParams.toString());
+  if (!navigationParams.get('id') && projectId) navigationParams.set('id', projectId);
+  const queryString = navigationParams.toString();
   const querySuffix = queryString ? `?${queryString}` : '';
   const isNodeMode = stripLocaleFromPath(pathname).startsWith('/nodes');
   const blueprintHref = getLocalizedPath(locale, `/editor${querySuffix}`);
   const nodesHref = getLocalizedPath(locale, `/nodes${querySuffix}`);
+  const lastSaved = project?.updatedAt ? new Date(project.updatedAt) : null;
 
   useClickOutside(settingsRef as React.RefObject<HTMLElement>, () => {
     if (isSettingsOpen) setIsSettingsOpen(false);
   });
+
+  useClickOutside(exportMenuRef as React.RefObject<HTMLElement>, () => {
+    if (isExportMenuOpen) setIsExportMenuOpen(false);
+  });
+
+  const flushProjectSession = useCallback(() => {
+    void flushPendingChanges().catch((error) => {
+      console.error('Failed to flush local project before navigation', error);
+    });
+  }, [flushPendingChanges]);
+
+  useEffect(() => {
+    void loadProject(routeProjectId).catch((error) => {
+      console.error('Failed to load local project', error);
+    });
+  }, [loadProject, routeProjectId]);
+
+  useEffect(() => {
+    if (routeProjectId || !initialTitleFromQuery) return;
+    if (title !== initialTitleFromQuery) setTitle(initialTitleFromQuery);
+  }, [initialTitleFromQuery, routeProjectId, setTitle, title]);
 
   useEffect(() => {
     return () => {
@@ -55,49 +117,43 @@ export default function TopBar() {
     };
   }, []);
 
-  const saveStatus = !autoSaveEnabled
-    ? { label: t('autoSavePaused'), icon: Clock3, className: 'text-openfmv-muted', spin: false }
-    : isSaving
-    ? { label: t('saving'), icon: Loader2, className: 'text-sky-200', spin: true }
-    : hasUnsavedChanges
-      ? { label: t('autoSaving'), icon: Clock3, className: 'text-orange-200', spin: false }
-      : { label: t('autoSaved'), icon: Check, className: 'text-emerald-200', spin: false };
-  const SaveStatusIcon = saveStatus.icon;
+  useEffect(() => {
+    return () => {
+      flushProjectSession();
+    };
+  }, [flushProjectSession]);
 
   useEffect(() => {
-    const loadedProject = getLocalProject(projectId);
-    if (!loadedProject) {
-      setCurrentProjectId(projectId);
-      return;
-    }
+    if (!autoSaveEnabled || !dirty || status === 'loading' || status === 'saving') return;
+    const timer = window.setTimeout(() => {
+      void saveNow().catch((error) => {
+        console.error('Failed to auto-save local project', error);
+      });
+    }, AUTOSAVE_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [autoSaveEnabled, dirty, revision, saveNow, status]);
 
-    setProject(loadedProject);
-    setTitle(loadedProject.title);
-    const graphData = ensureGraphData(loadedProject.graphData);
-    setNodes(graphData.nodes);
-    setEdges(graphData.edges);
-    setCurrentProjectId(loadedProject.id);
-    setLastSaved(new Date(loadedProject.updatedAt));
-    isFirstGraphChange.current = true;
-  }, [projectId, setCurrentProjectId, setEdges, setNodes]);
+  const isProjectSaving = isSaving || status === 'saving';
+  const saveStatus = !autoSaveEnabled
+    ? { label: t('autoSavePaused'), icon: Clock3, className: 'text-openfmv-muted', spin: false }
+    : isProjectSaving
+      ? { label: t('saving'), icon: Loader2, className: 'text-sky-200', spin: true }
+      : dirty
+        ? { label: t('autoSaving'), icon: Clock3, className: 'text-orange-200', spin: false }
+        : { label: t('autoSaved'), icon: Check, className: 'text-emerald-200', spin: false };
+  const SaveStatusIcon = saveStatus.icon;
 
   const handleSave = useCallback(async () => {
     setIsSaving(true);
     try {
-      const latestProject = project?.id ? getLocalProject(project.id) : null;
-      const nextProject = createProjectSnapshot(project, title, nodes, edges, latestProject?.assets);
-      const savedProject = await saveLocalProject(nextProject);
-      setProject(savedProject);
-      setCurrentProjectId(savedProject.id);
-      setLastSaved(new Date(savedProject.updatedAt));
-      setHasUnsavedChanges(false);
+      await saveNow();
     } catch (error) {
       console.error('Failed to save local project', error);
       alert(t('saveLocalFailed'));
     } finally {
       setIsSaving(false);
     }
-  }, [edges, nodes, project, setCurrentProjectId, t, title]);
+  }, [saveNow, t]);
 
   const handleSaveAs = useCallback(async () => {
     if (!window.openfmv?.selectDirectory) {
@@ -110,45 +166,21 @@ export default function TopBar() {
 
     setIsSaving(true);
     try {
-      const latestProject = project?.id ? getLocalProject(project.id) : null;
-      const nextProject = createProjectSnapshot(project, title, nodes, edges, latestProject?.assets);
-      const savedProject = await saveLocalProject({
-        ...nextProject,
-        metadata: {
-          ...nextProject.metadata,
-          projectDirectory,
-        },
-      });
-      setProject(savedProject);
-      setCurrentProjectId(savedProject.id);
-      setLastSaved(new Date(savedProject.updatedAt));
-      setHasUnsavedChanges(false);
+      await saveNow({ projectDirectory });
     } catch (error) {
       console.error('Failed to save local project as', error);
       alert(t('saveAsFailed'));
     } finally {
       setIsSaving(false);
     }
-  }, [edges, handleSave, nodes, project, setCurrentProjectId, t, title]);
-
-  useEffect(() => {
-    if (isFirstGraphChange.current) {
-      isFirstGraphChange.current = false;
-      return;
-    }
-    setHasUnsavedChanges(true);
-    if (!autoSaveEnabled) return;
-    const timer = window.setTimeout(() => {
-      void handleSave();
-    }, 1200);
-    return () => window.clearTimeout(timer);
-  }, [autoSaveEnabled, edges, handleSave, nodes, title]);
+  }, [handleSave, saveNow, t]);
 
   const handlePlay = () => {
-    const startNode = nodes.find((node) => node.type === 'start') ?? nodes[0];
+    const graph = getGraphSnapshot();
+    const startNode = graph.nodes.find((node) => node.type === 'start') ?? graph.nodes[0];
     if (!startNode) return;
-    setGraph({ nodes, edges }, startNode.id);
     reset();
+    startRuntimeSession(graph, { entryNodeId: startNode.id });
     setCurrentNode(startNode.id);
     setIsPlaying(true);
   };
@@ -163,19 +195,18 @@ export default function TopBar() {
   };
 
   const handleExport = async () => {
+    setIsExportMenuOpen(false);
     if (!window.openfmv?.exportGame || !window.openfmv?.selectDirectory) {
       showExportStatus(t('desktopExportRequired'));
       alert(t('desktopExportRequiredDetail'));
       return;
     }
 
-    const latestProject = project?.id ? getLocalProject(project.id) : null;
-    const nextProject = createProjectSnapshot(project, title, nodes, edges, latestProject?.assets);
     showExportStatus(t('exporting'));
     setIsExporting(true);
     try {
-      const savedProject = await saveLocalProject(nextProject);
-      setProject(savedProject);
+      const savedProject = await saveNow();
+      if (!savedProject) return;
       const outputDirectory = await window.openfmv.selectDirectory();
       if (!outputDirectory) return;
       await window.openfmv.exportGame(savedProject, {
@@ -198,7 +229,7 @@ export default function TopBar() {
   };
 
   return (
-    <Header position="absolute" className="h-14 border-b border-white/[0.06] bg-black/24 px-3 shadow-[0_16px_44px_rgba(0,0,0,0.24)]">
+    <Header position="absolute" className={`border-b border-white/[0.06] bg-black/24 shadow-[0_16px_44px_rgba(0,0,0,0.24)] ${isNodeMode ? '!h-10 px-2 shadow-none' : 'h-14 px-3'}`}>
       <div className="grid w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
         <div className="pointer-events-auto flex min-w-0 items-center">
           <div className="flex h-9 min-w-0 items-center gap-2 rounded-full border border-white/10 bg-white/[0.075] px-2.5 shadow-[0_10px_28px_rgba(0,0,0,0.18)] backdrop-blur-2xl">
@@ -212,11 +243,11 @@ export default function TopBar() {
         </div>
 
         <nav className="pointer-events-auto flex h-9 items-center gap-1 rounded-full border border-white/10 bg-white/[0.075] p-1 shadow-[0_10px_28px_rgba(0,0,0,0.18)] backdrop-blur-2xl">
-          <Link href={blueprintHref} className={`inline-flex h-7 min-w-[94px] items-center justify-center gap-1.5 rounded-full px-3 text-xs font-bold transition ${isNodeMode ? 'text-openfmv-sub hover:bg-white/[0.08] hover:text-white' : 'bg-white/[0.18] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]'}`} title={t('blueprintMode')}>
+          <Link href={blueprintHref} onClick={flushProjectSession} className={`inline-flex h-7 min-w-[94px] items-center justify-center gap-1.5 rounded-full px-3 text-xs font-bold transition ${isNodeMode ? 'text-openfmv-sub hover:bg-white/[0.08] hover:text-white' : 'bg-white/[0.18] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]'}`} title={t('blueprintMode')}>
             <GitBranch size={13} />
             <span className="hidden sm:inline">{t('blueprintMode')}</span>
           </Link>
-          <Link href={nodesHref} className={`inline-flex h-7 min-w-[88px] items-center justify-center gap-1.5 rounded-full px-3 text-xs font-bold transition ${isNodeMode ? 'bg-white/[0.18] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]' : 'text-openfmv-sub hover:bg-white/[0.08] hover:text-white'}`} title={t('nodeMode')}>
+          <Link href={nodesHref} onClick={flushProjectSession} className={`inline-flex h-7 min-w-[88px] items-center justify-center gap-1.5 rounded-full px-3 text-xs font-bold transition ${isNodeMode ? 'bg-white/[0.18] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]' : 'text-openfmv-sub hover:bg-white/[0.08] hover:text-white'}`} title={t('nodeMode')}>
             <Film size={13} />
             <span className="hidden sm:inline">{t('nodeMode')}</span>
           </Link>
@@ -273,10 +304,37 @@ export default function TopBar() {
               <span className="hidden sm:inline">{t('preview')}</span>
             </Button>
 
-            <Button onClick={() => void handleExport()} disabled={isExporting} variant="outline" size="pill" className="h-7 rounded-full border-0 bg-transparent px-2.5 text-xs font-bold text-openfmv-sub shadow-none hover:bg-white/[0.10] hover:text-white">
-              {isExporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
-              <span className="hidden sm:inline">{t('export')}</span>
-            </Button>
+            <div className="relative" ref={exportMenuRef}>
+              <Button
+                onClick={() => setIsExportMenuOpen((value) => !value)}
+                disabled={isExporting}
+                variant="outline"
+                size="pill"
+                aria-haspopup="menu"
+                aria-expanded={isExportMenuOpen}
+                className="h-7 rounded-full border-0 bg-transparent px-2.5 text-xs font-bold text-openfmv-sub shadow-none hover:bg-white/[0.10] hover:text-white"
+              >
+                {isExporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+                <span className="hidden sm:inline">{t('export')}</span>
+                <ChevronDown size={12} className={`transition-transform ${isExportMenuOpen ? 'rotate-180' : ''}`} />
+              </Button>
+
+              {isExportMenuOpen && (
+                <div role="menu" className="absolute right-0 top-full z-50 mt-3 w-64 overflow-hidden rounded-[14px] border border-white/15 bg-[#15171c]/95 p-1.5 shadow-[0_24px_80px_rgba(0,0,0,0.56)] ring-1 ring-black/40 backdrop-blur-xl">
+                  <button type="button" role="menuitem" disabled onClick={() => void handleExport()} className="flex h-10 w-full cursor-not-allowed items-center gap-2.5 rounded-[10px] px-2.5 text-left text-sm font-semibold text-openfmv-muted opacity-55">
+                    <Globe2 size={15} />
+                    <span className="min-w-0 flex-1 truncate">{t('exportWebPackage')}</span>
+                    <span className="shrink-0 rounded bg-white/[0.06] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-normal text-openfmv-muted">{t('exportDisabled')}</span>
+                  </button>
+                  <div className="my-1 h-px bg-white/[0.08]" />
+                  <button type="button" role="menuitem" disabled className="flex h-10 w-full cursor-not-allowed items-center gap-2.5 rounded-[10px] px-2.5 text-left text-sm font-semibold text-openfmv-muted opacity-55">
+                    <MonitorDown size={15} />
+                    <span className="min-w-0 flex-1 truncate">{t('exportExecutablePackage')}</span>
+                    <span className="shrink-0 rounded bg-white/[0.06] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-normal text-openfmv-muted">{t('exportDisabled')}</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
           {exportStatus && (
             <div className="absolute right-4 top-[58px] z-50 max-w-[360px] truncate rounded-[12px] border border-emerald-300/20 bg-black/72 px-3 py-2 text-xs font-medium text-emerald-100 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-2xl" title={exportStatus}>
@@ -288,5 +346,3 @@ export default function TopBar() {
     </Header>
   );
 }
-
-

@@ -4,7 +4,7 @@ OpenFMV is a local-first visual non-linear storytelling editor. The current code
 
 ## Project Scope
 
-- Framework: Next.js 14 App Router, TypeScript, React, React Flow
+- Framework: Next.js 16 App Router, TypeScript, React, React Flow
 - Desktop shell: Electron
 - State: Zustand and local browser storage
 - Persistence: local OpenFMV project JSON files and local asset copies
@@ -13,6 +13,32 @@ OpenFMV is a local-first visual non-linear storytelling editor. The current code
 - Cloud storage: none
 
 Do not add account, user sync, or hosted backend code unless the user explicitly asks for those features.
+
+## Current Architecture
+
+OpenFMV has two editing surfaces:
+
+- `/editor` is the Blueprint graph editor. It owns story flow structure: nodes, edges, handles, rules, and node text/prompt metadata.
+- `/nodes` is the node-level multi-track editor. It owns each node's independent `NodeTimeline v2`.
+
+`NodeTimeline v2` is the primary media and interaction model. Store node media and time-based interaction behavior in `node.data.timeline`, not in legacy node-level media fields.
+
+Timeline model rules:
+
+- Timeline code lives in `app/_features/node-timeline/`.
+- Timeline tracks are `media` and `interaction`.
+- Media clips are `video`, `image`, and `audio`.
+- Interaction clips are `button`, `hotspot`, `pauseGate`, and `text`.
+- Timed actions are interaction-track clips with type `branch` or `variable`.
+- Do not reintroduce a separate `logic` track. Put timed branching and variable actions into the interaction track and inspector.
+- Do not reintroduce `AppNode.data.video`, `AppNode.data.image`, `AppNode.data.videoPlaybackId`, or `AppNode.data.videoThumbnail`.
+
+Runtime rules:
+
+- Existing playback/runtime should compile from `node.data.timeline`.
+- Shared runtime logic lives in `shared/runtimeCore.mjs`; TypeScript-facing wrappers live in `app/_utils/graphRuntime.ts` and `app/_utils/graphRuntimeCore.d.ts`.
+- Player UI lives in `app/_components/player/` and should consume runtime effects rather than reading node data directly.
+- Electron export should copy and rewrite timeline clip `src` and `poster` paths, not legacy node media fields.
 
 ## Commands
 
@@ -141,6 +167,8 @@ app/
     player/             Player components
     local/              Local desktop UI components
     ui/                 Shared UI primitives
+  _features/            Feature modules
+    node-timeline/      NodeTimeline v2 schema, UI, commands, snapping, playback
   _hooks/               React hooks
   _store/               Zustand stores
   _types/               TypeScript types
@@ -160,6 +188,13 @@ electron/
   preload.js            Exposed preload API
   exporter.js           Exported game packager
   ai-settings.js        Local CLI AI settings and calls
+shared/
+  runtimeCore.mjs       Shared runtime used by player and exporter
+  ipc-contract.ts       IPC contract source
+messages/
+  *.json                next-intl locale files
+__tests__/
+  unit/                 Vitest unit tests
 ```
 
 ## Environment
@@ -171,3 +206,5 @@ The current local-first client does not require environment variables.
 - `selectedNode` should stay separate from the full node array to avoid unnecessary `PropertyPanel` rerenders.
 - Imported project assets should stay local and be copied into project/export folders when needed.
 - File upload/import limits should stay aligned with desktop performance constraints.
+- Blueprint asset binding should only write compatible node metadata such as text or prompts. Media assets belong in `/nodes` timeline clips.
+- When changing timeline schema or runtime compilation, update `__tests__/unit/nodeTimeline.test.ts` and related exporter/project persistence tests.

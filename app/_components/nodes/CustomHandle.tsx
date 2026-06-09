@@ -3,7 +3,7 @@ import { useTranslations } from 'next-intl';
 import { Handle, HandleProps, useNodeId, useReactFlow } from '@xyflow/react';
 import { ChevronRight } from 'lucide-react';
 
-import { useEditorStore } from '../../_store/useEditorStore';
+import { useProjectSessionStore } from '@/app/_features/project-session/store';
 import { AppNode, NodeType } from '../../_types';
 import { nodeRegistry } from '../../_registry/nodeRegistry';
 import { createEditorNode } from '../editor/canvas/nodeFactory';
@@ -17,7 +17,7 @@ export const CustomHandle = ({ className, ...props }: CustomHandleProps) => {
   const isTarget = props.type === 'target';
   const nodeId = useNodeId();
   const { getNode, getNodes, getEdges } = useReactFlow();
-  const { addNodeAndConnect } = useEditorStore();
+  const { addNodeAndConnect } = useProjectSessionStore();
   
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);

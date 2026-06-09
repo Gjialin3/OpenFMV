@@ -14,7 +14,7 @@
 
 OpenFMV is a local-first visual nonlinear storytelling editor for building interactive videos, branching narratives, interactive short dramas, and standalone desktop story experiences.
 
-The current project is a Next.js 14 + Electron desktop app. Project files, imported assets, timeline media, and exported content are stored locally, with no account system, database, or cloud storage dependency.
+The current project is a Next.js 16 + Electron desktop app. Project files, imported assets, timeline media, and exported content are stored locally, with no account system, database, or cloud storage dependency.
 
 ![OpenFMV editor overview](./public/readme/openfmv-editor-overview.png)
 
@@ -53,9 +53,9 @@ Media and interactions are stored in each node's `NodeTimeline v2` data. The gra
 
 ## Tech Stack
 
-- Next.js 14 App Router
+- Next.js 16 App Router
 - TypeScript
-- React 18
+- React 19
 - React Flow
 - Zustand
 - Tailwind CSS

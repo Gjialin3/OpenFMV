@@ -18,7 +18,6 @@ import {
   ClipboardPaste,
   CloudUpload,
   Copy,
-  Crosshair,
   Diamond,
   Eye,
   EyeOff,
@@ -37,13 +36,11 @@ import {
   MousePointerClick,
   Music,
   Pause,
-  PauseCircle,
   Play,
   Plus,
   Scissors,
   SlidersHorizontal,
   Snowflake,
-  Type,
   Redo2,
   Trash2,
   Upload,
@@ -71,14 +68,13 @@ import {
   TimelineInteractionClipType,
   TimelineKeyframeInterpolation,
   TimelineKeyframeProperty,
-  TimelineTimedActionClip,
-  TimelineTimedActionClipType,
   TimelineMediaClip,
   TimelineMediaClipType,
   TimelineTrack,
   TimelineTrackType,
 } from '@/app/_types';
 import OpenFMVVideo from '@/app/_components/video/OpenFMVVideo';
+import { useProjectSessionStore } from '@/app/_features/project-session/store';
 import { useResolvedMediaSrc } from '@/app/_hooks/useResolvedMediaSrc';
 import { useEditorStore } from '@/app/_store/useEditorStore';
 import { getLocalizedPath } from '@/app/_utils/localePaths';
@@ -98,13 +94,11 @@ import {
   clampTimelineClipOpacity,
   clampTimelineClipRotation,
   clampTimelineMediaPlaybackRate,
-  clampTimelineTextFontSize,
   clampOverlayRect,
   clampTimelineTime,
   compileNodeTimeline,
   createInteractionClip,
   createTimelineKeyframeClipboardItems,
-  createTimedActionClip,
   createMediaClipFromTimelineAsset,
   DEFAULT_TIMELINE_ZOOM,
   deleteTimelineClips,
@@ -135,7 +129,6 @@ import {
   hasTimelineMediaSourceEnded,
   insertTimelineClip,
   isInteractionClipType,
-  isTimedActionClipType,
   isMediaClipType,
   isTimelineClipActive,
   isTimelineSourceAudioSeparated,
@@ -296,7 +289,7 @@ interface TimelineTrackReorderState extends TimelineTrackReorderTarget {
   hasMoved: boolean;
 }
 
-type LibraryTab = 'assets' | 'interactions' | 'audio' | 'text';
+type LibraryTab = 'assets' | 'interactions' | 'audio';
 type AssetViewMode = 'grid' | 'list';
 type AssetSortMode = 'recent' | 'name';
 
@@ -313,6 +306,43 @@ const TIMELINE_KEYFRAME_LANES_GAP_PX = 6;
 const TIMELINE_KEYFRAME_LANES_BOTTOM_PADDING_PX = 6;
 
 const timelineKeyframeLanePropertyOrder: TimelineKeyframeProperty[] = ['opacity', 'rotation', 'x', 'y', 'width', 'height', 'volume'];
+const DEFAULT_PREVIEW_ASPECT_RATIO = 16 / 9;
+
+const getFittedPreviewFrameSize = ({
+  aspectRatio,
+  viewportHeight,
+  viewportWidth,
+}: {
+  aspectRatio: number;
+  viewportHeight: number;
+  viewportWidth: number;
+}) => {
+  if (!Number.isFinite(aspectRatio) || aspectRatio <= 0 || viewportWidth <= 0 || viewportHeight <= 0) {
+    return null;
+  }
+
+  const widthFromViewport = viewportWidth;
+  const heightFromWidth = widthFromViewport / aspectRatio;
+  if (heightFromWidth <= viewportHeight) {
+    return { width: widthFromViewport, height: heightFromWidth };
+  }
+
+  return { width: viewportHeight * aspectRatio, height: viewportHeight };
+};
+
+const getAssetAspectRatio = (asset?: OpenFMVAsset | null) => {
+  const width = Number(asset?.metadata?.width);
+  const height = Number(asset?.metadata?.height);
+  if (!Number.isFinite(width) || width <= 0 || !Number.isFinite(height) || height <= 0) return null;
+  return width / height;
+};
+
+const getClipAsset = (clip: TimelineMediaClip | null | undefined, assets: TimelineAssetItem[]) => {
+  if (!clip) return null;
+  return assets.find((item) => item.asset.id === clip.assetId)?.asset
+    ?? assets.find((item) => getAssetSource(item.asset) === clip.src)?.asset
+    ?? null;
+};
 
 interface TimelineAssetItem {
   asset: OpenFMVAsset;
@@ -320,17 +350,11 @@ interface TimelineAssetItem {
   projectTitle: string;
 }
 
+const getTimelineAssetItemKey = (item: TimelineAssetItem) => `${item.projectId}:${item.asset.id}`;
+
 const interactionIcons = {
   button: MousePointerClick,
-  hotspot: Crosshair,
-  pauseGate: PauseCircle,
-  text: Type,
 } satisfies Record<TimelineInteractionClipType, LucideIcon>;
-
-const timedActionIcons = {
-  branch: GitBranch,
-  variable: SlidersHorizontal,
-} satisfies Record<TimelineTimedActionClipType, LucideIcon>;
 
 const interactionPanelClipTypes = ['button'] as const satisfies readonly TimelineInteractionClipType[];
 
@@ -340,6 +364,14 @@ const overlayResizeHandles = [
   { handle: 'sw', className: 'bottom-1 left-1 cursor-nesw-resize' },
   { handle: 'se', className: 'bottom-1 right-1 cursor-nwse-resize' },
 ] satisfies Array<{ handle: OverlayResizeHandle; className: string }>;
+
+const arePreviewSnapLinesEqual = (currentLines: PreviewSnapLine[], nextLines: PreviewSnapLine[]) => {
+  if (currentLines.length !== nextLines.length) return false;
+  return currentLines.every((line, index) => {
+    const nextLine = nextLines[index];
+    return line.orientation === nextLine.orientation && Math.abs(line.position - nextLine.position) <= 0.0001;
+  });
+};
 
 const mediaIcons = {
   video: Film,
@@ -402,8 +434,6 @@ const isMediaClip = (clip: TimelineClip): clip is TimelineMediaClip => isMediaCl
 
 const isInteractionClip = (clip: TimelineClip): clip is TimelineInteractionClip => isInteractionClipType(clip.type);
 
-const isTimedActionClip = (clip: TimelineClip): clip is TimelineTimedActionClip => clip.type === 'branch' || clip.type === 'variable';
-
 const isShortcutEditingTarget = (target: EventTarget | null) => {
   if (!(target instanceof HTMLElement)) return false;
   const tagName = target.tagName.toLowerCase();
@@ -414,14 +444,9 @@ const isTimelineMediaAsset = (asset: OpenFMVAsset): asset is OpenFMVAsset & { ty
   return asset.type === 'image' || asset.type === 'video' || asset.type === 'audio';
 };
 
-const isNodeTimelineLibraryAsset = (asset: OpenFMVAsset) => isTimelineMediaAsset(asset) || asset.type === 'text';
+const isNodeTimelineLibraryAsset = isTimelineMediaAsset;
 
 const getAssetSource = (asset: OpenFMVAsset) => asset.relativePath || asset.path;
-
-const getTextAssetContent = (asset: OpenFMVAsset) => {
-  const content = asset.metadata?.content;
-  return typeof content === 'string' ? content : '';
-};
 
 const getAssetDuration = (asset: OpenFMVAsset) => {
   const duration = Number(asset.metadata?.duration);
@@ -503,7 +528,6 @@ const actionToValue = (action?: TimelineAction) => {
   if (!action || action.type === 'continue') return 'continue';
   if (action.type === 'goToHandle') return `handle:${action.handleId || '__default__'}`;
   if (action.type === 'goToNode') return `node:${action.nodeId || ''}`;
-  if (action.type === 'setVariable') return 'variable';
   return 'continue';
 };
 
@@ -513,13 +537,14 @@ const valueToAction = (value: string): TimelineAction => {
     return { type: 'goToHandle', handleId: handleId === '__default__' ? null : handleId };
   }
   if (value.startsWith('node:')) return { type: 'goToNode', nodeId: value.slice('node:'.length) || null };
-  if (value === 'variable') return { type: 'setVariable', key: 'flag', value: true };
   return { type: 'continue' };
 };
 
+const timeoutActionToValue = (action?: TimelineAction) => {
+  return !action || action.type === 'continue' ? 'none' : actionToValue(action);
+};
+
 const getInteractionAction = (clip: TimelineInteractionClip): TimelineAction => {
-  if (clip.type === 'pauseGate') return clip.action || { type: 'continue' };
-  if (clip.type === 'text') return { type: 'continue' };
   return clip.action;
 };
 
@@ -539,30 +564,18 @@ const getClipTone = (clip: TimelineClip, selected: boolean) => {
   if (clip.type === 'video') return `${base} ${ring} ${disabled} ${muted} ${linked} border-sky-300/55 bg-sky-500/52 text-white`;
   if (clip.type === 'image') return `${base} ${ring} ${disabled} ${muted} ${linked} border-emerald-300/55 bg-emerald-500/48 text-white`;
   if (clip.type === 'audio') return `${base} ${ring} ${disabled} ${muted} ${linked} border-fuchsia-300/50 bg-fuchsia-500/42 text-white`;
-  if (clip.type === 'hotspot') return `${base} ${ring} ${disabled} ${muted} ${linked} border-cyan-200/55 bg-cyan-400/24 text-cyan-50`;
-  if (clip.type === 'pauseGate') return `${base} ${ring} ${disabled} ${muted} ${linked} border-violet-200/55 bg-violet-500/42 text-violet-50`;
   if (clip.type === 'button') return `${base} ${ring} ${disabled} ${muted} ${linked} border-orange-200/70 bg-orange-500/72 text-white`;
-  if (clip.type === 'text') return `${base} ${ring} ${disabled} ${muted} ${linked} border-lime-200/60 bg-lime-500/38 text-lime-50`;
-  if (clip.type === 'branch') return `${base} ${ring} ${disabled} ${muted} ${linked} border-amber-200/55 bg-amber-500/38 text-amber-50`;
-  if (clip.type === 'variable') return `${base} ${ring} ${disabled} ${muted} ${linked} border-teal-200/55 bg-teal-500/34 text-teal-50`;
   return `${base} ${ring} ${disabled} ${muted} ${linked} border-white/20 bg-white/12 text-white`;
 };
 
-const getPreviewClipClassName = (clip: TimelineInteractionClip, selected: boolean, active: boolean) => {
+const getPreviewClipClassName = (_clip: TimelineInteractionClip, selected: boolean, active: boolean) => {
   const base = 'absolute flex min-h-10 min-w-12 items-center justify-center overflow-hidden rounded-[8px] border px-3 text-xs font-bold text-white shadow-[0_18px_52px_rgba(0,0,0,0.38)] backdrop-blur-xl transition hover:scale-[1.02]';
-  const tone =
-    clip.type === 'hotspot'
-      ? 'border-cyan-200/85 bg-cyan-400/16 text-cyan-50'
-      : clip.type === 'pauseGate'
-        ? 'border-violet-200/85 bg-violet-500/88'
-        : clip.type === 'text'
-          ? 'border-white/35 bg-black/18'
-          : 'border-orange-200/90 bg-orange-500/92';
+  const tone = 'border-orange-200/90 bg-orange-500/92';
   return `${base} ${tone} ${selected ? 'ring-2 ring-white ring-offset-2 ring-offset-black' : ''} ${active ? '' : 'opacity-45'}`;
 };
 
 const getPreviewFrameClassName = () => {
-  return 'relative aspect-video w-full max-w-[720px] shrink-0 overflow-hidden border border-white/10 bg-black shadow-[0_18px_52px_rgba(0,0,0,0.22)]';
+  return 'relative shrink-0 overflow-hidden border border-white/20 bg-black shadow-[0_18px_52px_rgba(0,0,0,0.22)]';
 };
 
 const getMediaClipRect = (clip?: TimelineMediaClip | null): OverlayRect => {
@@ -574,7 +587,7 @@ const getPreviewElementRect = (clip: TimelineInteractionClip | TimelineMediaClip
 };
 
 const getMediaClipFitClassName = (clip?: TimelineMediaClip | null) => {
-  const fit = clip?.type === 'video' ? 'contain' : clip?.fit || 'contain';
+  const fit = clip?.fit || 'contain';
   return `h-full w-full ${fit === 'cover' ? 'object-cover' : 'object-contain'}`;
 };
 
@@ -685,7 +698,7 @@ function PreviewMediaLayer({
       }}
     >
       {clip.type === 'video' ? (
-        <OpenFMVVideo src={clip.src} poster={clip.poster} controls={selected} muted={clip.muted === true} playsInline className={getMediaClipFitClassName(clip)} playerRef={setVideoRef} />
+        <OpenFMVVideo src={clip.src} poster={clip.poster} controls={false} muted={clip.muted === true} playsInline className={getMediaClipFitClassName(clip)} playerRef={setVideoRef} />
       ) : (
         <img src={resolvedImageSrc} alt={clip.name || ''} className={getMediaClipFitClassName(clip)} />
       )}
@@ -743,34 +756,24 @@ const getClipRect = (clip: TimelineInteractionClip): OverlayRect => {
 };
 
 const updateInteractionLabel = (clip: TimelineInteractionClip, value: string): TimelineInteractionClip => {
-  if (clip.type === 'hotspot') return { ...clip, hint: value, name: value };
-  if (clip.type === 'text') return { ...clip, text: value, name: value.split(/\s+/).slice(0, 4).join(' ') || clip.name };
   return { ...clip, label: value, name: value };
 };
 
 const updateInteractionAction = (clip: TimelineInteractionClip, action: TimelineAction): TimelineInteractionClip => {
-  if (clip.type === 'text') return clip;
   return { ...clip, action };
+};
+
+const updateInteractionPauseMode = (clip: TimelineInteractionClip, pauseOnShow: boolean): TimelineInteractionClip => {
+  return pauseOnShow ? { ...clip, pauseOnShow, timeoutAction: undefined } : { ...clip, pauseOnShow };
+};
+
+const updateInteractionTimeoutAction = (clip: TimelineInteractionClip, action?: TimelineAction): TimelineInteractionClip => {
+  return action && action.type !== 'continue' ? { ...clip, timeoutAction: action } : { ...clip, timeoutAction: undefined };
 };
 
 const updateInteractionRect = (clip: TimelineInteractionClip, rect: OverlayRect): TimelineInteractionClip => {
   const safeRect = clampOverlayRect(rect);
   return { ...clip, rect: safeRect };
-};
-
-const getTimedActionVariableValue = (action: TimelineAction) => {
-  if (typeof action.value === 'boolean') return action.value ? 'true' : 'false';
-  if (typeof action.value === 'number') return String(action.value);
-  if (typeof action.value === 'string') return action.value;
-  return action.value == null ? '' : JSON.stringify(action.value);
-};
-
-const parseTimedActionVariableValue = (value: string): unknown => {
-  const trimmedValue = value.trim();
-  if (trimmedValue === 'true') return true;
-  if (trimmedValue === 'false') return false;
-  if (trimmedValue !== '' && Number.isFinite(Number(trimmedValue))) return Number(trimmedValue);
-  return value;
 };
 
 const resizeOverlayRect = (originRect: OverlayRect, handle: OverlayResizeHandle, pointerX: number, pointerY: number) => {
@@ -858,13 +861,17 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
   const searchParams = useSearchParams();
   const projectId = searchParams.get('id');
   const assetInputRef = useRef<HTMLInputElement>(null);
+  const previewViewportRef = useRef<HTMLDivElement>(null);
   const previewFrameRef = useRef<HTMLDivElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const timelineScrollRef = useRef<HTMLDivElement>(null);
   const timelineContentRef = useRef<HTMLDivElement>(null);
   const timelineTrackHeadsScrollRef = useRef<HTMLDivElement>(null);
   const timelineRef = useRef<NodeTimeline>(ensureNodeTimeline());
   const currentTimeRef = useRef(0);
+  const playbackNodeIdRef = useRef<string | null>(null);
+  const isSnappingEnabledRef = useRef(true);
+  const overlaySnapLinesRef = useRef<PreviewSnapLine[]>([]);
   const timelineScrollSyncingRef = useRef(false);
   const timelineDragPointerRef = useRef<{ clientX: number; clientY: number } | null>(null);
   const timelineExternalDragPointerRef = useRef<{ clientX: number; clientY: number; updatedAt: number } | null>(null);
@@ -883,6 +890,7 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
   const overlayDragHistorySnapshotRef = useRef<NodeTimeline | null>(null);
   const timelineScrubPointerRef = useRef<{ clientX: number; clientY: number; shiftKey: boolean } | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
+  const [previewViewportSize, setPreviewViewportSize] = useState({ width: 0, height: 0 });
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
   const [selectedClipIds, setSelectedClipIds] = useState<string[]>([]);
   const [selectedKeyframeIds, setSelectedKeyframeIds] = useState<string[]>([]);
@@ -898,7 +906,6 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
   const [assetLibraryError, setAssetLibraryError] = useState('');
   const [draggedAssetId, setDraggedAssetId] = useState<string | null>(null);
   const [draggedInteractionType, setDraggedInteractionType] = useState<TimelineInteractionClipType | null>(null);
-  const [draggedTimedActionType, setDraggedTimedActionType] = useState<TimelineTimedActionClipType | null>(null);
   const [overlayDrag, setOverlayDrag] = useState<OverlayDragState | null>(null);
   const [overlaySnapLines, setOverlaySnapLines] = useState<PreviewSnapLine[]>([]);
   const [timelineDrag, setTimelineDrag] = useState<TimelineDragState | null>(null);
@@ -920,36 +927,76 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
 
   const {
     nodes,
-    selectedNodeId,
-    selectedNode,
     currentProjectId,
-    setSelectedNodeId,
-    updateNodeData,
-  } = useEditorStore(
+    updateNodeTimeline,
+    saveProjectSession,
+  } = useProjectSessionStore(
     useShallow((state) => ({
       nodes: state.nodes,
+      currentProjectId: state.projectId,
+      updateNodeTimeline: state.updateNodeTimeline,
+      saveProjectSession: state.saveNow,
+    }))
+  );
+  const {
+    selectedNodeId,
+    setSelectedNodeId,
+  } = useEditorStore(
+    useShallow((state) => ({
       selectedNodeId: state.selectedNodeId,
-      selectedNode: state.selectedNode,
-      currentProjectId: state.currentProjectId,
       setSelectedNodeId: state.setSelectedNodeId,
-      updateNodeData: state.updateNodeData,
     }))
   );
 
   const activeNode = useMemo(() => {
-    return selectedNodeId ? nodes.find((node) => node.id === selectedNodeId) ?? selectedNode : selectedNode;
-  }, [nodes, selectedNode, selectedNodeId]);
+    return selectedNodeId ? nodes.find((node) => node.id === selectedNodeId) ?? null : null;
+  }, [nodes, selectedNodeId]);
   const selectedOrFirstNode = activeNode ?? nodes.find((node) => node.type !== 'end') ?? nodes[0] ?? null;
   const timeline = useMemo(() => ensureNodeTimeline(selectedOrFirstNode?.data.timeline), [selectedOrFirstNode?.data.timeline]);
   const compiledTimeline = useMemo(() => compileNodeTimeline(timeline), [timeline]);
+  const compiledTimelineRef = useRef(compiledTimeline);
 
   useEffect(() => {
     timelineRef.current = timeline;
   }, [timeline]);
 
   useEffect(() => {
+    compiledTimelineRef.current = compiledTimeline;
+  }, [compiledTimeline]);
+
+  useEffect(() => {
     currentTimeRef.current = currentTime;
   }, [currentTime]);
+
+  useEffect(() => {
+    const viewport = previewViewportRef.current;
+    if (!viewport) return;
+
+    const updatePreviewViewportSize = () => {
+      const bounds = viewport.getBoundingClientRect();
+      setPreviewViewportSize((current) => {
+        const width = Math.round(bounds.width);
+        const height = Math.round(bounds.height);
+        if (current.width === width && current.height === height) return current;
+        return { width, height };
+      });
+    };
+
+    updatePreviewViewportSize();
+    const resizeObserver = new ResizeObserver(updatePreviewViewportSize);
+    resizeObserver.observe(viewport);
+    return () => resizeObserver.disconnect();
+  }, []);
+
+  useEffect(() => {
+    isSnappingEnabledRef.current = isSnappingEnabled;
+  }, [isSnappingEnabled]);
+
+  const updateOverlaySnapLines = useCallback((nextLines: PreviewSnapLine[]) => {
+    if (arePreviewSnapLinesEqual(overlaySnapLinesRef.current, nextLines)) return;
+    overlaySnapLinesRef.current = nextLines;
+    setOverlaySnapLines(nextLines);
+  }, []);
 
   const selectedClipRef = useMemo(() => findTimelineClip(timeline, selectedClipId), [selectedClipId, timeline]);
   const selectedClipRefs = useMemo(() => (
@@ -1090,19 +1137,27 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
   }, [assetLibrary, assetSortMode]);
   const mediaAssetItems = useMemo(() => sortedAssetItems.filter((item) => isTimelineMediaAsset(item.asset)), [sortedAssetItems]);
   const audioAssetItems = useMemo(() => sortedAssetItems.filter((item) => item.asset.type === 'audio'), [sortedAssetItems]);
-  const textAssetItems = useMemo(() => sortedAssetItems.filter((item) => item.asset.type === 'text'), [sortedAssetItems]);
   const visibleMediaAssetItems = activeLibraryTab === 'audio' ? audioAssetItems : mediaAssetItems;
   const isMediaLibraryTab = activeLibraryTab === 'assets' || activeLibraryTab === 'audio';
-  const activeImportAccept = activeLibraryTab === 'text'
-    ? '.txt,.md,text/*'
-    : activeLibraryTab === 'audio'
-      ? 'audio/*'
-      : 'image/*,video/*,audio/*,.txt,.md';
+  const activeImportAccept = activeLibraryTab === 'audio' ? 'audio/*' : 'image/*,video/*,audio/*';
   const activePanelTitle = activeLibraryTab === 'assets'
     ? t('panel.assets')
     : activeLibraryTab === 'interactions'
       ? t('panel.interactions')
       : t(`rail.${activeLibraryTab}`);
+  const previewReferenceClip = useMemo(() => {
+    if (visualMediaClip) return visualMediaClip;
+    if (selectedClip && isMediaClip(selectedClip) && isVisualMediaClip(selectedClip)) return selectedClip;
+    return compiledTimeline.visualMediaClips.find((clip) => isVisualMediaClip(clip)) ?? null;
+  }, [compiledTimeline.visualMediaClips, selectedClip, visualMediaClip]);
+  const previewCanvasAspectRatio = useMemo(() => (
+    getAssetAspectRatio(getClipAsset(previewReferenceClip, assetLibrary)) ?? DEFAULT_PREVIEW_ASPECT_RATIO
+  ), [assetLibrary, previewReferenceClip]);
+  const previewFrameSize = useMemo(() => getFittedPreviewFrameSize({
+    aspectRatio: previewCanvasAspectRatio,
+    viewportHeight: previewViewportSize.height,
+    viewportWidth: previewViewportSize.width,
+  }), [previewCanvasAspectRatio, previewViewportSize.height, previewViewportSize.width]);
 
   const selectClipIds = useCallback((clipIds: string[], primaryClipId?: string | null) => {
     const uniqueClipIds = Array.from(new Set(clipIds));
@@ -1129,15 +1184,21 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
     const visibleProjects = activeProject
       ? [activeProject, ...projects.filter((project) => project.id !== activeProject.id)]
       : projects;
-    setAssetLibrary(visibleProjects.flatMap((project) => (
-      (project.assets || [])
+    const seenProjectAssetKeys = new Set<string>();
+    setAssetLibrary(visibleProjects.flatMap((project) => {
+      return (project.assets || [])
         .filter(isNodeTimelineLibraryAsset)
-        .map((asset) => ({
-          asset,
-          projectId: project.id,
-          projectTitle: project.title,
-        }))
-    )));
+        .flatMap((asset) => {
+          const key = `${project.id}:${asset.id}`;
+          if (seenProjectAssetKeys.has(key)) return [];
+          seenProjectAssetKeys.add(key);
+          return [{
+            asset,
+            projectId: project.id,
+            projectTitle: project.title,
+          }];
+        });
+    }));
   }, [currentProjectId]);
 
   useEffect(() => {
@@ -1154,7 +1215,7 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
   }, [refreshAssetLibrary]);
 
   useEffect(() => {
-    if (activeLibraryTab === 'assets' || activeLibraryTab === 'audio' || activeLibraryTab === 'text') refreshAssetLibrary();
+    if (activeLibraryTab === 'assets' || activeLibraryTab === 'audio') refreshAssetLibrary();
   }, [activeLibraryTab, refreshAssetLibrary]);
 
   useEffect(() => {
@@ -1191,23 +1252,31 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
   }, [expandedKeyframeClipIds, timeline.tracks]);
 
   useEffect(() => {
-    setZoom(timeline.zoom || DEFAULT_TIMELINE_ZOOM);
-  }, [selectedOrFirstNode?.id, setZoom, timeline.zoom]);
+    if (!selectedOrFirstNode?.id) return;
+    const nextZoom = timelineRef.current.zoom || DEFAULT_TIMELINE_ZOOM;
+    setZoom((current) => (Math.abs(current - nextZoom) <= 0.001 ? current : nextZoom));
+  }, [selectedOrFirstNode?.id, setZoom]);
 
   useEffect(() => {
+    const nextNodeId = selectedOrFirstNode?.id ?? null;
+    if (playbackNodeIdRef.current === nextNodeId) return;
+    playbackNodeIdRef.current = nextNodeId;
     setIsTimelinePlaying(false);
   }, [selectedOrFirstNode?.id]);
 
   useEffect(() => {
-    setCurrentTime(clampTimelineTime(timeline.playheadTime ?? 0, timeline.duration));
-  }, [selectedOrFirstNode?.id, timeline.duration, timeline.playheadTime]);
+    if (!selectedOrFirstNode?.id) return;
+    const nextTimeline = timelineRef.current;
+    const nextTime = clampTimelineTime(nextTimeline.playheadTime ?? 0, nextTimeline.duration);
+    if (Math.abs(currentTimeRef.current - nextTime) > 0.001) setCurrentTime(nextTime);
+  }, [selectedOrFirstNode?.id]);
 
   const applyTimeline = useCallback(
     (nextTimeline: NodeTimeline) => {
       if (!selectedOrFirstNode) return;
-      updateNodeData(selectedOrFirstNode.id, { timeline: nextTimeline });
+      updateNodeTimeline(selectedOrFirstNode.id, nextTimeline);
     },
-    [selectedOrFirstNode, updateNodeData]
+    [selectedOrFirstNode, updateNodeTimeline]
   );
 
   const pushTimelineHistory = useCallback((snapshot: NodeTimeline) => {
@@ -1298,9 +1367,24 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
       return;
     }
 
-    updateCurrentTime(currentTime >= timeline.duration ? 0 : currentTime);
+    const nextTime = currentTime >= timeline.duration ? 0 : currentTime;
+    updateCurrentTime(nextTime);
+
+    const targetVideoClip = compiledTimeline.visualMediaClips
+      .filter((clip): clip is TimelineMediaClip & { type: 'video' } => clip.type === 'video' && isTimelineClipActive(clip, nextTime))
+      .at(-1);
+    const video = videoRef.current;
+    if (targetVideoClip && video && !hasTimelineMediaSourceEnded(targetVideoClip, nextTime) && !Number.isFinite(Number(targetVideoClip.freezeFrameTime))) {
+      applyTimelineMediaPlaybackOptions(video, targetVideoClip);
+      const localTime = getTimelineMediaElementTime(targetVideoClip, nextTime);
+      if (Number.isFinite(localTime) && Math.abs(video.currentTime - localTime) > 0.25) {
+        video.currentTime = localTime;
+      }
+      void video.play().catch(() => undefined);
+    }
+
     setIsTimelinePlaying(true);
-  }, [currentTime, isTimelinePlaying, timeline.duration, updateCurrentTime]);
+  }, [compiledTimeline.visualMediaClips, currentTime, isTimelinePlaying, timeline.duration, updateCurrentTime]);
 
   useEffect(() => {
     if (!isTimelinePlaying) return;
@@ -1778,24 +1862,6 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
     setActiveLibraryTab('interactions');
   }, [selectSingleClip, timeline, writeTimeline]);
 
-  const addTextClipAtTime = useCallback((text = t('clipTypes.text'), time = currentTime, trackId?: string | null, forceNewTrack = false, newTrackInsertIndex?: number | null) => {
-    const clip = {
-      ...createInteractionClip('text', time, timeline.duration),
-      name: text,
-      text,
-    };
-    writeTimeline(insertTimelineClip({ timeline, clip, trackId, forceNewTrack, newTrackInsertIndex }));
-    selectSingleClip(clip.id);
-    setActiveLibraryTab('text');
-  }, [currentTime, selectSingleClip, t, timeline, writeTimeline]);
-
-  const addTimedActionClipAtTime = useCallback((type: TimelineTimedActionClipType, time: number, trackId?: string | null, forceNewTrack = false, newTrackInsertIndex?: number | null) => {
-    const clip = createTimedActionClip(type, time, timeline.duration);
-    writeTimeline(insertTimelineClip({ timeline, clip, trackId, forceNewTrack, newTrackInsertIndex }));
-    selectSingleClip(clip.id);
-    setActiveLibraryTab('interactions');
-  }, [selectSingleClip, timeline, writeTimeline]);
-
   const closeTimelineContextMenu = useCallback(() => {
     setTimelineContextMenu(null);
   }, []);
@@ -2020,13 +2086,7 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
               startTime: nextStartTime,
               metadata: asset.metadata,
             })
-          : asset.type === 'text'
-            ? {
-                ...createInteractionClip('text', nextStartTime, timeline.duration),
-                name: asset.name,
-                text: getTextAssetContent(asset) || asset.name,
-              }
-            : null;
+          : null;
         if (!clip) continue;
         nextTimeline = insertTimelineClip({ timeline: nextTimeline, clip, trackId: preferredTrackId, forceNewTrack, newTrackInsertIndex });
         preferredTrackId = findTimelineClip(nextTimeline, clip.id)?.track.id ?? preferredTrackId;
@@ -2066,11 +2126,6 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
     [currentProjectId, insertAssetsIntoTimeline, refreshAssetLibrary, t]
   );
 
-  const addTextAssetToTimeline = useCallback((asset: OpenFMVAsset) => {
-    if (asset.type !== 'text') return;
-    void insertLibraryAssetsIntoTimeline([asset]);
-  }, [insertLibraryAssetsIntoTimeline]);
-
   const removeAssetFromLibrary = useCallback(async (item: TimelineAssetItem) => {
     if (!window.confirm(t('panel.removeAssetConfirm', { assetName: item.asset.name, projectTitle: item.projectTitle }))) return;
 
@@ -2095,14 +2150,11 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
         return;
       }
 
-      if (!currentProjectId) {
-        setAssetLibraryError(t('panel.selectProjectBeforeImport'));
-        alert(t('panel.selectProjectBeforeImport'));
-        return;
-      }
+      const targetProjectId = currentProjectId ?? (await saveProjectSession())?.id;
+      if (!targetProjectId) throw new Error(t('panel.selectProjectBeforeImport'));
 
       setAssetLibraryError('');
-      const savedProject = await addAssetsToLocalProject(currentProjectId, supportedAssets);
+      const savedProject = await addAssetsToLocalProject(targetProjectId, supportedAssets);
       if (!savedProject) throw new Error(t('panel.selectProjectBeforeImport'));
       refreshAssetLibrary();
 
@@ -2115,7 +2167,7 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
         });
       }
     },
-    [currentProjectId, insertAssetsIntoTimeline, refreshAssetLibrary, t]
+    [currentProjectId, insertAssetsIntoTimeline, refreshAssetLibrary, saveProjectSession, t]
   );
 
   const importFilesToAssets = useCallback(
@@ -2258,7 +2310,6 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
 
   const getTimelineDropData = useCallback((event: React.DragEvent<HTMLElement>) => {
     const interactionType = event.dataTransfer.getData('application/openfmv-interaction-type') || draggedInteractionType;
-    const timedActionType = event.dataTransfer.getData('application/openfmv-timed-action-type') || draggedTimedActionType;
     const assetId = event.dataTransfer.getData('application/openfmv-asset-id') || draggedAssetId;
     const assetProjectId = event.dataTransfer.getData('application/openfmv-asset-project-id');
     const assetItem = assetLibrary.find((candidate) => candidate.asset.id === assetId && (!assetProjectId || candidate.projectId === assetProjectId))
@@ -2269,19 +2320,17 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
 
     return {
       interactionType: isInteractionClipType(interactionType) ? interactionType : null,
-      timedActionType: isTimedActionClipType(timedActionType) ? timedActionType : null,
       assetItem,
       files,
       hasFiles,
     };
-  }, [assetLibrary, draggedAssetId, draggedInteractionType, draggedTimedActionType]);
+  }, [assetLibrary, draggedAssetId, draggedInteractionType]);
 
   const canDropOnTimelineTrack = useCallback((track: TimelineTrack, event: React.DragEvent<HTMLElement>) => {
     if (track.locked) return false;
     const dropData = getTimelineDropData(event);
-    if (dropData.timedActionType || dropData.interactionType) return track.type === 'interaction';
+    if (dropData.interactionType) return track.type === 'interaction';
     if (dropData.assetItem) {
-      if (dropData.assetItem.asset.type === 'text') return track.type === 'interaction';
       return isTimelineMediaAsset(dropData.assetItem.asset) && track.type === 'media';
     }
     return dropData.hasFiles;
@@ -2289,7 +2338,7 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
 
   const canDropOnTimelineCanvas = useCallback((event: React.DragEvent<HTMLElement>) => {
     const dropData = getTimelineDropData(event);
-    return Boolean(dropData.interactionType || dropData.timedActionType || dropData.assetItem || dropData.hasFiles);
+    return Boolean(dropData.interactionType || dropData.assetItem || dropData.hasFiles);
   }, [getTimelineDropData]);
 
   const startTimelineExternalDragScroll = useCallback((event: React.DragEvent<HTMLElement>) => {
@@ -2311,29 +2360,17 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
     setDragTargetTrackId(null);
     setNewTrackDropIndicator(null);
     const startTime = clampTimelineTime(pointerTime(event.clientX), timeline.duration);
-    const { interactionType, timedActionType, files, assetItem } = getTimelineDropData(event);
-    if (timedActionType) {
-      addTimedActionClipAtTime(timedActionType, startTime, track.type === 'interaction' ? track.id : undefined);
-      setDraggedTimedActionType(null);
-      return;
-    }
+    const { interactionType, files, assetItem } = getTimelineDropData(event);
 
     if (interactionType) {
       const targetTrackId = track.type === 'interaction' ? track.id : undefined;
-      if (interactionType === 'text') {
-        addTextClipAtTime(t('clipTypes.text'), startTime, targetTrackId);
-      } else {
-        addInteractionClipAtTime(interactionType, startTime, targetTrackId);
-      }
+      addInteractionClipAtTime(interactionType, startTime, targetTrackId);
       setDraggedInteractionType(null);
       return;
     }
 
     if (assetItem) {
-      const targetTrackId = (
-        (assetItem.asset.type === 'text' && track.type === 'interaction') ||
-        (isTimelineMediaAsset(assetItem.asset) && track.type === 'media')
-      ) ? track.id : undefined;
+      const targetTrackId = isTimelineMediaAsset(assetItem.asset) && track.type === 'media' ? track.id : undefined;
       void insertLibraryAssetsIntoTimeline([assetItem.asset], { trackId: targetTrackId, startTime });
       return;
     }
@@ -2369,20 +2406,10 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
     const newTrackInsertTarget = getNewTrackInsertTargetAtPointer(event.clientY);
     const newTrackInsertIndex = newTrackInsertTarget?.insertIndex ?? null;
     const forceNewTrack = newTrackInsertTarget !== null;
-    const { interactionType, timedActionType, files, assetItem } = getTimelineDropData(event);
-
-    if (timedActionType) {
-      addTimedActionClipAtTime(timedActionType, startTime, undefined, forceNewTrack, newTrackInsertIndex);
-      setDraggedTimedActionType(null);
-      return;
-    }
+    const { interactionType, files, assetItem } = getTimelineDropData(event);
 
     if (interactionType) {
-      if (interactionType === 'text') {
-        addTextClipAtTime(t('clipTypes.text'), startTime, undefined, forceNewTrack, newTrackInsertIndex);
-      } else {
-        addInteractionClipAtTime(interactionType, startTime, undefined, forceNewTrack, newTrackInsertIndex);
-      }
+      addInteractionClipAtTime(interactionType, startTime, undefined, forceNewTrack, newTrackInsertIndex);
       setDraggedInteractionType(null);
       return;
     }
@@ -2394,7 +2421,7 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
 
     if (assetItem) void insertLibraryAssetsIntoTimeline([assetItem.asset], { startTime, forceNewTrack, newTrackInsertIndex });
     setDraggedAssetId(null);
-  }, [addInteractionClipAtTime, addTimedActionClipAtTime, addTextClipAtTime, canDropOnTimelineCanvas, getNewTrackInsertTargetAtPointer, getTimelineDropData, importFilesToAssets, insertLibraryAssetsIntoTimeline, pointerTime, stopTimelineExternalDragScroll, t, timeline.duration]);
+  }, [addInteractionClipAtTime, canDropOnTimelineCanvas, getNewTrackInsertTargetAtPointer, getTimelineDropData, importFilesToAssets, insertLibraryAssetsIntoTimeline, pointerTime, stopTimelineExternalDragScroll, timeline.duration]);
 
   const releaseTimelineScrollSync = useCallback(() => {
     requestAnimationFrame(() => {
@@ -3212,12 +3239,14 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
 
     const pushOverlayDragHistoryOnce = () => {
       if (overlayDragHistoryPushedRef.current) return;
-      pushTimelineHistory(overlayDragHistorySnapshotRef.current ?? timeline);
+      pushTimelineHistory(overlayDragHistorySnapshotRef.current ?? timelineRef.current);
       overlayDragHistoryPushedRef.current = true;
     };
     const writeOverlayDrag = (nextTimeline: NodeTimeline) => {
       pushOverlayDragHistoryOnce();
-      writeTimeline(nextTimeline, { history: false });
+      timelineRef.current = nextTimeline;
+      compiledTimelineRef.current = compileNodeTimeline(nextTimeline);
+      applyTimeline(nextTimeline);
     };
 
     const handlePointerMove = (event: PointerEvent) => {
@@ -3225,12 +3254,14 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
       const frame = previewFrameRef.current;
       if (!frame) return;
       const bounds = frame.getBoundingClientRect();
+      const sourceTimeline = timelineRef.current;
+      const sourceCompiledTimeline = compiledTimelineRef.current;
       const snapTargets = buildPreviewSnapTargets(
-        [...compiledTimeline.visualMediaClips, ...compiledTimeline.interactionClips]
+        [...sourceCompiledTimeline.visualMediaClips, ...sourceCompiledTimeline.interactionClips]
           .filter((item) => item.id !== overlayDrag.clipId)
           .map(getPreviewElementRect)
       );
-      const clipRef = findTimelineClip(timeline, overlayDrag.clipId);
+      const clipRef = findTimelineClip(sourceTimeline, overlayDrag.clipId);
       const clip = clipRef?.clip;
       const canTransformClip = clip && !clipRef.track.locked && (isInteractionClip(clip) || (isMediaClip(clip) && isVisualMediaClip(clip)));
       if (!canTransformClip) return;
@@ -3242,34 +3273,33 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
           x: (event.clientX - bounds.left - overlayDrag.offsetX) / bounds.width,
           y: (event.clientY - bounds.top - overlayDrag.offsetY) / bounds.height,
         };
-        const snap = isSnappingEnabled ? snapOverlayRect({ rect: rawRect, targets: snapTargets }) : { rect: rawRect, lines: [] };
-        setOverlaySnapLines(snap.lines);
-        writeOverlayDrag(updateTimelineClipRect({ timeline, clipId: overlayDrag.clipId, rect: snap.rect }));
+        const snap = isSnappingEnabledRef.current ? snapOverlayRect({ rect: rawRect, targets: snapTargets }) : { rect: rawRect, lines: [] };
+        updateOverlaySnapLines(snap.lines);
+        writeOverlayDrag(updateTimelineClipRect({ timeline: sourceTimeline, clipId: overlayDrag.clipId, rect: snap.rect }));
         return;
       }
 
       const pointerX = (event.clientX - bounds.left) / bounds.width;
       const pointerY = (event.clientY - bounds.top) / bounds.height;
       const rawRect = resizeOverlayRect(overlayDrag.originRect, overlayDrag.handle, pointerX, pointerY);
-      const snap = isSnappingEnabled ? snapOverlayRect({ rect: rawRect, resizeHandle: overlayDrag.handle, targets: snapTargets }) : { rect: rawRect, lines: [] };
-      setOverlaySnapLines(snap.lines);
-      writeOverlayDrag(updateTimelineClipRect({ timeline, clipId: overlayDrag.clipId, rect: snap.rect }));
+      const snap = isSnappingEnabledRef.current ? snapOverlayRect({ rect: rawRect, resizeHandle: overlayDrag.handle, targets: snapTargets }) : { rect: rawRect, lines: [] };
+      updateOverlaySnapLines(snap.lines);
+      writeOverlayDrag(updateTimelineClipRect({ timeline: sourceTimeline, clipId: overlayDrag.clipId, rect: snap.rect }));
     };
 
     const handlePointerUp = () => {
       overlayDragHistoryPushedRef.current = false;
       overlayDragHistorySnapshotRef.current = null;
       setOverlayDrag(null);
-      setOverlaySnapLines([]);
+      updateOverlaySnapLines([]);
     };
     window.addEventListener('pointermove', handlePointerMove);
     window.addEventListener('pointerup', handlePointerUp, { once: true });
     return () => {
       window.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('pointerup', handlePointerUp);
-      setOverlaySnapLines([]);
     };
-  }, [compiledTimeline.interactionClips, compiledTimeline.visualMediaClips, isSnappingEnabled, overlayDrag, pushTimelineHistory, timeline, writeTimeline]);
+  }, [applyTimeline, overlayDrag, pushTimelineHistory, updateOverlaySnapLines]);
 
   if (!selectedOrFirstNode) {
     return (
@@ -3291,15 +3321,15 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
 
   return (
     <>
-      <div className="grid h-full min-h-0 grid-cols-[minmax(290px,360px)_minmax(420px,1fr)_minmax(280px,360px)] grid-rows-[minmax(330px,1fr)_340px] gap-2 p-3 pt-[66px] text-white">
-      <aside className="grid min-h-0 grid-cols-[48px_minmax(0,1fr)] overflow-hidden rounded-[8px] border border-white/10 bg-[#171717] shadow-[0_24px_80px_rgba(0,0,0,0.34)]">
+      <div className="flex h-full min-h-0 flex-col gap-[0.18rem] pt-[46px] text-white">
+      <div className="grid min-h-0 flex-1 grid-cols-[minmax(220px,250px)_minmax(420px,1fr)_minmax(210px,250px)] gap-[0.19rem] px-3 min-[1180px]:grid-cols-[minmax(250px,330px)_minmax(520px,1fr)_minmax(230px,330px)] min-[1440px]:grid-cols-[minmax(320px,460px)_minmax(640px,1fr)_minmax(320px,400px)]">
+      <aside className="grid min-h-0 grid-cols-[48px_minmax(0,1fr)] overflow-hidden rounded-sm border border-white/10 bg-[#171717] shadow-[0_18px_56px_rgba(0,0,0,0.30)]">
         <div className="flex flex-col border-r border-white/10 bg-[#141516]">
           <div className="flex flex-col gap-1 p-1.5">
             {([
               { id: 'assets' as const, label: t('tabs.assets'), icon: FolderOpen },
               { id: 'interactions' as const, label: t('tabs.interactions'), icon: Hand },
               { id: 'audio' as const, label: t('rail.audio'), icon: Headphones },
-              { id: 'text' as const, label: t('rail.text'), icon: Type },
             ]).map((item) => {
               const Icon = item.icon;
               return (
@@ -3319,10 +3349,10 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
           </div>
         </div>
 
-        <div className="grid min-h-0 grid-rows-[52px_minmax(0,1fr)]">
+        <div className="grid min-h-0 grid-rows-[44px_minmax(0,1fr)]">
           <div className="flex items-center justify-between border-b border-white/10 px-3">
             <div className="min-w-0 text-sm font-semibold text-openfmv-sub">{activePanelTitle}</div>
-            {isMediaLibraryTab || activeLibraryTab === 'text' ? (
+            {isMediaLibraryTab ? (
               <div className="flex items-center gap-1">
                 <button type="button" onClick={() => setAssetViewMode((mode) => (mode === 'grid' ? 'list' : 'grid'))} className="grid h-8 w-8 place-items-center rounded-[7px] text-openfmv-muted transition hover:bg-white/[0.06] hover:text-white" title={t(assetViewMode === 'grid' ? 'panel.listView' : 'panel.gridView')} aria-label={t(assetViewMode === 'grid' ? 'panel.listView' : 'panel.gridView')}>
                   <List size={15} />
@@ -3403,7 +3433,7 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
                     const { asset, projectId, projectTitle } = item;
                     const metadataLabel = getAssetMetadataLabel(asset);
                     return (
-                      <div key={asset.id} className="group/card relative min-w-0">
+                      <div key={getTimelineAssetItemKey(item)} className="group/card relative min-w-0">
                         <button
                           type="button"
                           draggable
@@ -3427,113 +3457,6 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
                             <div className="mt-1 truncate text-[10px] text-openfmv-muted">
                               {t(`mediaTypes.${asset.type}`)}
                               {metadataLabel ? ` / ${metadataLabel}` : ''}
-                            </div>
-                            <div className="mt-0.5 truncate text-[10px] text-openfmv-muted">{projectTitle}</div>
-                          </div>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            void removeAssetFromLibrary(item);
-                          }}
-                          className="absolute right-1 top-1 grid h-7 w-7 place-items-center rounded-[6px] border border-white/10 bg-black/70 text-openfmv-muted opacity-0 shadow-[0_10px_28px_rgba(0,0,0,0.35)] transition hover:border-red-300/35 hover:bg-red-500/16 hover:text-red-100 focus:opacity-100 group-hover/card:opacity-100"
-                          title={t('panel.removeAsset')}
-                          aria-label={t('panel.removeAsset')}
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          ) : activeLibraryTab === 'text' ? (
-            <div
-              className={`min-h-0 overflow-y-auto p-3 transition ${isAssetDropActive ? 'bg-sky-400/10' : ''}`}
-              onDragEnter={(event) => {
-                event.preventDefault();
-                setIsAssetDropActive(true);
-              }}
-              onDragOver={(event) => {
-                event.preventDefault();
-                event.dataTransfer.dropEffect = 'copy';
-              }}
-              onDragLeave={() => setIsAssetDropActive(false)}
-              onDrop={handleAssetPanelDrop}
-            >
-              <input ref={assetInputRef} type="file" accept={activeImportAccept} multiple className="hidden" onChange={(event) => void importFilesToAssets(Array.from(event.target.files || []))} />
-              {assetLibraryError && (
-                <div className="mb-2 rounded-[7px] border border-orange-300/20 bg-orange-500/10 px-3 py-2 text-xs leading-5 text-orange-100">
-                  {assetLibraryError}
-                </div>
-              )}
-              <button
-                type="button"
-                draggable
-                onClick={() => addTextClipAtTime()}
-                onDragStart={(event) => {
-                  setDraggedInteractionType('text');
-                  event.dataTransfer.effectAllowed = 'copy';
-                  event.dataTransfer.setData('application/openfmv-interaction-type', 'text');
-                  event.dataTransfer.setData('text/plain', t('clipTypes.text'));
-                }}
-                onDragEnd={() => {
-                  setDraggedInteractionType(null);
-                  setDragTargetTrackId(null);
-                }}
-                className="mb-3 flex w-full items-center gap-3 rounded-[8px] border border-white/10 bg-white/[0.045] p-3 text-left transition hover:border-white/24 hover:bg-white/[0.075]"
-                title={t('panel.addTextToTimeline')}
-              >
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[7px] bg-lime-400/12 text-lime-100">
-                  <Type size={18} />
-                </span>
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-semibold text-white">{t('panel.textTemplate')}</span>
-                  <span className="mt-1 block truncate text-xs text-openfmv-muted">{t('panel.addTextToTimeline')}</span>
-                </span>
-              </button>
-              {isAssetDropActive || textAssetItems.length === 0 ? (
-                <button type="button" onClick={handleAssetImportClick} disabled={isImportingAsset} className="grid h-40 w-full place-items-center rounded-[8px] border border-dashed border-white/22 bg-white/[0.045] text-center transition hover:border-white/34 hover:bg-white/[0.065] disabled:opacity-60">
-                  <span>
-                    <CloudUpload size={38} className="mx-auto text-openfmv-sub" />
-                    <span className="mt-4 block text-sm text-openfmv-sub">{isImportingAsset ? t('panel.importing') : t('panel.dropText')}</span>
-                    <span className="mt-2 block px-5 text-xs leading-5 text-openfmv-muted">{t('panel.dragTextToTimeline')}</span>
-                  </span>
-                </button>
-              ) : (
-                <div className={assetViewMode === 'grid' ? 'grid grid-cols-2 gap-2' : 'space-y-2'}>
-                  {textAssetItems.map((item) => {
-                    const { asset, projectId, projectTitle } = item;
-                    const content = getTextAssetContent(asset);
-                    const sizeLabel = getAssetSizeLabel(asset);
-                    return (
-                      <div key={asset.id} className="group/card relative min-w-0">
-                        <button
-                          type="button"
-                          draggable
-                          onClick={() => addTextAssetToTimeline(asset)}
-                          onDragStart={(event) => {
-                            setDraggedAssetId(asset.id);
-                            event.dataTransfer.effectAllowed = 'copy';
-                            event.dataTransfer.setData('application/openfmv-asset-id', asset.id);
-                            event.dataTransfer.setData('application/openfmv-asset-project-id', projectId);
-                            event.dataTransfer.setData('text/plain', asset.name);
-                          }}
-                          onDragEnd={() => setDraggedAssetId(null)}
-                          className={`w-full min-w-0 rounded-[8px] border border-white/10 bg-white/[0.045] text-left transition hover:border-white/24 hover:bg-white/[0.075] ${assetViewMode === 'grid' ? 'p-2' : 'flex items-center gap-2 p-2 pr-9'}`}
-                          title={t('panel.addTextToTimeline')}
-                        >
-                          <div className={`grid shrink-0 place-items-center overflow-hidden rounded-[7px] bg-black/28 text-openfmv-sub ${assetViewMode === 'grid' ? 'mb-2 aspect-video w-full' : 'h-12 w-14'}`}>
-                            <Type size={18} />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="truncate text-xs font-semibold text-white">{asset.name}</div>
-                            <div className="mt-1 line-clamp-2 text-[10px] leading-4 text-openfmv-muted">{content || t('panel.emptyTextAsset')}</div>
-                            <div className="mt-1 truncate text-[10px] text-openfmv-muted">
-                              {t('mediaTypes.text')}
-                              {sizeLabel ? ` / ${sizeLabel}` : ''}
                             </div>
                             <div className="mt-0.5 truncate text-[10px] text-openfmv-muted">{projectTitle}</div>
                           </div>
@@ -3592,20 +3515,22 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
         </div>
       </aside>
 
-      <section className="min-h-0 overflow-hidden rounded-[8px] border border-white/10 bg-[#171717] shadow-[0_24px_80px_rgba(0,0,0,0.34)]">
-        <div className="flex h-full min-h-0 flex-col">
-          <div className="flex h-12 shrink-0 items-center justify-between border-b border-white/10 px-4">
-            <div className="min-w-0">
-              <div className="truncate text-sm font-semibold">{getNodeTitle(selectedOrFirstNode, t)}</div>
-              <div className="font-mono text-xs text-openfmv-muted">{currentTime.toFixed(2)} / {timeline.duration.toFixed(2)}s</div>
-            </div>
-            <button type="button" onClick={toggleTimelinePlayback} className={`grid h-9 w-9 place-items-center rounded-full transition hover:bg-white/[0.16] hover:text-white ${isTimelinePlaying ? 'bg-sky-400/18 text-sky-100' : 'bg-white/[0.10] text-openfmv-sub'}`} title={isTimelinePlaying ? t('actions.pause') : t('actions.play')} aria-label={isTimelinePlaying ? t('actions.pause') : t('actions.play')}>
-              {isTimelinePlaying ? <Pause size={15} fill="currentColor" /> : <Play size={15} fill="currentColor" />}
-            </button>
-          </div>
-
-          <div className="relative grid min-h-0 flex-1 place-items-center overflow-auto p-4">
-            <div ref={previewFrameRef} data-node-preview-frame className={getPreviewFrameClassName()}>
+      <section className="min-h-0 overflow-hidden rounded-sm border border-white/10 bg-[#171717] shadow-[0_18px_56px_rgba(0,0,0,0.30)]">
+        <div className="flex size-full min-h-0 min-w-0 flex-col">
+          <div className="flex min-h-0 min-w-0 flex-1 p-2 pb-0">
+            <div ref={previewViewportRef} className="relative flex size-full min-h-0 min-w-0 items-center justify-center overflow-hidden">
+              <div
+                ref={previewFrameRef}
+                data-node-preview-frame
+                className={getPreviewFrameClassName()}
+                style={previewFrameSize ? {
+                  height: previewFrameSize.height,
+                  width: previewFrameSize.width,
+                } : {
+                  aspectRatio: previewCanvasAspectRatio,
+                  width: '100%',
+                }}
+              >
               {activeVisualMediaClips.length > 0 ? (
                 activeVisualMediaClips.map((clip) => (
                   <PreviewMediaLayer
@@ -3628,7 +3553,6 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
                   </div>
                 </div>
               )}
-              <div className="pointer-events-none absolute inset-[7%] border border-dashed border-white/34" />
               {overlaySnapLines.map((line) => (
                 <div
                   key={`${line.orientation}-${line.position}`}
@@ -3641,14 +3565,6 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
                 const resolvedClip = resolveTimelineClipKeyframes(clip, currentTime);
                 const rect = getClipRect(resolvedClip);
                 const active = isTimelineClipActive(clip, currentTime);
-                const textStyle = resolvedClip.type === 'text'
-                  ? {
-                      fontSize: `${clampTimelineTextFontSize(resolvedClip.fontSize)}px`,
-                      color: resolvedClip.color || '#ffffff',
-                      backgroundColor: resolvedClip.backgroundColor || 'transparent',
-                      textAlign: resolvedClip.align || 'center',
-                    } satisfies React.CSSProperties
-                  : {};
                 return (
                   <button
                     key={clip.id}
@@ -3664,10 +3580,9 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
                       opacity: active ? getTimelineClipOpacity(resolvedClip) : Math.min(getTimelineClipOpacity(resolvedClip), 0.45),
                       transform: `rotate(${getTimelineClipRotation(resolvedClip)}deg)`,
                       transformOrigin: 'center',
-                      ...textStyle,
                     }}
                   >
-                    <span className={resolvedClip.type === 'text' ? 'w-full whitespace-pre-wrap break-words leading-tight' : 'truncate'}>{getTimelineClipLabel(resolvedClip)}</span>
+                    <span className="truncate">{getTimelineClipLabel(resolvedClip)}</span>
                     {resolvedClip.id === selectedClip?.id && overlayResizeHandles.map((item) => (
                       <span
                         key={item.handle}
@@ -3683,11 +3598,26 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
             {activeAudioClips.map((clip) => (
               <PreviewAudioLayer key={clip.id} clip={clip} currentTime={currentTime} isTimelinePlaying={isTimelinePlaying} />
             ))}
+            </div>
+          </div>
+
+          <div className="grid h-10 shrink-0 grid-cols-[1fr_auto_1fr] items-center px-3">
+            <div className="flex min-w-0 items-center font-mono text-xs">
+              <span className="text-white">{currentTime.toFixed(2)}</span>
+              <span className="px-2 text-openfmv-muted">/</span>
+              <span className="text-openfmv-muted">{timeline.duration.toFixed(2)}s</span>
+            </div>
+            <button type="button" onClick={toggleTimelinePlayback} className={`grid h-8 w-8 place-items-center rounded-[7px] transition hover:bg-white/[0.12] hover:text-white ${isTimelinePlaying ? 'bg-sky-400/18 text-sky-100' : 'text-openfmv-sub'}`} title={isTimelinePlaying ? t('actions.pause') : t('actions.play')} aria-label={isTimelinePlaying ? t('actions.pause') : t('actions.play')}>
+              {isTimelinePlaying ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
+            </button>
+            <div className="min-w-0 justify-self-end text-right text-xs font-semibold text-openfmv-sub">
+              <span className="block truncate">{getNodeTitle(selectedOrFirstNode, t)}</span>
+            </div>
           </div>
         </div>
       </section>
 
-      <aside className="min-h-0 overflow-y-auto rounded-[8px] border border-white/10 bg-[#171717] p-4 shadow-[0_24px_80px_rgba(0,0,0,0.34)]">
+      <aside className="min-h-0 overflow-y-auto rounded-sm border border-white/10 bg-[#171717] p-3 shadow-[0_18px_56px_rgba(0,0,0,0.30)]">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-openfmv-muted">{t('inspector.title')}</div>
@@ -3719,24 +3649,11 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
             sourceHandleOptions={getSourceHandleOptions(selectedOrFirstNode, t)}
             onUpdate={(update) => updateClip(selectedClip.id, (clip) => (isInteractionClip(clip) ? update(clip) : clip))}
           />
-        ) : isTimedActionClip(selectedClip) ? (
-          <TimedActionClipInspector
-            t={t}
-            clip={selectedClip}
-            nodes={nodes}
-            activeNode={selectedOrFirstNode}
-            sourceHandleOptions={getSourceHandleOptions(selectedOrFirstNode, t)}
-            onUpdate={(update) => updateClip(selectedClip.id, (clip) => (isTimedActionClip(clip) ? update(clip) : clip))}
-            onDelete={deleteSelectedClip}
-          />
-        ) : (
-          <div className="rounded-[8px] border border-white/10 bg-white/[0.035] p-4 text-sm leading-6 text-openfmv-muted">
-            {t('inspector.timedActionStored')}
-          </div>
-        )}
+        ) : null}
       </aside>
+      </div>
 
-      <section className="col-span-3 min-h-0 overflow-hidden rounded-[8px] border border-white/10 bg-[#171717] shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
+      <section className="mx-3 mb-3 h-[34vh] min-h-[260px] shrink-0 overflow-hidden rounded-sm border border-white/10 bg-[#171717] shadow-[0_18px_56px_rgba(0,0,0,0.26)]">
         <div className="relative flex h-10 items-center justify-between border-b border-white/10 bg-[#1b1b1b] px-3">
           <div className="flex items-center gap-1 text-openfmv-sub">
             {([
@@ -3770,12 +3687,6 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
                 </button>
               );
             })}
-          </div>
-          <div className="absolute left-1/2 flex -translate-x-1/2 items-center rounded-full border border-white/10 bg-white/[0.06] p-0.5 text-xs font-semibold text-white">
-            <span className="px-3">{t('timeline.mainScene')}</span>
-            <span className="grid h-7 w-8 place-items-center rounded-full bg-white/[0.06] text-openfmv-sub">
-              <Layers size={15} />
-            </span>
           </div>
           <div className="flex items-center gap-1 text-openfmv-sub">
             <button type="button" onClick={() => setIsRippleEditingEnabled((value) => !value)} aria-pressed={isRippleEditingEnabled} className={`grid h-8 w-8 place-items-center rounded-[7px] transition hover:bg-white/[0.07] ${isRippleEditingEnabled ? 'text-sky-300' : 'text-openfmv-muted'}`} title={isRippleEditingEnabled ? t('timeline.toolbar.disableRipple') : t('timeline.toolbar.enableRipple')} aria-label={isRippleEditingEnabled ? t('timeline.toolbar.disableRipple') : t('timeline.toolbar.enableRipple')}>
@@ -3917,7 +3828,7 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
                   <div
                     key={track.id}
                     data-node-timeline-track-id={track.id}
-                    className={`relative border border-white/[0.06] bg-white/[0.025] transition ${track.type === 'media' && draggedAssetId ? 'border-sky-300/30 bg-sky-400/[0.055]' : ''} ${track.type === 'interaction' && (draggedInteractionType || draggedTimedActionType) ? 'border-orange-300/30 bg-orange-400/[0.045]' : ''} ${dragTargetTrackId === track.id ? 'border-sky-300/45 bg-sky-400/[0.08]' : ''} ${track.hidden ? 'opacity-45' : ''} ${track.locked ? 'bg-white/[0.04]' : ''}`}
+                    className={`relative border border-white/[0.06] bg-white/[0.025] transition ${track.type === 'media' && draggedAssetId ? 'border-sky-300/30 bg-sky-400/[0.055]' : ''} ${track.type === 'interaction' && draggedInteractionType ? 'border-orange-300/30 bg-orange-400/[0.045]' : ''} ${dragTargetTrackId === track.id ? 'border-sky-300/45 bg-sky-400/[0.08]' : ''} ${track.hidden ? 'opacity-45' : ''} ${track.locked ? 'bg-white/[0.04]' : ''}`}
                     style={{ height: trackHeight }}
                     onContextMenu={(event) => handleTrackContextMenu(track, event)}
                     onDragOver={(event) => {
@@ -3944,7 +3855,6 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
                       const selected = selectedClipIdSet.has(clip.id);
                       const MediaIcon = isMediaClip(clip) ? mediaIcons[clip.type] : null;
                       const InteractionIcon = isInteractionClip(clip) ? interactionIcons[clip.type] : null;
-                      const TimedActionIcon = isTimedActionClip(clip) ? timedActionIcons[clip.type] : null;
                       const keyframeLanes = expandedKeyframeClipIdSet.has(clip.id) ? getTimelineClipKeyframeLanes(clip) : [];
                       return (
                         <React.Fragment key={clip.id}>
@@ -3993,7 +3903,6 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
                             <span className="relative z-10 flex min-w-0 items-center gap-1.5 px-1 drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]">
                               {MediaIcon && <MediaIcon size={13} />}
                               {InteractionIcon && <InteractionIcon size={13} />}
-                              {TimedActionIcon && <TimedActionIcon size={13} />}
                               <span className="truncate">{getTimelineClipLabel(clip)}</span>
                             </span>
                           </button>
@@ -4640,15 +4549,24 @@ function VideoClipSizeInspector({
   onUpdate: (update: (clip: TimelineMediaClip) => TimelineMediaClip) => void;
 }) {
   const rect = getMediaClipRect(clip);
-  const updateSize = (key: 'width' | 'height', value: number) => {
+  const updateRect = (key: keyof OverlayRect, value: number) => {
     onUpdate((item) => ({ ...item, rect: clampOverlayRect({ ...getMediaClipRect(item), [key]: value }) }));
   };
 
   return (
     <div className="space-y-4">
+      <label className="block">
+        <span className="mb-2 block text-xs font-semibold text-openfmv-muted">{t('fields.fit')}</span>
+        <select value={clip.fit || 'contain'} onChange={(event) => onUpdate((item) => ({ ...item, fit: event.target.value === 'cover' ? 'cover' : 'contain' }))} className="openfmv-dark-select h-10 w-full rounded-[8px] border border-white/12 bg-white/[0.075] px-3 text-sm text-white outline-none focus:border-white/30">
+          <option value="contain">{t('fields.fitContain')}</option>
+          <option value="cover">{t('fields.fitCover')}</option>
+        </select>
+      </label>
       <div className="grid grid-cols-2 gap-2">
-        <NumberField label={t('fields.width')} value={Number(rect.width.toFixed(2))} step={0.01} onChange={(value) => updateSize('width', value)} />
-        <NumberField label={t('fields.height')} value={Number(rect.height.toFixed(2))} step={0.01} onChange={(value) => updateSize('height', value)} />
+        <NumberField label={t('fields.x')} value={Number(rect.x.toFixed(2))} step={0.01} onChange={(value) => updateRect('x', value)} />
+        <NumberField label={t('fields.y')} value={Number(rect.y.toFixed(2))} step={0.01} onChange={(value) => updateRect('y', value)} />
+        <NumberField label={t('fields.width')} value={Number(rect.width.toFixed(2))} step={0.01} onChange={(value) => updateRect('width', value)} />
+        <NumberField label={t('fields.height')} value={Number(rect.height.toFixed(2))} step={0.01} onChange={(value) => updateRect('height', value)} />
       </div>
     </div>
   );
@@ -4779,6 +4697,104 @@ function MediaClipInspector({
   );
 }
 
+function InteractionActionSelect({
+  t,
+  value,
+  nodes,
+  activeNode,
+  sourceHandleOptions,
+  includeNone,
+  onChange,
+}: {
+  t: NodeTimelineTranslator;
+  value: string;
+  nodes: AppNode[];
+  activeNode: AppNode;
+  sourceHandleOptions: Array<{ value: string; label: string; handleId: string | null }>;
+  includeNone?: boolean;
+  onChange: (value: string) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const targetNodes = nodes.filter((node) => node.id !== activeNode.id);
+  const optionGroups = [
+    {
+      label: null,
+      options: [
+        includeNone
+          ? { value: 'none', label: t('actions.disappear') }
+          : { value: 'continue', label: t('actions.continueCurrentMedia') },
+      ],
+    },
+    {
+      label: t('fields.outputLine'),
+      options: sourceHandleOptions.map((option) => ({ value: option.value, label: option.label })),
+    },
+    {
+      label: t('fields.goToNode'),
+      options: targetNodes.map((node) => ({ value: `node:${node.id}`, label: getNodeTitle(node, t) })),
+    },
+  ].filter((group) => group.options.length > 0);
+  const flatOptions = optionGroups.flatMap((group) => group.options);
+  const selectedOption = flatOptions.find((option) => option.value === value) ?? flatOptions[0];
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      if (containerRef.current?.contains(event.target as Node)) return;
+      setIsOpen(false);
+    };
+    window.addEventListener('pointerdown', handlePointerDown);
+    return () => window.removeEventListener('pointerdown', handlePointerDown);
+  }, [isOpen]);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setIsOpen((open) => !open)}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') setIsOpen(false);
+        }}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        className={`flex h-9 w-full items-center justify-between gap-2 rounded-[8px] border px-3 text-left text-sm text-white outline-none transition ${isOpen ? 'border-openfmv-accent/80 bg-white/[0.10] shadow-[0_0_0_3px_rgba(249,115,22,0.12)]' : 'border-white/12 bg-white/[0.075] hover:border-white/22 hover:bg-white/[0.095]'}`}
+      >
+        <span className="min-w-0 truncate">{selectedOption?.label}</span>
+        <ChevronDown size={15} className={`shrink-0 text-openfmv-muted transition ${isOpen ? 'rotate-180 text-white' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div role="listbox" className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-y-auto rounded-[9px] border border-white/12 bg-[#171b22] p-1 shadow-[0_18px_48px_rgba(0,0,0,0.42)]">
+          {optionGroups.map((group, groupIndex) => (
+            <div key={group.label ?? `base-${groupIndex}`} className={groupIndex > 0 ? 'mt-1 border-t border-white/10 pt-1' : ''}>
+              {group.label && <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-openfmv-muted">{group.label}</div>}
+              {group.options.map((option) => {
+                const selected = option.value === value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="option"
+                    aria-selected={selected}
+                    onClick={() => {
+                      onChange(option.value);
+                      setIsOpen(false);
+                    }}
+                    className={`flex min-h-8 w-full items-center rounded-[7px] px-2 py-1.5 text-left text-sm transition ${selected ? 'bg-openfmv-accent text-white' : 'text-openfmv-sub hover:bg-white/[0.075] hover:text-white'}`}
+                  >
+                    <span className="min-w-0 truncate">{option.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function InteractionClipInspector({
   t,
   clip,
@@ -4795,99 +4811,68 @@ function InteractionClipInspector({
   onUpdate: (update: (clip: TimelineInteractionClip) => TimelineInteractionClip) => void;
 }) {
   const action = getInteractionAction(clip);
+  const isPauseWait = clip.pauseOnShow === true;
 
   return (
     <div className="space-y-4">
       <label className="block">
-        <span className="mb-2 block text-xs font-semibold text-openfmv-muted">{clip.type === 'text' ? t('fields.text') : t('fields.label')}</span>
+        <span className="mb-2 block text-xs font-semibold text-openfmv-muted">{t('fields.label')}</span>
         <input value={getTimelineClipLabel(clip)} onChange={(event) => onUpdate((item) => updateInteractionLabel(item, event.target.value))} className="h-10 w-full rounded-[8px] border border-white/12 bg-white/[0.075] px-3 text-sm text-white outline-none focus:border-white/30" />
       </label>
-      {clip.type !== 'text' && (
-        <label className="block">
-          <span className="mb-2 block text-xs font-semibold text-openfmv-muted">{t('fields.action')}</span>
-          <select value={actionToValue(action)} onChange={(event) => onUpdate((item) => updateInteractionAction(item, valueToAction(event.target.value)))} className="openfmv-dark-select h-10 w-full rounded-[8px] border border-white/12 bg-white/[0.075] px-3 text-sm text-white outline-none focus:border-white/30">
-            <option value="continue">{t('actions.continueCurrentMedia')}</option>
-            {sourceHandleOptions.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-            {nodes.filter((node) => node.id !== activeNode.id).map((node) => (
-              <option key={node.id} value={`node:${node.id}`}>{getNodeTitle(node, t)}</option>
-            ))}
-          </select>
-        </label>
-      )}
-    </div>
-  );
-}
 
-function TimedActionClipInspector({
-  t,
-  clip,
-  nodes,
-  activeNode,
-  sourceHandleOptions,
-  onUpdate,
-  onDelete,
-}: {
-  t: NodeTimelineTranslator;
-  clip: TimelineTimedActionClip;
-  nodes: AppNode[];
-  activeNode: AppNode;
-  sourceHandleOptions: Array<{ value: string; label: string; handleId: string | null }>;
-  onUpdate: (update: (clip: TimelineTimedActionClip) => TimelineTimedActionClip) => void;
-  onDelete: () => void;
-}) {
-  const variableAction = clip.action.type === 'setVariable'
-    ? clip.action
-    : { type: 'setVariable', key: 'flag', value: true } satisfies TimelineAction;
-
-  return (
-    <div className="space-y-4">
-      <label className="block">
-        <span className="mb-2 block text-xs font-semibold text-openfmv-muted">{t('fields.name')}</span>
-        <input value={clip.name || ''} onChange={(event) => onUpdate((item) => ({ ...item, name: event.target.value }))} className="h-10 w-full rounded-[8px] border border-white/12 bg-white/[0.075] px-3 text-sm text-white outline-none focus:border-white/30" />
-      </label>
-      <label className="flex h-10 items-center justify-between rounded-[8px] border border-white/10 bg-white/[0.055] px-3 text-sm text-openfmv-sub">
-        {t('fields.enabled')}
-        <input type="checkbox" checked={clip.enabled !== false} onChange={(event) => onUpdate((item) => ({ ...item, enabled: event.target.checked }))} className="h-4 w-4 accent-sky-500" />
-      </label>
-      <label className="flex h-10 items-center justify-between rounded-[8px] border border-white/10 bg-white/[0.055] px-3 text-sm text-openfmv-sub">
-        {t('fields.hidden')}
-        <input type="checkbox" checked={clip.hidden === true} onChange={(event) => onUpdate((item) => ({ ...item, hidden: event.target.checked }))} className="h-4 w-4 accent-sky-500" />
-      </label>
-      <div className="grid grid-cols-2 gap-2">
-        <NumberField label={t('fields.start')} value={clip.startTime} step={0.1} onChange={(value) => onUpdate((item) => ({ ...item, startTime: Math.max(0, value) }))} />
-        <NumberField label={t('fields.duration')} value={clip.duration} step={0.1} onChange={(value) => onUpdate((item) => ({ ...item, duration: Math.max(0.1, value) }))} />
-      </div>
-      {clip.type === 'variable' ? (
-        <div className="grid grid-cols-2 gap-2">
-          <label className="block">
-            <span className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.16em] text-openfmv-muted">{t('fields.variableKey')}</span>
-            <input value={variableAction.key || ''} onChange={(event) => onUpdate((item) => ({ ...item, action: { type: 'setVariable', key: event.target.value, value: variableAction.value } }))} className="h-10 w-full rounded-[8px] border border-white/12 bg-white/[0.075] px-3 text-sm text-white outline-none focus:border-white/30" />
-          </label>
-          <label className="block">
-            <span className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.16em] text-openfmv-muted">{t('fields.variableValue')}</span>
-            <input value={getTimedActionVariableValue(variableAction)} onChange={(event) => onUpdate((item) => ({ ...item, action: { type: 'setVariable', key: variableAction.key || 'flag', value: parseTimedActionVariableValue(event.target.value) } }))} className="h-10 w-full rounded-[8px] border border-white/12 bg-white/[0.075] px-3 text-sm text-white outline-none focus:border-white/30" />
-          </label>
+      <div>
+        <span className="mb-2 block text-xs font-semibold text-openfmv-muted">{t('fields.buttonType')}</span>
+        <div className="grid grid-cols-2 rounded-[8px] border border-white/10 bg-white/[0.045] p-1">
+          {[
+            { label: t('fields.optionalClick'), value: false },
+            { label: t('fields.pauseWait'), value: true },
+          ].map((option) => {
+            const selected = isPauseWait === option.value;
+            return (
+              <button
+                key={option.label}
+                type="button"
+                onClick={() => onUpdate((item) => updateInteractionPauseMode(item, option.value))}
+                aria-pressed={selected}
+                className={`h-8 rounded-[7px] px-2 text-xs font-semibold transition ${selected ? 'bg-openfmv-accent text-white shadow-[0_8px_22px_rgba(249,115,22,0.24)]' : 'text-openfmv-muted hover:bg-white/[0.07] hover:text-white'}`}
+              >
+                {option.label}
+              </button>
+            );
+          })}
         </div>
-      ) : (
-        <label className="block">
-          <span className="mb-2 block text-xs font-semibold text-openfmv-muted">{t('fields.action')}</span>
-          <select value={actionToValue(clip.action)} onChange={(event) => onUpdate((item) => ({ ...item, action: valueToAction(event.target.value) }))} className="openfmv-dark-select h-10 w-full rounded-[8px] border border-white/12 bg-white/[0.075] px-3 text-sm text-white outline-none focus:border-white/30">
-            <option value="continue">{t('actions.continueCurrentMedia')}</option>
-            {sourceHandleOptions.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-            {nodes.filter((node) => node.id !== activeNode.id).map((node) => (
-              <option key={node.id} value={`node:${node.id}`}>{getNodeTitle(node, t)}</option>
-            ))}
-          </select>
-        </label>
-      )}
-      <button type="button" onClick={onDelete} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-[8px] border border-red-400/20 bg-red-500/8 px-3 text-sm font-semibold text-red-200 transition hover:bg-red-500/14">
-        <Trash2 size={15} />
-        {t('actions.delete')}
-      </button>
+      </div>
+
+      <div className="rounded-[8px] border border-white/10 bg-white/[0.045] p-3">
+        <div className="mb-3 text-xs font-semibold text-openfmv-muted">{t('fields.triggerEvents')}</div>
+        <div className="space-y-3">
+          <label className="grid gap-2">
+            <span className="text-[11px] font-semibold text-openfmv-sub">{t('fields.onClick')}</span>
+            <InteractionActionSelect
+              t={t}
+              value={actionToValue(action)}
+              nodes={nodes}
+              activeNode={activeNode}
+              sourceHandleOptions={sourceHandleOptions}
+              onChange={(value) => onUpdate((item) => updateInteractionAction(item, valueToAction(value)))}
+            />
+          </label>
+          {!isPauseWait && (
+            <label className="grid gap-2">
+              <span className="text-[11px] font-semibold text-openfmv-sub">{t('fields.onMiss')}</span>
+              <InteractionActionSelect
+                t={t}
+                value={timeoutActionToValue(clip.timeoutAction)}
+                nodes={nodes}
+                activeNode={activeNode}
+                sourceHandleOptions={sourceHandleOptions}
+                includeNone
+                onChange={(value) => onUpdate((item) => updateInteractionTimeoutAction(item, value === 'none' ? undefined : valueToAction(value)))}
+              />
+            </label>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

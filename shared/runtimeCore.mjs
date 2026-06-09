@@ -76,7 +76,7 @@ export function isTimelineMediaClipType(type) {
 }
 
 export function isTimelineInteractionClipType(type) {
-  return type === 'button' || type === 'hotspot' || type === 'pauseGate' || type === 'text';
+  return type === 'button';
 }
 
 export function getTimelineTracks(node) {
@@ -177,7 +177,7 @@ export function resolveTimelineClipKeyframes(clip, timelineTime) {
     opacity: resolveTimelineKeyframedValue({ clip, property: 'opacity', timelineTime, fallback: clampTimelineClipOpacity(clip.opacity) }),
     rotation: resolveTimelineKeyframedValue({ clip, property: 'rotation', timelineTime, fallback: Number.isFinite(Number(clip.rotation)) ? Number(clip.rotation) : 0 }),
   };
-  if (clip.type === 'video' || clip.type === 'image' || clip.type === 'button' || clip.type === 'hotspot' || clip.type === 'pauseGate' || clip.type === 'text') {
+  if (clip.type === 'video' || clip.type === 'image' || clip.type === 'button') {
     const rect = clip.rect || (clip.type === 'video' || clip.type === 'image' ? { x: 0, y: 0, width: 1, height: 1 } : { x: 0.38, y: 0.76, width: 0.24, height: 0.1 });
     resolved.rect = {
       x: resolveTimelineKeyframedValue({ clip, property: 'x', timelineTime, fallback: Number(rect.x) || 0 }),
@@ -224,17 +224,12 @@ export function compileNodeTimeline(node) {
   const mediaClips = getTimelineMediaClips(node);
   const visualMediaClips = mediaClips.filter((clip) => clip.type === 'video' || clip.type === 'image');
   const interactionClips = getTimelineInteractionClips(node);
-  const timedActionClips = getVisibleTimelineTracks(node)
-    .filter((track) => track?.type === 'interaction')
-    .flatMap((track) => (Array.isArray(track.clips) ? track.clips : []))
-    .filter((clip) => clip?.enabled !== false && clip?.hidden !== true && (clip?.type === 'branch' || clip?.type === 'variable'));
   return {
     nodeId: node?.id,
     duration: getTimelineDuration(node),
     mediaClips,
     visualMediaClips,
     interactionClips,
-    timedActionClips,
     primaryMediaClip: visualMediaClips[0] ?? mediaClips[0] ?? null,
   };
 }
@@ -361,10 +356,6 @@ export function buildNodeEffects(node, edges, timelineTime = 0) {
     effects.push({ type: 'timelineOverlay', nodeId: node.id, clips: compiledTimeline.interactionClips, duration: compiledTimeline.duration });
   }
 
-  if (compiledTimeline.timedActionClips.length > 0) {
-    effects.push({ type: 'timelineTimedActions', nodeId: node.id, clips: compiledTimeline.timedActionClips, duration: compiledTimeline.duration });
-  }
-
   if (node.type === 'end') {
     if (!shouldDeferRuntimeControls) effects.push({ type: 'showRestart' });
     return effects;
@@ -448,27 +439,18 @@ export function dispatchRuntimeEvent(program, state, event) {
     };
   }
 
-  if (type === 'timeline.clip.triggered' || type === 'timeline.clip.timeout' || type === 'timeline.timedAction.triggered') {
+  if (type === 'timeline.clip.triggered' || type === 'timeline.clip.timeout') {
     const currentNode = getNodeById(program.graph.nodes, state.currentNodeId);
     if (!currentNode || state.status !== 'running') return state;
     const compiledTimeline = compileNodeTimeline(currentNode);
     const currentTimelineTime = clampRuntimeTimelineTime(state.timelineTime, compiledTimeline.duration);
     const interactionClip = compiledTimeline.interactionClips.find((item) => item.id === event.clipId);
-    const timedActionClip = compiledTimeline.timedActionClips.find((item) => item.id === event.clipId);
-    const clip = type === 'timeline.timedAction.triggered' ? timedActionClip : interactionClip;
 
     if (type === 'timeline.clip.triggered' && (!interactionClip || !isTimelineClipActive(interactionClip, currentTimelineTime))) return state;
     if (type === 'timeline.clip.timeout' && (!interactionClip || currentTimelineTime < getTimelineClipEndTime(interactionClip))) return state;
-    if (type === 'timeline.timedAction.triggered' && (!timedActionClip || currentTimelineTime < (Number(timedActionClip.startTime) || 0))) return state;
 
-    const action = event.action || (type === 'timeline.clip.timeout' ? interactionClip?.timeoutAction : clip?.action);
+    const action = event.action || (type === 'timeline.clip.timeout' ? interactionClip?.timeoutAction : interactionClip?.action);
     if (!action || action.type === 'continue') return state;
-    if (action.type === 'setVariable') {
-      return {
-        ...state,
-        variables: { ...state.variables, [action.key]: action.value },
-      };
-    }
     const targetNodeId = resolveTimelineActionNodeId(currentNode, program.graph.edges, action);
     const targetNode = getNodeById(program.graph.nodes, targetNodeId);
     if (!targetNode) return state;

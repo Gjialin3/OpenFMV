@@ -7,7 +7,7 @@ const net = require('net');
 const path = require('path');
 const crypto = require('crypto');
 const { pathToFileURL } = require('url');
-const { exportGamePackage, sanitizeName, saveProjectToDirectory } = require('./exporter');
+const { exportWebGamePackage, sanitizeName, saveProjectToDirectory } = require('./exporter');
 const { registerAiSettingsIpc } = require('./ai-settings');
 const { registerIpcHandler } = require('../shared/ipc-contract.js');
 
@@ -345,13 +345,9 @@ registerIpcHandler(ipcMain, 'selectAsset', async () => {
 });
 
 registerIpcHandler(ipcMain, 'exportGame', async (_event, project, config) => {
-  const electronRuntimeDir = isDev ? path.dirname(process.execPath) : path.dirname(process.resourcesPath);
-  return exportGamePackage({
+  return exportWebGamePackage({
     project,
     config,
-    electronExecutablePath: process.execPath,
-    electronRuntimeDir,
-    isDev,
   });
 });
 

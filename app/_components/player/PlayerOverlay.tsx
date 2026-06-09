@@ -3,14 +3,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { ArrowRight, RotateCcw, X } from 'lucide-react';
+import { useRuntimeSessionStore } from '@/app/_features/runtime-session/store';
 import { useResolvedMediaSrc } from '../../_hooks/useResolvedMediaSrc';
 import { usePlayerStore } from '../../_store/usePlayerStore';
-import { useRuntimeGraphStore } from '../../_store/useRuntimeGraphStore';
 import { AppNode, OverlayRect, TimelineAction, TimelineInteractionClip } from '../../_types';
 import OpenFMVVideo from '../video/OpenFMVVideo';
 import { SwipeUnlock } from './interactions';
 import { getRuntimeMediaPlaybackRate, shouldResetRuntimeTimelineTriggerState, shouldUseRuntimeTimelineIntervalClock } from './timelineClock';
-import { createRuntime, getActiveTimelineClips, getTimelineClipEndTime, RuntimeEffect, RuntimeEvent, RuntimeSnapshot } from '../../_utils/graphRuntime';
+import { getActiveTimelineClips, getTimelineClipEndTime, RuntimeEffect, RuntimeEvent } from '../../_utils/graphRuntime';
 
 const Countdown = ({ seconds, countdownKey, onTimeout }: { seconds?: number; countdownKey: string; onTimeout: () => void }) => {
   const normalizedSeconds = Math.max(0, Math.floor(Number(seconds) || 0));
@@ -55,9 +55,24 @@ type PlayMediaEffect = Extract<RuntimeEffect, { type: 'playMedia' }>;
 type VisualMediaEffect = Extract<PlayMediaEffect, { mediaType: 'video' | 'image' }>;
 type AudioMediaEffect = Extract<PlayMediaEffect, { mediaType: 'audio' }>;
 
-const runtimeStageStyle: React.CSSProperties = {
-  width: 'min(100vw, calc(100vh * 16 / 9))',
+const DEFAULT_RUNTIME_STAGE_ASPECT_RATIO = 16 / 9;
+const MIN_RUNTIME_STAGE_ASPECT_RATIO = 1 / 4;
+const MAX_RUNTIME_STAGE_ASPECT_RATIO = 4;
+const RUNTIME_TIMELINE_UPDATE_EPSILON = 0.02;
+
+const shouldDispatchTimelineTimeUpdate = (currentTime: number, nextTime: number) => (
+  Number.isFinite(nextTime) && Math.abs(nextTime - currentTime) > RUNTIME_TIMELINE_UPDATE_EPSILON
+);
+
+const getNaturalMediaAspectRatio = (width: number, height: number) => {
+  if (!Number.isFinite(width) || width <= 0 || !Number.isFinite(height) || height <= 0) return null;
+  return Math.max(MIN_RUNTIME_STAGE_ASPECT_RATIO, Math.min(MAX_RUNTIME_STAGE_ASPECT_RATIO, width / height));
 };
+
+const getRuntimeStageStyle = (aspectRatio: number): React.CSSProperties => ({
+  aspectRatio,
+  width: `min(100vw, calc(100vh * ${aspectRatio}))`,
+});
 
 const getPlayMediaEffects = (effects: RuntimeEffect[]) => {
   return effects.filter((effect): effect is PlayMediaEffect => effect.type === 'playMedia');
@@ -85,7 +100,7 @@ const getVisualMediaRect = (effect?: VisualMediaEffect | null): OverlayRect => {
 };
 
 const getVisualMediaFitClassName = (effect?: VisualMediaEffect | null) => {
-  const fit = effect?.mediaType === 'video' ? 'contain' : effect?.fit || 'contain';
+  const fit = effect?.fit || 'contain';
   return `h-full w-full ${fit === 'cover' ? 'object-cover' : 'object-contain'}`;
 };
 
@@ -124,26 +139,19 @@ const assignVideoRef = (ref: React.Ref<HTMLVideoElement> | undefined, value: HTM
 };
 
 const getTimelineClipLabel = (clip: TimelineInteractionClip) => {
-  if (clip.type === 'text') return clip.text || clip.name || '';
-  if (clip.type === 'hotspot') return clip.showHint ? clip.hint || clip.name || 'Hotspot' : '';
   return clip.label || clip.name || 'Continue';
 };
 
 const getTimelineClipAction = (clip: TimelineInteractionClip): TimelineAction => {
-  if (clip.type === 'pauseGate') return clip.action || { type: 'continue' };
-  if (clip.type === 'text') return { type: 'continue' };
   return clip.action;
 };
 
 const shouldResumeTimelineOnClick = (clip: TimelineInteractionClip) => {
-  return clip.type !== 'pauseGate' || clip.resumeOnClick !== false;
+  return Boolean(clip);
 };
 
 const getTimelineClipClassName = (clip: TimelineInteractionClip) => {
-  const base = 'pointer-events-auto absolute flex min-h-10 min-w-12 items-center justify-center overflow-hidden rounded-[12px] border px-4 text-sm font-bold text-white shadow-[0_18px_54px_rgba(0,0,0,0.38)] backdrop-blur-2xl transition hover:scale-[1.02]';
-  if (clip.type === 'text') return 'pointer-events-none absolute flex min-h-8 min-w-12 items-center justify-center overflow-hidden px-3 text-center font-bold text-white drop-shadow-[0_3px_12px_rgba(0,0,0,0.72)]';
-  if (clip.type === 'hotspot') return `${base} border-cyan-200/85 bg-cyan-400/16 text-cyan-50`;
-  if (clip.type === 'pauseGate') return `${base} border-violet-200/85 bg-violet-500/88`;
+  const base = 'pointer-events-auto absolute flex min-h-10 min-w-12 items-center justify-center overflow-hidden rounded-[8px] border px-3 text-xs font-bold text-white shadow-[0_18px_52px_rgba(0,0,0,0.38)] backdrop-blur-xl transition hover:scale-[1.02]';
   return `${base} border-orange-200/90 bg-orange-500/92`;
 };
 
@@ -151,12 +159,14 @@ function RuntimeVisualMediaLayer({
   effect,
   sceneTitle,
   playerRef,
+  onAspectRatioReady,
   timelineTime,
   paused,
 }: {
   effect: VisualMediaEffect;
   sceneTitle?: string;
   playerRef?: React.Ref<HTMLVideoElement>;
+  onAspectRatioReady?: (aspectRatio: number) => void;
   timelineTime: number;
   paused: boolean;
 }) {
@@ -171,6 +181,10 @@ function RuntimeVisualMediaLayer({
   const unclampedTargetTime = Math.max(0, sourceStart + Math.max(0, timelineTime - timelineStart) * playbackRate);
   const targetTime = freezeFrameTime ?? (sourceEnd === null ? unclampedTargetTime : Math.min(unclampedTargetTime, sourceEnd));
   const sourceEnded = sourceEnd !== null && targetTime >= sourceEnd;
+  const reportNaturalSize = useCallback((width: number, height: number) => {
+    const aspectRatio = getNaturalMediaAspectRatio(width, height);
+    if (aspectRatio) onAspectRatioReady?.(aspectRatio);
+  }, [onAspectRatioReady]);
 
   const setVideoRef = useCallback((element: HTMLVideoElement | null) => {
     videoRef.current = element;
@@ -201,6 +215,21 @@ function RuntimeVisualMediaLayer({
     return () => video.removeEventListener('loadedmetadata', syncTargetTime);
   }, [effect, freezeFrameTime, paused, sourceEnded, targetTime]);
 
+  useEffect(() => {
+    if (effect.mediaType !== 'video' || !onAspectRatioReady) return;
+    const video = videoRef.current;
+    if (!video) return;
+
+    const syncAspectRatio = () => reportNaturalSize(video.videoWidth, video.videoHeight);
+    syncAspectRatio();
+    video.addEventListener('loadedmetadata', syncAspectRatio);
+    video.addEventListener('loadeddata', syncAspectRatio);
+    return () => {
+      video.removeEventListener('loadedmetadata', syncAspectRatio);
+      video.removeEventListener('loadeddata', syncAspectRatio);
+    };
+  }, [effect.mediaType, effect.src, onAspectRatioReady, reportNaturalSize]);
+
   return (
     <div
       className="absolute overflow-hidden"
@@ -215,7 +244,7 @@ function RuntimeVisualMediaLayer({
       }}
     >
       {effect.mediaType === 'image' ? (
-        <img src={imageSrc} alt={sceneTitle || ''} className={getVisualMediaFitClassName(effect)} />
+        <img src={imageSrc} alt={sceneTitle || ''} className={getVisualMediaFitClassName(effect)} onLoad={(event) => reportNaturalSize(event.currentTarget.naturalWidth, event.currentTarget.naturalHeight)} />
       ) : (
         <OpenFMVVideo src={effect.src} playbackId={effect.playbackId} poster={effect.poster} autoPlay muted={effect.muted} playsInline controls className={getVisualMediaFitClassName(effect)} playerRef={setVideoRef} />
       )}
@@ -284,7 +313,7 @@ const TimelineRuntimeOverlay = ({
   currentNode: AppNode | null;
   timelineEffect?: Extract<RuntimeEffect, { type: 'timelineOverlay' }>;
   currentTime: number;
-  videoRef: React.RefObject<HTMLVideoElement>;
+  videoRef: React.RefObject<HTMLVideoElement | null>;
   onPauseTimeline: () => void;
   onResumeTimeline: () => void;
   dispatch: (event: RuntimeEvent) => void;
@@ -316,7 +345,7 @@ const TimelineRuntimeOverlay = ({
 
     activeClips.forEach((clip) => {
       if (shownClipIdsRef.current.has(clip.id)) return;
-      if (clip.type === 'pauseGate' || ('pauseOnShow' in clip && clip.pauseOnShow)) {
+      if (clip.pauseOnShow) {
         shownClipIdsRef.current.add(clip.id);
         video?.pause();
         onPauseTimeline();
@@ -342,35 +371,6 @@ const TimelineRuntimeOverlay = ({
       {activeClips.map((clip) => {
         const rect = getTimelineClipRect(clip);
         const label = getTimelineClipLabel(clip);
-        const textStyle = clip.type === 'text'
-          ? {
-              fontSize: `${Math.max(8, Math.min(96, Number(clip.fontSize) || 28))}px`,
-              color: clip.color || '#ffffff',
-              backgroundColor: clip.backgroundColor || 'transparent',
-              textAlign: clip.align || 'center',
-            } satisfies React.CSSProperties
-          : {};
-
-        if (clip.type === 'text') {
-          return (
-            <div
-              key={clip.id}
-              className={getTimelineClipClassName(clip)}
-              style={{
-                left: `${rect.x * 100}%`,
-                top: `${rect.y * 100}%`,
-                width: `${rect.width * 100}%`,
-                height: `${rect.height * 100}%`,
-                opacity: getClipOpacity(clip),
-                transform: `rotate(${getClipRotation(clip)}deg)`,
-                transformOrigin: 'center',
-                ...textStyle,
-              }}
-            >
-              <span className="w-full whitespace-pre-wrap break-words leading-tight">{label}</span>
-            </div>
-          );
-        }
 
         return (
           <button
@@ -396,7 +396,6 @@ const TimelineRuntimeOverlay = ({
               opacity: getClipOpacity(clip),
               transform: `rotate(${getClipRotation(clip)}deg)`,
               transformOrigin: 'center',
-              ...textStyle,
             }}
           >
             <span className="truncate">{label}</span>
@@ -405,43 +404,6 @@ const TimelineRuntimeOverlay = ({
       })}
     </div>
   );
-};
-
-const TimelineRuntimeTimedActions = ({
-  timedActionEffect,
-  currentTime,
-  dispatch,
-}: {
-  timedActionEffect?: Extract<RuntimeEffect, { type: 'timelineTimedActions' }>;
-  currentTime: number;
-  dispatch: (event: RuntimeEvent) => void;
-}) => {
-  const triggeredClipIdsRef = useRef<Set<string>>(new Set());
-  const triggerStateRef = useRef<{ nodeId?: string | null; time: number }>({ nodeId: null, time: 0 });
-
-  useEffect(() => {
-    const nextNodeId = timedActionEffect?.nodeId ?? null;
-    if (shouldResetRuntimeTimelineTriggerState({
-      previousNodeId: triggerStateRef.current.nodeId,
-      nextNodeId,
-      previousTime: triggerStateRef.current.time,
-      nextTime: currentTime,
-    })) {
-      triggeredClipIdsRef.current = new Set();
-    }
-    triggerStateRef.current = { nodeId: nextNodeId, time: currentTime };
-  }, [currentTime, timedActionEffect?.nodeId]);
-
-  useEffect(() => {
-    if (!timedActionEffect) return;
-    timedActionEffect.clips.forEach((clip) => {
-      if (triggeredClipIdsRef.current.has(clip.id) || currentTime < clip.startTime) return;
-      triggeredClipIdsRef.current.add(clip.id);
-      dispatch({ type: 'timeline.timedAction.triggered', clipId: clip.id, action: clip.action });
-    });
-  }, [currentTime, dispatch, timedActionEffect]);
-
-  return null;
 };
 
 const InteractionControls = ({ effects, dispatch }: { effects: RuntimeEffect[]; dispatch: (event: RuntimeEvent) => void }) => {
@@ -501,25 +463,25 @@ const InteractionControls = ({ effects, dispatch }: { effects: RuntimeEffect[]; 
 export default function PlayerOverlay() {
   const t = useTranslations('player');
   const { isPlaying, setIsPlaying, reset } = usePlayerStore();
-  const runtimeGraph = useRuntimeGraphStore();
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const snapshot = useRuntimeSessionStore((state) => state.snapshot);
+  const dispatchRuntimeEvent = useRuntimeSessionStore((state) => state.dispatch);
+  const stopRuntimeSession = useRuntimeSessionStore((state) => state.stop);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const timelineTimeRef = useRef(0);
-  const nodes = runtimeGraph.nodes;
-  const edges = runtimeGraph.edges;
-  const runtime = useMemo(() => createRuntime({ nodes, edges }, { entryNodeId: runtimeGraph.entryNodeId }), [edges, nodes, runtimeGraph.entryNodeId]);
-  const [snapshot, setSnapshot] = useState<RuntimeSnapshot | null>(null);
   const [isTimelineClockPaused, setIsTimelineClockPaused] = useState(false);
   const effects = snapshot?.effects || [];
   const currentNode = snapshot?.currentNode ?? null;
   const sceneEffect = getEffect(effects, 'scene');
   const visualMediaEffects = getVisualMediaEffects(effects);
   const visualMediaEffect = visualMediaEffects.at(-1) ?? getVisualMediaEffect(effects);
+  const stageReferenceVisualMediaEffect = visualMediaEffects[0] ?? null;
   const timelineSyncVideoEffect = visualMediaEffects.filter((effect) => effect.mediaType === 'video').at(-1) ?? null;
   const audioMediaEffects = getAudioMediaEffects(effects);
   const audioMediaEffect = audioMediaEffects.at(-1) ?? null;
   const timelinePlaybackEffect = getEffect(effects, 'timelinePlayback');
   const timelineEffect = getEffect(effects, 'timelineOverlay');
-  const timelineTimedActionsEffect = getEffect(effects, 'timelineTimedActions');
+  const hasTimelinePlaybackEffect = Boolean(timelinePlaybackEffect);
+  const hasTimelineSyncVideoEffect = Boolean(timelineSyncVideoEffect);
   const timelineTime = snapshot?.timelineTime ?? 0;
   const snapshotStatus = snapshot?.status;
   const timelineDuration = timelinePlaybackEffect?.duration ?? timelineEffect?.duration ?? visualMediaEffect?.timelineDuration ?? audioMediaEffect?.timelineDuration ?? 0;
@@ -529,25 +491,28 @@ export default function PlayerOverlay() {
   const activeVideoFreezeFrameTime = timelineSyncVideoEffect && Number.isFinite(Number(timelineSyncVideoEffect.freezeFrameTime)) ? Math.max(0, Number(timelineSyncVideoEffect.freezeFrameTime)) : null;
   const activeVideoSrc = timelineSyncVideoEffect?.src;
   const shouldUseTimelineIntervalClock = shouldUseRuntimeTimelineIntervalClock({ timelineSyncVideoEffect, timelineTime });
+  const [runtimeStageAspectRatio, setRuntimeStageAspectRatio] = useState(DEFAULT_RUNTIME_STAGE_ASPECT_RATIO);
+  const runtimeStageStyle = useMemo(() => getRuntimeStageStyle(runtimeStageAspectRatio), [runtimeStageAspectRatio]);
+  const handleRuntimeStageAspectRatioReady = useCallback((nextAspectRatio: number) => {
+    setRuntimeStageAspectRatio((currentAspectRatio) => (
+      Math.abs(currentAspectRatio - nextAspectRatio) <= 0.001 ? currentAspectRatio : nextAspectRatio
+    ));
+  }, []);
 
   useEffect(() => {
-    if (!isPlaying || nodes.length === 0) {
-      setSnapshot(null);
-      return;
-    }
-
-    setSnapshot(runtime.start());
-  }, [isPlaying, nodes.length, runtime]);
+    if (!isPlaying) stopRuntimeSession();
+  }, [isPlaying, stopRuntimeSession]);
 
   const closePlayer = () => {
-    runtimeGraph.resetGraph();
+    stopRuntimeSession();
     reset();
     setIsPlaying(false);
   };
 
   const dispatch = useCallback((event: RuntimeEvent) => {
-    setSnapshot(runtime.dispatch(event));
-  }, [runtime]);
+    if (event.type === 'timeline.time.update' && !shouldDispatchTimelineTimeUpdate(timelineTimeRef.current, event.time)) return;
+    dispatchRuntimeEvent(event);
+  }, [dispatchRuntimeEvent]);
 
   useEffect(() => {
     timelineTimeRef.current = timelineTime;
@@ -556,6 +521,11 @@ export default function PlayerOverlay() {
   useEffect(() => {
     setIsTimelineClockPaused(false);
   }, [currentNode?.id]);
+
+  useEffect(() => {
+    if (stageReferenceVisualMediaEffect) return;
+    setRuntimeStageAspectRatio(DEFAULT_RUNTIME_STAGE_ASPECT_RATIO);
+  }, [stageReferenceVisualMediaEffect]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -574,9 +544,12 @@ export default function PlayerOverlay() {
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !timelinePlaybackEffect || !timelineSyncVideoEffect || shouldUseTimelineIntervalClock) return;
+    if (!video || !hasTimelinePlaybackEffect || !hasTimelineSyncVideoEffect || shouldUseTimelineIntervalClock) return;
     const syncTimelineTime = () => {
-      dispatch({ type: 'timeline.time.update', time: activeVideoTimelineStart + Math.max(0, (video.currentTime || 0) - activeVideoSourceStart) / activeVideoPlaybackRate });
+      const nextTime = activeVideoTimelineStart + Math.max(0, (video.currentTime || 0) - activeVideoSourceStart) / activeVideoPlaybackRate;
+      if (shouldDispatchTimelineTimeUpdate(timelineTimeRef.current, nextTime)) {
+        dispatch({ type: 'timeline.time.update', time: nextTime });
+      }
     };
     syncTimelineTime();
     video.addEventListener('timeupdate', syncTimelineTime);
@@ -587,20 +560,20 @@ export default function PlayerOverlay() {
       video.removeEventListener('seeked', syncTimelineTime);
       video.removeEventListener('loadedmetadata', syncTimelineTime);
     };
-  }, [activeVideoPlaybackRate, activeVideoSourceStart, activeVideoTimelineStart, activeVideoSrc, dispatch, shouldUseTimelineIntervalClock, timelinePlaybackEffect, timelineSyncVideoEffect]);
+  }, [activeVideoPlaybackRate, activeVideoSourceStart, activeVideoTimelineStart, activeVideoSrc, dispatch, hasTimelinePlaybackEffect, hasTimelineSyncVideoEffect, shouldUseTimelineIntervalClock]);
 
   useEffect(() => {
-    if (!timelinePlaybackEffect || snapshotStatus !== 'running' || isTimelineClockPaused || !shouldUseTimelineIntervalClock) return;
+    if (!hasTimelinePlaybackEffect || snapshotStatus !== 'running' || isTimelineClockPaused || !shouldUseTimelineIntervalClock) return;
     const timer = window.setInterval(() => {
       const nextTime = timelineDuration > 0
         ? Math.min(timelineDuration, timelineTimeRef.current + 0.1)
         : timelineTimeRef.current + 0.1;
-      if (Math.abs(nextTime - timelineTimeRef.current) > 0.001) {
+      if (shouldDispatchTimelineTimeUpdate(timelineTimeRef.current, nextTime)) {
         dispatch({ type: 'timeline.time.update', time: nextTime });
       }
     }, 100);
     return () => window.clearInterval(timer);
-  }, [dispatch, isTimelineClockPaused, shouldUseTimelineIntervalClock, snapshotStatus, timelineDuration, timelinePlaybackEffect]);
+  }, [dispatch, hasTimelinePlaybackEffect, isTimelineClockPaused, shouldUseTimelineIntervalClock, snapshotStatus, timelineDuration]);
 
   if (!isPlaying || !snapshot) return null;
 
@@ -613,7 +586,7 @@ export default function PlayerOverlay() {
 
       <div className="absolute inset-0 grid place-items-center bg-black">
         <div
-          className="relative aspect-video max-h-screen max-w-screen overflow-hidden bg-black"
+          className="relative max-h-screen max-w-screen overflow-hidden bg-black"
           data-openfmv-runtime-stage
           style={runtimeStageStyle}
         >
@@ -623,6 +596,7 @@ export default function PlayerOverlay() {
                 key={`${effect.src}-${effect.timelineStartTime ?? 0}-${index}`}
                 effect={effect}
                 sceneTitle={sceneEffect?.title}
+                onAspectRatioReady={effect === stageReferenceVisualMediaEffect ? handleRuntimeStageAspectRatioReady : undefined}
                 playerRef={effect === timelineSyncVideoEffect ? videoRef : undefined}
                 timelineTime={timelineTime}
                 paused={snapshotStatus !== 'running' || isTimelineClockPaused}
@@ -653,7 +627,6 @@ export default function PlayerOverlay() {
             paused={snapshotStatus !== 'running' || isTimelineClockPaused}
           />
         ))}
-        <TimelineRuntimeTimedActions timedActionEffect={timelineTimedActionsEffect} currentTime={timelineTime} dispatch={dispatch} />
       </div>
 
       <div className="relative z-10 flex min-h-full flex-col justify-end px-5 py-8 md:px-12 md:py-12">

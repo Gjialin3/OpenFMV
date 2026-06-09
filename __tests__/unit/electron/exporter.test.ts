@@ -8,10 +8,10 @@ import { describe, expect, it } from 'vitest';
 import { graphRuntimeFunctionNames } from '@/app/_utils/graphRuntimeCore.mjs';
 
 const require = createRequire(import.meta.url);
-const { exportGamePackage, saveProjectToDirectory } = require('../../../electron/exporter');
+const { exportGamePackage, exportWebGamePackage, saveProjectToDirectory } = require('../../../electron/exporter');
 
-describe('electron game exporter', () => {
-  it('copies local graph media and rewrites runtime paths to relative assets', async () => {
+describe('game exporter', () => {
+  it('exports a playable web package with local graph media rewritten to relative assets', async () => {
     const root = await mkdtemp(join(tmpdir(), 'openfmv-export-'));
     const sourceImage = join(root, 'source.png');
     await writeFile(sourceImage, Buffer.from([137, 80, 78, 71]));
@@ -63,7 +63,7 @@ describe('electron game exporter', () => {
       updatedAt: new Date().toISOString(),
     };
 
-    const result = await exportGamePackage({
+    const result = await exportWebGamePackage({
       project,
       config: {
         gameTitle: 'Offline Game',
@@ -73,18 +73,18 @@ describe('electron game exporter', () => {
         resolution: { width: 1280, height: 720 },
         includeDebugOverlay: false,
       },
-      isDev: false,
     });
 
-    const gameJson = JSON.parse(await readFile(join(result.outputDirectory, 'resources', 'app', 'game.json'), 'utf8'));
+    const gameJson = JSON.parse(await readFile(join(result.outputDirectory, 'game.json'), 'utf8'));
     const rewrittenImage = gameJson.graphData.nodes[0].data.timeline.tracks[0].clips[0].src;
     expect(rewrittenImage).toBe('assets/source.png');
     expect(gameJson.assets[0].path).toBe('assets/source.png');
     expect(gameJson.assets[0].relativePath).toBe('assets/source.png');
 
-    await expect(stat(join(result.outputDirectory, 'resources', 'app', rewrittenImage))).resolves.toBeTruthy();
+    await expect(stat(join(result.outputDirectory, rewrittenImage))).resolves.toBeTruthy();
+    await expect(stat(join(result.outputDirectory, 'resources'))).rejects.toBeTruthy();
 
-    const html = await readFile(join(result.outputDirectory, 'resources', 'app', 'index.html'), 'utf8');
+    const html = await readFile(join(result.outputDirectory, 'index.html'), 'utf8');
     expect(html).toContain('id="game-data"');
     expect(html).toContain('assets/source.png');
     expect(html).not.toContain("fetch('game.json')");
@@ -186,7 +186,7 @@ describe('electron game exporter', () => {
       updatedAt: new Date().toISOString(),
     };
 
-    const result = await exportGamePackage({
+    const result = await exportWebGamePackage({
       project,
       config: {
         gameTitle: 'Asset Sources',
@@ -196,10 +196,9 @@ describe('electron game exporter', () => {
         resolution: { width: 1280, height: 720 },
         includeDebugOverlay: false,
       },
-      isDev: false,
     });
 
-    const gameJson = JSON.parse(await readFile(join(result.outputDirectory, 'resources', 'app', 'game.json'), 'utf8'));
+    const gameJson = JSON.parse(await readFile(join(result.outputDirectory, 'game.json'), 'utf8'));
 
     expect(gameJson.graphData.nodes[0].data.timeline.tracks[0].clips[0].src).toBe('https://example.com/remote.png');
     expect(gameJson.graphData.nodes[0].data.timeline.tracks[0].clips[1].src).toBe('data:video/mp4;base64,AAAA');
@@ -208,8 +207,8 @@ describe('electron game exporter', () => {
     expect(gameJson.assets.find((asset: { id: string; path: string }) => asset.id === 'remote').path).toBe('https://example.com/remote.png');
     expect(gameJson.assets.find((asset: { id: string; path: string }) => asset.id === 'data').path).toBe('data:text/plain;base64,SGVsbG8=');
     expect(gameJson.assets.find((asset: { id: string; path: string }) => asset.id === 'local').path).toBe('assets/local.png');
-    await expect(stat(join(result.outputDirectory, 'resources', 'app', 'assets', 'local.png'))).resolves.toBeTruthy();
-    await expect(readdir(join(result.outputDirectory, 'resources', 'app', 'assets'))).resolves.toEqual(['local.png']);
+    await expect(stat(join(result.outputDirectory, 'assets', 'local.png'))).resolves.toBeTruthy();
+    await expect(readdir(join(result.outputDirectory, 'assets'))).resolves.toEqual(['local.png']);
   });
 
   it('renders countdown runtime support for timed interactions', async () => {
@@ -296,7 +295,7 @@ describe('electron game exporter', () => {
       updatedAt: new Date().toISOString(),
     };
 
-    const result = await exportGamePackage({
+    const result = await exportWebGamePackage({
       project,
       config: {
         gameTitle: 'Runtime Rules',
@@ -306,10 +305,9 @@ describe('electron game exporter', () => {
         resolution: { width: 1280, height: 720 },
         includeDebugOverlay: false,
       },
-      isDev: false,
     });
 
-    const html = await readFile(join(result.outputDirectory, 'resources', 'app', 'index.html'), 'utf8');
+    const html = await readFile(join(result.outputDirectory, 'index.html'), 'utf8');
     expect(html).toContain('window.OpenFMVGraphRuntime');
     expect(html).toContain('window.OpenFMVRuntimeCore');
     for (const functionName of graphRuntimeFunctionNames) {
@@ -357,7 +355,7 @@ describe('electron game exporter', () => {
       updatedAt: new Date().toISOString(),
     };
 
-    const result = await exportGamePackage({
+    const result = await exportWebGamePackage({
       project,
       config: {
         gameTitle: 'Start Rules',
@@ -367,10 +365,9 @@ describe('electron game exporter', () => {
         resolution: { width: 1280, height: 720 },
         includeDebugOverlay: false,
       },
-      isDev: false,
     });
 
-    const html = await readFile(join(result.outputDirectory, 'resources', 'app', 'index.html'), 'utf8');
+    const html = await readFile(join(result.outputDirectory, 'index.html'), 'utf8');
     expect(html).toContain("const choices = effect('showChoices')");
     expect(html).toContain("const actionClass = choices.choices.length > 1 ? 'actions actions-grid' : 'actions actions-single actions-center'");
     expect(html).toContain('data-choice-input');

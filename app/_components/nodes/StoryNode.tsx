@@ -5,7 +5,7 @@ import { FileText } from 'lucide-react';
 
 import { AppNode } from '../../_types';
 import { useDebouncedCallback } from '../../_hooks/useDebounce';
-import { useEditorStore } from '../../_store/useEditorStore';
+import { useProjectSessionStore } from '@/app/_features/project-session/store';
 import { CustomHandle } from './CustomHandle';
 import EditorNodeCardBody, { getEditorNodeDurationLabel } from './EditorNodeCardBody';
 import OpenNodeTimelineButton from './OpenNodeTimelineButton';
@@ -13,7 +13,7 @@ import { nodeHeaderIconClassName, nodeTitleInputClassName, nodeTypeBadgeClassNam
 
 const StoryNode = ({ id, data }: NodeProps<AppNode>) => {
   const t = useTranslations('editor');
-  const { updateNodeData } = useEditorStore();
+  const { updateNodeData } = useProjectSessionStore();
   const title = data.type === 'story' ? data.title : t('nodeTypes.story.name');
   const durationLabel = getEditorNodeDurationLabel(data);
   const [localTitle, setLocalTitle] = useState(title);

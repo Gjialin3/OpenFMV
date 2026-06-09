@@ -10,7 +10,6 @@ import {
   TimelineInteractionClipType,
   TimelineKeyframeInterpolation,
   TimelineKeyframeProperty,
-  TimelineTimedActionClip,
   TimelineMediaClip,
   TimelineMediaClipType,
   TimelineTrack,
@@ -51,11 +50,7 @@ export const isMediaClipType = (type: unknown): type is TimelineMediaClipType =>
 };
 
 export const isInteractionClipType = (type: unknown): type is TimelineInteractionClipType => {
-  return type === 'button' || type === 'hotspot' || type === 'pauseGate' || type === 'text';
-};
-
-export const isTimedActionClipType = (type: unknown): type is TimelineTimedActionClip['type'] => {
-  return type === 'branch' || type === 'variable';
+  return type === 'button';
 };
 
 export const getClipTrackType = (clip: Pick<TimelineClip, 'type'>): TimelineTrackType => {
@@ -197,20 +192,7 @@ export const clampTimelineMediaPlaybackRate = (playbackRate: unknown) => {
 };
 
 export const getDefaultOverlayRect = (type: TimelineInteractionClipType): OverlayRect => {
-  if (type === 'hotspot') return { x: 0.4, y: 0.38, width: 0.2, height: 0.16 };
-  if (type === 'pauseGate') return { x: 0.38, y: 0.76, width: 0.24, height: 0.1 };
-  if (type === 'text') return { x: 0.18, y: 0.68, width: 0.64, height: 0.14 };
   return { x: 0.39, y: 0.72, width: 0.22, height: 0.1 };
-};
-
-export const clampTimelineTextFontSize = (fontSize: unknown) => {
-  const value = Number(fontSize);
-  return Number.isFinite(value) ? Math.max(8, Math.min(96, value)) : 28;
-};
-
-const normalizeTimelineTextAlign = (align: unknown): 'left' | 'center' | 'right' => {
-  if (align === 'left' || align === 'right') return align;
-  return 'center';
 };
 
 export const createEmptyTimelineTrack = (
@@ -281,65 +263,19 @@ const normalizeInteractionClip = (clip: ClipRecord): TimelineInteractionClip | n
   const base = normalizeBaseClip(clip);
   const action = (clip.action || { type: 'continue' }) as TimelineAction;
 
-  if (clip.type === 'text') {
-    return {
-      ...base,
-      type: 'text',
-      name: typeof clip.name === 'string' ? clip.name : 'Text',
-      text: typeof clip.text === 'string' ? clip.text : typeof clip.label === 'string' ? clip.label : typeof clip.name === 'string' ? clip.name : 'Text',
-      rect: clampOverlayRect((clip.rect as OverlayRect | undefined) || getDefaultOverlayRect('text')),
-      fontSize: clampTimelineTextFontSize(clip.fontSize),
-      color: typeof clip.color === 'string' ? clip.color : '#ffffff',
-      backgroundColor: typeof clip.backgroundColor === 'string' ? clip.backgroundColor : 'transparent',
-      align: normalizeTimelineTextAlign(clip.align),
-    };
-  }
-
-  if (clip.type === 'hotspot') {
-    return {
-      ...base,
-      type: 'hotspot',
-      rect: clampOverlayRect((clip.rect as OverlayRect | undefined) || getDefaultOverlayRect('hotspot')),
-      hint: typeof clip.hint === 'string' ? clip.hint : typeof clip.name === 'string' ? clip.name : undefined,
-      showHint: clip.showHint !== false,
-      action,
-      pauseOnShow: clip.pauseOnShow === true,
-    };
-  }
-
-  if (clip.type === 'pauseGate') {
-    return {
-      ...base,
-      type: 'pauseGate',
-      label: typeof clip.label === 'string' ? clip.label : 'Continue',
-      rect: clampOverlayRect((clip.rect as OverlayRect | undefined) || getDefaultOverlayRect('pauseGate')),
-      action,
-      resumeOnClick: clip.resumeOnClick !== false,
-    };
-  }
-
   return {
     ...base,
     type: 'button',
     label: typeof clip.label === 'string' ? clip.label : 'Choice',
     rect: clampOverlayRect((clip.rect as OverlayRect | undefined) || getDefaultOverlayRect('button')),
     action,
-    pauseOnShow: clip.pauseOnShow !== false,
+    pauseOnShow: clip.pauseOnShow === true,
     timeoutAction: clip.timeoutAction as TimelineAction | undefined,
   };
 };
 
-const normalizeTimedActionClip = (clip: ClipRecord): TimelineTimedActionClip | null => {
-  if (!isTimedActionClipType(clip.type)) return null;
-  return {
-    ...normalizeBaseClip(clip),
-    type: clip.type,
-    action: (clip.action || { type: 'continue' }) as TimelineAction,
-  };
-};
-
 export const normalizeTimelineClip = (clip: ClipRecord): TimelineClip | null => {
-  return normalizeMediaClip(clip) || normalizeInteractionClip(clip) || normalizeTimedActionClip(clip);
+  return normalizeMediaClip(clip) || normalizeInteractionClip(clip);
 };
 
 const normalizeTimelineTrack = (track: Partial<TimelineTrack>, fallbackType: TimelineTrackType): TimelineTrack => {
@@ -476,7 +412,7 @@ export const resolveTimelineClipKeyframes = <TClip extends TimelineClip>(clip: T
     }),
   } as TClip;
 
-  if (nextClip.type === 'video' || nextClip.type === 'image' || nextClip.type === 'button' || nextClip.type === 'hotspot' || nextClip.type === 'pauseGate' || nextClip.type === 'text') {
+  if (nextClip.type === 'video' || nextClip.type === 'image' || nextClip.type === 'button') {
     const fallbackRect = nextClip.type === 'video' || nextClip.type === 'image' ? { x: 0, y: 0, width: 1, height: 1 } : getDefaultOverlayRect(nextClip.type);
     const rect = clampOverlayRect((nextClip.rect as OverlayRect | undefined) || fallbackRect);
     nextClip = {
@@ -506,9 +442,7 @@ export const resolveTimelineClipKeyframes = <TClip extends TimelineClip>(clip: T
 };
 
 export const getTimelineClipLabel = (clip: TimelineClip) => {
-  if (clip.type === 'hotspot') return clip.showHint ? clip.hint || clip.name || 'Hotspot' : clip.name || 'Hotspot';
-  if (clip.type === 'button' || clip.type === 'pauseGate') return clip.label || clip.name || 'Continue';
-  if (clip.type === 'text') return clip.text || clip.name || 'Text';
+  if (clip.type === 'button') return clip.label || clip.name || 'Continue';
   if (isMediaClipType(clip.type) && 'src' in clip) return clip.name || clip.src.split(/[\\/]/).pop() || clip.type;
   return clip.name || clip.type;
 };
@@ -517,60 +451,6 @@ export const createInteractionClip = (type: TimelineInteractionClipType, startTi
   const safeStart = clampTimelineTime(startTime, timelineDuration);
   const duration = Math.min(DEFAULT_INTERACTION_CLIP_DURATION, Math.max(MIN_TIMELINE_CLIP_DURATION, timelineDuration - safeStart || DEFAULT_INTERACTION_CLIP_DURATION));
   const action: TimelineAction = { type: 'continue' };
-
-  if (type === 'hotspot') {
-    return {
-      id: createTimelineId(),
-      type,
-      name: 'Hotspot',
-      startTime: safeStart,
-      duration,
-      rect: getDefaultOverlayRect(type),
-      hint: 'Hotspot',
-      showHint: true,
-      action,
-      pauseOnShow: false,
-      enabled: true,
-      opacity: 1,
-      rotation: 0,
-    };
-  }
-
-  if (type === 'pauseGate') {
-    return {
-      id: createTimelineId(),
-      type,
-      name: 'Pause gate',
-      label: 'Continue',
-      startTime: safeStart,
-      duration,
-      rect: getDefaultOverlayRect(type),
-      action,
-      resumeOnClick: true,
-      enabled: true,
-      opacity: 1,
-      rotation: 0,
-    };
-  }
-
-  if (type === 'text') {
-    return {
-      id: createTimelineId(),
-      type,
-      name: 'Text',
-      text: 'Text',
-      startTime: safeStart,
-      duration,
-      rect: getDefaultOverlayRect(type),
-      enabled: true,
-      opacity: 1,
-      rotation: 0,
-      fontSize: 28,
-      color: '#ffffff',
-      backgroundColor: 'transparent',
-      align: 'center',
-    };
-  }
 
   return {
     id: createTimelineId(),
@@ -581,23 +461,7 @@ export const createInteractionClip = (type: TimelineInteractionClipType, startTi
     duration,
     rect: getDefaultOverlayRect(type),
     action,
-    pauseOnShow: true,
-    enabled: true,
-    opacity: 1,
-    rotation: 0,
-  };
-};
-
-export const createTimedActionClip = (type: TimelineTimedActionClip['type'], startTime: number, timelineDuration: number): TimelineTimedActionClip => {
-  const safeStart = clampTimelineTime(startTime, timelineDuration);
-  const duration = Math.min(DEFAULT_INTERACTION_CLIP_DURATION, Math.max(MIN_TIMELINE_CLIP_DURATION, timelineDuration - safeStart || DEFAULT_INTERACTION_CLIP_DURATION));
-  return {
-    id: createTimelineId(),
-    type,
-    name: type === 'variable' ? 'Set variable' : 'Branch',
-    startTime: safeStart,
-    duration,
-    action: type === 'variable' ? { type: 'setVariable', key: 'flag', value: true } : { type: 'continue' },
+    pauseOnShow: false,
     enabled: true,
     opacity: 1,
     rotation: 0,

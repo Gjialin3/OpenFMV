@@ -9,7 +9,6 @@ import {
   clampTimelineZoom,
   createInteractionClip,
   createTimelineKeyframeClipboardItems,
-  createTimedActionClip,
   createMediaClip,
   deleteTimelineClips,
   deleteTimelineClipsWithRipple,
@@ -90,35 +89,56 @@ describe('NodeTimeline v2', () => {
     expect(timeline.bookmarks).toEqual([]);
   });
 
-  it('stores timed branch and variable clips on interaction tracks', () => {
-    const timedActionClip = createTimedActionClip('branch', 1, 8);
-    const timeline = insertTimelineClip({ timeline: ensureNodeTimeline(undefined, 8), clip: timedActionClip });
-
-    expect(findTimelineClip(timeline, timedActionClip.id)?.track).toMatchObject({ type: 'interaction' });
-    expect(compileNodeTimeline(node('story', 'story', { type: 'story', title: 'Story', content: '', timeline })).timedActionClips).toMatchObject([{ id: timedActionClip.id, type: 'branch' }]);
-  });
-
-  it('treats timed branch and variable actions as interaction-track clips only', () => {
-    const strayBranch = createTimedActionClip('branch', 1, 8);
-    const interactionVariable = {
-      ...createTimedActionClip('variable', 2, 8),
-      action: { type: 'setVariable', key: 'seenIntro', value: true } satisfies TimelineAction,
-    };
-    const timeline: NodeTimeline = {
+  it('creates optional-click buttons by default and preserves explicit pause waits', () => {
+    const buttonClip = createInteractionClip('button', 1, 8);
+    const pauseButtonClip = { ...buttonClip, id: 'pause-button', pauseOnShow: true };
+    const timeline = ensureNodeTimeline({
       version: 2,
       duration: 8,
       bookmarks: [],
       tracks: [
-        { id: 'raw-media-track', type: 'media', name: 'Media', clips: [strayBranch] },
-        { id: 'raw-interaction-track', type: 'interaction', name: 'Interaction', clips: [interactionVariable] },
+        {
+          id: 'interaction-track',
+          type: 'interaction',
+          name: 'Interaction',
+          clips: [buttonClip, pauseButtonClip],
+        },
       ],
-    };
-    const story = node('story', 'story', { type: 'story', title: 'Story', content: '', timeline });
-    const normalized = ensureNodeTimeline(timeline);
+    } as NodeTimeline);
 
-    expect(findTimelineClip(normalized, strayBranch.id)).toBeNull();
-    expect(findTimelineClip(normalized, interactionVariable.id)?.track).toMatchObject({ type: 'interaction' });
-    expect(compileNodeTimeline(story).timedActionClips.map((clip) => clip.id)).toEqual([interactionVariable.id]);
+    const [optionalButton, pauseButton] = timeline.tracks.flatMap((track) => track.clips);
+    expect(buttonClip.pauseOnShow).toBe(false);
+    expect(optionalButton?.type === 'button' ? optionalButton.pauseOnShow : null).toBe(false);
+    expect(pauseButton?.type === 'button' ? pauseButton.pauseOnShow : null).toBe(true);
+  });
+
+  it('drops legacy hidden interaction and timed action clip types', () => {
+    const buttonClip = createInteractionClip('button', 1, 8);
+    const timeline = {
+      version: 2,
+      duration: 8,
+      bookmarks: [],
+      tracks: [
+        {
+          id: 'raw-interaction-track',
+          type: 'interaction',
+          name: 'Interaction',
+          clips: [
+            buttonClip,
+            { id: 'legacy-hotspot', type: 'hotspot', startTime: 1, duration: 1, enabled: true, rect: { x: 0, y: 0, width: 0.2, height: 0.2 }, action: { type: 'continue' } },
+            { id: 'legacy-pause', type: 'pauseGate', startTime: 2, duration: 1, enabled: true, label: 'Continue', action: { type: 'continue' } },
+            { id: 'legacy-text', type: 'text', startTime: 3, duration: 1, enabled: true, text: 'Title' },
+            { id: 'legacy-branch', type: 'branch', startTime: 4, duration: 1, enabled: true, action: { type: 'continue' } },
+            { id: 'legacy-variable', type: 'variable', startTime: 5, duration: 1, enabled: true, action: { type: 'continue' } },
+          ],
+        },
+      ],
+    } as unknown as NodeTimeline;
+    const normalized = ensureNodeTimeline(timeline);
+    const story = node('story', 'story', { type: 'story', title: 'Story', content: '', timeline: normalized });
+
+    expect(normalized.tracks.flatMap((track) => track.clips.map((clip) => clip.id))).toEqual([buttonClip.id]);
+    expect(compileNodeTimeline(story).interactionClips.map((clip) => clip.id)).toEqual([buttonClip.id]);
   });
 
   it('treats clip end times as exclusive so adjacent clips do not overlap at cuts', () => {
@@ -589,11 +609,7 @@ describe('NodeTimeline v2', () => {
 
   it('falls back to compatible tracks when a dropped clip prefers the wrong track type', () => {
     const mediaClip = createMediaClip({ type: 'video', src: 'assets/intro.mp4', startTime: 0, duration: 8 });
-    const textClip = {
-      ...createInteractionClip('text', 2, 12),
-      name: 'Caption',
-      text: 'Caption',
-    };
+    const buttonClip = createInteractionClip('button', 2, 12);
 
     let timeline = insertTimelineClip({
       timeline: ensureNodeTimeline(),
@@ -602,12 +618,12 @@ describe('NodeTimeline v2', () => {
     });
     timeline = insertTimelineClip({
       timeline,
-      clip: textClip,
+      clip: buttonClip,
       trackId: 'media-track-main',
     });
 
     expect(findTimelineClip(timeline, mediaClip.id)?.track).toMatchObject({ id: 'media-track-main', type: 'media' });
-    expect(findTimelineClip(timeline, textClip.id)?.track).toMatchObject({ id: 'interaction-track-main', type: 'interaction' });
+    expect(findTimelineClip(timeline, buttonClip.id)?.track).toMatchObject({ id: 'interaction-track-main', type: 'interaction' });
   });
 
   it('places overlapping clips on a free compatible track or creates a new one', () => {
@@ -799,11 +815,8 @@ describe('NodeTimeline v2', () => {
     const extraInteractionTrack = timeline.tracks.find((track) => track.type === 'interaction' && track.id !== 'interaction-track-main');
     const clip = createMediaClip({ type: 'video', src: 'assets/layer.mp4', startTime: 0, duration: 4 });
     const interactionClip = createInteractionClip('button', 1, timeline.duration);
-    const timedActionClip = createTimedActionClip('variable', 6, timeline.duration);
     timeline = insertTimelineClip({ timeline, clip, trackId: extraMediaTrack?.id });
     timeline = insertTimelineClip({ timeline, clip: interactionClip, trackId: extraInteractionTrack?.id });
-    timeline = insertTimelineClip({ timeline, clip: timedActionClip, trackId: extraInteractionTrack?.id });
-    expect(findTimelineClip(timeline, timedActionClip.id)?.track).toMatchObject({ type: 'interaction' });
 
     for (const trackId of ['media-track-main', 'interaction-track-main']) {
       const afterDefaultTrackDelete = deleteTimelineTrack({ timeline, trackId });
@@ -817,7 +830,6 @@ describe('NodeTimeline v2', () => {
     timeline = deleteTimelineTrack({ timeline, trackId: extraInteractionTrack?.id as string });
     expect(timeline.tracks.some((track) => track.id === extraInteractionTrack?.id)).toBe(false);
     expect(findTimelineClip(timeline, interactionClip.id)).toBeNull();
-    expect(findTimelineClip(timeline, timedActionClip.id)).toBeNull();
 
     const baseTimeline = ensureNodeTimeline();
     const singleTrack = baseTimeline.tracks[0]!;
@@ -1800,120 +1812,6 @@ describe('NodeTimeline v2', () => {
     expect(next.history).toEqual(['start', 'next']);
   });
 
-  it('compiles timeline text overlays without creating runtime navigation actions', () => {
-    const textClip = {
-      ...createInteractionClip('text', 1, 8),
-      text: 'Opening title',
-      fontSize: 36,
-      color: '#f8fafc',
-      backgroundColor: 'transparent',
-      align: 'center' as const,
-    };
-    const timeline = insertTimelineClip({
-      timeline: ensureNodeTimeline({ duration: 8 }),
-      clip: textClip,
-    });
-    const graph: OpenFMVGraph = {
-      nodes: [
-        node('start', 'start', { type: 'start', label: 'Start', timeline }),
-        node('story', 'story', { type: 'story', title: 'Story', content: '' }),
-      ],
-      edges: [{ id: 'edge', source: 'start', target: 'story' }],
-    };
-
-    const startNode = graph.nodes[0];
-    const effects = buildNodeEffects(startNode, graph.edges, 1.5);
-    const runtime = createRuntime(graph, { entryNodeId: 'start' });
-    runtime.start();
-    const afterTrigger = runtime.dispatch({ type: 'timeline.clip.triggered', clipId: textClip.id });
-
-    expect(findTimelineClip(timeline, textClip.id)?.track.type).toBe('interaction');
-    expect(getActiveTimelineClips(startNode, 1.5)).toContainEqual(expect.objectContaining({ type: 'text', text: 'Opening title', fontSize: 36 }));
-    expect(effects).toContainEqual(expect.objectContaining({ type: 'timelineOverlay', clips: [expect.objectContaining({ type: 'text', text: 'Opening title', color: '#f8fafc' })] }));
-    expect(afterTrigger.currentNodeId).toBe('start');
-  });
-
-  it('preserves pause gate resume settings and routes pause gate actions through runtime', () => {
-    const pauseGateClip = {
-      ...createInteractionClip('pauseGate', 1, 8),
-      resumeOnClick: false,
-      action: { type: 'goToNode', nodeId: 'next' } satisfies TimelineAction,
-    };
-    const timeline = insertTimelineClip({
-      timeline: ensureNodeTimeline({ duration: 8 }),
-      clip: pauseGateClip,
-    });
-    const graph: OpenFMVGraph = {
-      nodes: [
-        node('start', 'start', { type: 'start', label: 'Start', timeline }),
-        node('next', 'story', { type: 'story', title: 'Next', content: '' }),
-      ],
-      edges: [] as AppEdge[],
-    };
-    const runtime = createRuntime(graph, { entryNodeId: 'start' });
-
-    const timed = runtime.dispatch({ type: 'runtime.start' });
-    const active = runtime.dispatch({ type: 'timeline.time.update', time: 1.25 });
-    const next = runtime.dispatch({ type: 'timeline.clip.triggered', clipId: pauseGateClip.id });
-
-    expect(timed.currentNodeId).toBe('start');
-    expect(compileNodeTimeline(graph.nodes[0]).interactionClips).toContainEqual(expect.objectContaining({
-      id: pauseGateClip.id,
-      type: 'pauseGate',
-      resumeOnClick: false,
-    }));
-    expect(active.effects).toContainEqual(expect.objectContaining({
-      type: 'timelineOverlay',
-      clips: [expect.objectContaining({ id: pauseGateClip.id, type: 'pauseGate', resumeOnClick: false })],
-    }));
-    expect(next.currentNodeId).toBe('next');
-    expect(next.timelineTime).toBe(0);
-  });
-
-  it('creates timed action clips and routes timed interaction actions through runtime', () => {
-    const variableClip = {
-      ...createTimedActionClip('variable', 1, 8),
-      name: 'Mark seen',
-      action: { type: 'setVariable', key: 'seenIntro', value: true } satisfies TimelineAction,
-    };
-    const branchClip = {
-      ...createTimedActionClip('branch', 2, 8),
-      name: 'Jump next',
-      action: { type: 'goToNode', nodeId: 'next' } satisfies TimelineAction,
-    };
-    let timeline = insertTimelineClip({ timeline: ensureNodeTimeline({ duration: 8 }), clip: variableClip });
-    timeline = insertTimelineClip({ timeline, clip: branchClip });
-    const graph: OpenFMVGraph = {
-      nodes: [
-        node('start', 'start', { type: 'start', label: 'Start', timeline }),
-        node('next', 'story', { type: 'story', title: 'Next', content: '' }),
-      ],
-      edges: [] as AppEdge[],
-    };
-    const runtime = createRuntime(graph, { entryNodeId: 'start' });
-
-    const started = runtime.dispatch({ type: 'runtime.start' });
-    runtime.dispatch({ type: 'timeline.time.update', time: 1.25 });
-    const withVariable = runtime.dispatch({ type: 'timeline.timedAction.triggered', clipId: variableClip.id });
-    runtime.dispatch({ type: 'timeline.time.update', time: 2.25 });
-    const branched = runtime.dispatch({ type: 'timeline.timedAction.triggered', clipId: branchClip.id });
-
-    expect(compileNodeTimeline(graph.nodes[0]).timedActionClips).toMatchObject([
-      { id: variableClip.id, type: 'variable', action: { type: 'setVariable', key: 'seenIntro', value: true } },
-      { id: branchClip.id, type: 'branch', action: { type: 'goToNode', nodeId: 'next' } },
-    ]);
-    expect(started.effects).toContainEqual(expect.objectContaining({
-      type: 'timelineTimedActions',
-      clips: [
-        expect.objectContaining({ id: variableClip.id, type: 'variable' }),
-        expect.objectContaining({ id: branchClip.id, type: 'branch' }),
-      ],
-    }));
-    expect(withVariable.variables.seenIntro).toBe(true);
-    expect(branched.currentNodeId).toBe('next');
-    expect(branched.timelineTime).toBe(0);
-  });
-
   it('selects active runtime media clips from timeline time', () => {
     const introClip = createMediaClip({ type: 'video', src: 'assets/intro.mp4', startTime: 0, duration: 2 });
     const imageClip = createMediaClip({ type: 'image', src: 'assets/card.png', startTime: 2, duration: 3 });
@@ -2020,33 +1918,6 @@ describe('NodeTimeline v2', () => {
     const next = runtime.dispatch({ type: 'timeline.clip.triggered', clipId: buttonClip.id });
     expect(next.currentNodeId).toBe('next');
     expect(next.timelineTime).toBe(0);
-  });
-
-  it('runs variable actions directly from interaction clips', () => {
-    const buttonClip = {
-      ...createInteractionClip('button', 0, 6),
-      action: { type: 'setVariable', key: 'seenIntro', value: true } satisfies TimelineAction,
-    };
-    const timeline = insertTimelineClip({
-      timeline: ensureNodeTimeline({ duration: 6 }),
-      clip: buttonClip,
-    });
-    const graph: OpenFMVGraph = {
-      nodes: [
-        node('start', 'start', { type: 'start', label: 'Start', timeline }),
-      ],
-      edges: [] as AppEdge[],
-    };
-    const runtime = createRuntime(graph, { entryNodeId: 'start' });
-
-    runtime.start();
-    runtime.dispatch({ type: 'timeline.time.update', time: 0.5 });
-    const updated = runtime.dispatch({ type: 'timeline.clip.triggered', clipId: buttonClip.id });
-
-    expect(compileNodeTimeline(graph.nodes[0]).timedActionClips).toEqual([]);
-    expect(updated.currentNodeId).toBe('start');
-    expect(updated.variables.seenIntro).toBe(true);
-    expect(updated.effects).toContainEqual(expect.objectContaining({ type: 'timelineOverlay', clips: [expect.objectContaining({ id: buttonClip.id })] }));
   });
 
   it('only accepts timeline interaction triggers inside the active clip window', () => {
