@@ -315,6 +315,8 @@ const TIMELINE_KEYFRAME_LANES_BOTTOM_PADDING_PX = 6;
 
 const timelineKeyframeLanePropertyOrder: TimelineKeyframeProperty[] = ['opacity', 'rotation', 'x', 'y', 'width', 'height', 'volume'];
 const DEFAULT_PREVIEW_ASPECT_RATIO = 16 / 9;
+const MIN_PREVIEW_ASPECT_RATIO = 1 / 4;
+const MAX_PREVIEW_ASPECT_RATIO = 4;
 
 const getFittedPreviewFrameSize = ({
   aspectRatio,
@@ -338,11 +340,13 @@ const getFittedPreviewFrameSize = ({
   return { width: viewportHeight * aspectRatio, height: viewportHeight };
 };
 
-const getAssetAspectRatio = (asset?: OpenFMVAsset | null) => {
-  const width = Number(asset?.metadata?.width);
-  const height = Number(asset?.metadata?.height);
+const getPreviewAspectRatio = (width: number, height: number) => {
   if (!Number.isFinite(width) || width <= 0 || !Number.isFinite(height) || height <= 0) return null;
-  return width / height;
+  return Math.max(MIN_PREVIEW_ASPECT_RATIO, Math.min(MAX_PREVIEW_ASPECT_RATIO, width / height));
+};
+
+const getAssetAspectRatio = (asset?: OpenFMVAsset | null) => {
+  return getPreviewAspectRatio(Number(asset?.metadata?.width), Number(asset?.metadata?.height));
 };
 
 const getClipAsset = (clip: TimelineMediaClip | null | undefined, assets: TimelineAssetItem[]) => {
@@ -670,6 +674,7 @@ function PreviewMediaLayer({
   onPointerDown,
   onClick,
   onResizePointerDown,
+  onAspectRatioReady,
 }: {
   clip: TimelineMediaClip & { type: 'video' | 'image' };
   selected: boolean;
@@ -679,6 +684,7 @@ function PreviewMediaLayer({
   onPointerDown: (clip: TimelineMediaClip, event: React.PointerEvent<HTMLElement>) => void;
   onClick: (clipId: string) => void;
   onResizePointerDown: (clip: TimelineMediaClip, handle: OverlayResizeHandle, event: React.PointerEvent<HTMLElement>) => void;
+  onAspectRatioReady?: (clipId: string, aspectRatio: number) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const resolvedImageSrc = useResolvedMediaSrc(clip.type === 'image' ? clip.src : undefined);
@@ -686,6 +692,10 @@ function PreviewMediaLayer({
   const freezeFrameTime = clip.type === 'video' && Number.isFinite(Number(clip.freezeFrameTime)) ? Math.max(0, Number(clip.freezeFrameTime)) : null;
   const localTime = getTimelineMediaElementTime(clip, currentTime);
   const sourceEnded = clip.type === 'video' && hasTimelineMediaSourceEnded(clip, currentTime);
+  const reportNaturalSize = useCallback((width: number, height: number) => {
+    const aspectRatio = getPreviewAspectRatio(width, height);
+    if (aspectRatio) onAspectRatioReady?.(clip.id, aspectRatio);
+  }, [clip.id, onAspectRatioReady]);
 
   const setVideoRef = useCallback((element: HTMLVideoElement | null) => {
     videoRef.current = element;
@@ -710,6 +720,21 @@ function PreviewMediaLayer({
     void video.play().catch(() => undefined);
   }, [clip, freezeFrameTime, isTimelinePlaying, localTime, sourceEnded]);
 
+  useEffect(() => {
+    if (clip.type !== 'video' || !onAspectRatioReady) return;
+    const video = videoRef.current;
+    if (!video) return;
+
+    const syncAspectRatio = () => reportNaturalSize(video.videoWidth, video.videoHeight);
+    syncAspectRatio();
+    video.addEventListener('loadedmetadata', syncAspectRatio);
+    video.addEventListener('loadeddata', syncAspectRatio);
+    return () => {
+      video.removeEventListener('loadedmetadata', syncAspectRatio);
+      video.removeEventListener('loadeddata', syncAspectRatio);
+    };
+  }, [clip.src, clip.type, onAspectRatioReady, reportNaturalSize]);
+
   return (
     <div
       data-node-preview-media-frame
@@ -730,7 +755,7 @@ function PreviewMediaLayer({
       {clip.type === 'video' ? (
         <OpenFMVVideo src={clip.src} poster={clip.poster} controls={false} muted={clip.muted === true} playsInline className={getMediaClipFitClassName(clip)} playerRef={setVideoRef} />
       ) : (
-        <img src={resolvedImageSrc} alt={clip.name || ''} className={getMediaClipFitClassName(clip)} />
+        <img src={resolvedImageSrc} alt={clip.name || ''} className={getMediaClipFitClassName(clip)} onLoad={(event) => reportNaturalSize(event.currentTarget.naturalWidth, event.currentTarget.naturalHeight)} />
       )}
       {selected && overlayResizeHandles.map((item) => (
         <span
@@ -966,6 +991,7 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
   const timelineScrubPointerRef = useRef<{ clientX: number; clientY: number; shiftKey: boolean } | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [previewViewportSize, setPreviewViewportSize] = useState({ width: 0, height: 0 });
+  const [previewClipAspectRatios, setPreviewClipAspectRatios] = useState<Record<string, number>>({});
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
   const [selectedClipIds, setSelectedClipIds] = useState<string[]>([]);
   const [selectedKeyframeIds, setSelectedKeyframeIds] = useState<string[]>([]);
@@ -1071,6 +1097,13 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
     if (arePreviewSnapLinesEqual(overlaySnapLinesRef.current, nextLines)) return;
     overlaySnapLinesRef.current = nextLines;
     setOverlaySnapLines(nextLines);
+  }, []);
+
+  const handlePreviewMediaAspectRatioReady = useCallback((clipId: string, aspectRatio: number) => {
+    setPreviewClipAspectRatios((currentRatios) => {
+      if (Math.abs((currentRatios[clipId] ?? 0) - aspectRatio) <= 0.001) return currentRatios;
+      return { ...currentRatios, [clipId]: aspectRatio };
+    });
   }, []);
 
   const selectedClipRef = useMemo(() => findTimelineClip(timeline, selectedClipId), [selectedClipId, timeline]);
@@ -1221,13 +1254,15 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
       ? t('panel.interactions')
       : t(`rail.${activeLibraryTab}`);
   const previewReferenceClip = useMemo(() => {
-    if (visualMediaClip) return visualMediaClip;
+    if (activeVisualMediaClips.length > 0) return activeVisualMediaClips[0];
     if (selectedClip && isMediaClip(selectedClip) && isVisualMediaClip(selectedClip)) return selectedClip;
     return compiledTimeline.visualMediaClips.find((clip) => isVisualMediaClip(clip)) ?? null;
-  }, [compiledTimeline.visualMediaClips, selectedClip, visualMediaClip]);
+  }, [activeVisualMediaClips, compiledTimeline.visualMediaClips, selectedClip]);
   const previewCanvasAspectRatio = useMemo(() => (
-    getAssetAspectRatio(getClipAsset(previewReferenceClip, assetLibrary)) ?? DEFAULT_PREVIEW_ASPECT_RATIO
-  ), [assetLibrary, previewReferenceClip]);
+    (previewReferenceClip ? previewClipAspectRatios[previewReferenceClip.id] : undefined)
+      ?? getAssetAspectRatio(getClipAsset(previewReferenceClip, assetLibrary))
+      ?? DEFAULT_PREVIEW_ASPECT_RATIO
+  ), [assetLibrary, previewClipAspectRatios, previewReferenceClip]);
   const previewFrameSize = useMemo(() => getFittedPreviewFrameSize({
     aspectRatio: previewCanvasAspectRatio,
     viewportHeight: previewViewportSize.height,
@@ -3618,6 +3653,7 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
                     onPointerDown={handleOverlayPointerDown}
                     onClick={selectSingleClip}
                     onResizePointerDown={handleOverlayResizePointerDown}
+                    onAspectRatioReady={handlePreviewMediaAspectRatioReady}
                   />
                 ))
               ) : (
