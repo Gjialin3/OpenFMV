@@ -445,9 +445,12 @@ export function dispatchRuntimeEvent(program, state, event) {
     const compiledTimeline = compileNodeTimeline(currentNode);
     const currentTimelineTime = clampRuntimeTimelineTime(state.timelineTime, compiledTimeline.duration);
     const interactionClip = compiledTimeline.interactionClips.find((item) => item.id === event.clipId);
+    const isQteInteractionClip = interactionClip?.type === 'button' && interactionClip.mode === 'qte';
 
     if (type === 'timeline.clip.triggered' && (!interactionClip || !isTimelineClipActive(interactionClip, currentTimelineTime))) return state;
-    if (type === 'timeline.clip.timeout' && (!interactionClip || currentTimelineTime < getTimelineClipEndTime(interactionClip))) return state;
+    if (type === 'timeline.clip.timeout' && !interactionClip) return state;
+    if (type === 'timeline.clip.timeout' && isQteInteractionClip && currentTimelineTime < (interactionClip.startTime || 0)) return state;
+    if (type === 'timeline.clip.timeout' && !isQteInteractionClip && currentTimelineTime < getTimelineClipEndTime(interactionClip)) return state;
 
     const action = event.action || (type === 'timeline.clip.timeout' ? interactionClip?.timeoutAction : interactionClip?.action);
     if (!action || action.type === 'continue') return state;

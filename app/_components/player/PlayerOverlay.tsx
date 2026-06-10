@@ -6,7 +6,7 @@ import { ArrowRight, RotateCcw, X } from 'lucide-react';
 import { useRuntimeSessionStore } from '@/app/_features/runtime-session/store';
 import { useResolvedMediaSrc } from '../../_hooks/useResolvedMediaSrc';
 import { usePlayerStore } from '../../_store/usePlayerStore';
-import { AppNode, OverlayRect, TimelineAction, TimelineInteractionClip } from '../../_types';
+import { AppNode, ButtonQteConfig, OverlayRect, TimelineAction, TimelineInteractionClip } from '../../_types';
 import OpenFMVVideo from '../video/OpenFMVVideo';
 import { SwipeUnlock } from './interactions';
 import { getRuntimeMediaPlaybackRate, shouldResetRuntimeTimelineTriggerState, shouldUseRuntimeTimelineIntervalClock } from './timelineClock';
@@ -142,6 +142,64 @@ const getTimelineClipLabel = (clip: TimelineInteractionClip) => {
   return clip.label || clip.name || 'Continue';
 };
 
+const getQteDisplayName = (clip: TimelineInteractionClip) => {
+  const label = (clip.label || clip.name || '').trim();
+  if (!label || label === 'New choice' || label === 'Choice') return 'QTE';
+  return label;
+};
+
+const isQteButtonClip = (clip: TimelineInteractionClip) => {
+  return clip.type === 'button' && clip.mode === 'qte';
+};
+
+const normalizeQteKeyToken = (value: string | undefined) => {
+  if (value === ' ') return 'space';
+  const normalized = value?.trim().toLowerCase().replace(/\s+/g, '') || '';
+  if (normalized === 'spacebar') return 'space';
+  if (normalized === 'esc') return 'escape';
+  return normalized;
+};
+
+const getQteClickCount = (config: ButtonQteConfig) => {
+  const count = Number(config.clickCount);
+  if (!Number.isFinite(count)) return 1;
+  return Math.max(1, Math.min(20, Math.round(count)));
+};
+
+const getQteInputLabel = (config: ButtonQteConfig) => (
+  config.input === 'space' ? config.keyLabel || 'Space' : getQteClickCount(config) > 1 ? `Click x${getQteClickCount(config)}` : 'Click'
+);
+
+const getQteCueLabel = (config: ButtonQteConfig, completedClicks = 0) => {
+  if (config.input === 'space') return config.keyLabel || 'Space';
+  const clickCount = getQteClickCount(config);
+  if (clickCount <= 1) return null;
+  return completedClicks > 0 ? `${Math.min(completedClicks, clickCount)}/${clickCount}` : `x${clickCount}`;
+};
+
+const doesKeyboardEventMatchQte = (event: KeyboardEvent, config: ButtonQteConfig) => {
+  if (config.input !== 'space') return false;
+  const expected = normalizeQteKeyToken(config.keyLabel || 'Space');
+  const codeAlias = event.code.startsWith('Key')
+    ? event.code.slice('Key'.length)
+    : event.code.startsWith('Digit')
+      ? event.code.slice('Digit'.length)
+      : event.code;
+  return [event.key, event.code, codeAlias, event.key === ' ' ? 'Space' : undefined]
+    .some((candidate) => normalizeQteKeyToken(candidate) === expected);
+};
+
+const getQteConfig = (clip: TimelineInteractionClip): ButtonQteConfig => {
+  const input = clip.qte?.input === 'space' ? 'space' : 'click';
+  return {
+    input,
+    prompt: clip.qte?.prompt,
+    clickCount: clip.qte?.clickCount,
+    keyLabel: input === 'space' ? (clip.qte?.keyLabel && clip.qte.keyLabel !== 'Click' ? clip.qte.keyLabel : 'Space') : 'Click',
+    showCountdown: clip.qte?.showCountdown !== false,
+  };
+};
+
 const getTimelineClipAction = (clip: TimelineInteractionClip): TimelineAction => {
   return clip.action;
 };
@@ -152,7 +210,13 @@ const shouldResumeTimelineOnClick = (clip: TimelineInteractionClip) => {
 
 const getTimelineClipClassName = (clip: TimelineInteractionClip) => {
   const base = 'pointer-events-auto absolute flex min-h-10 min-w-12 items-center justify-center overflow-hidden rounded-[8px] border px-3 text-xs font-bold text-white shadow-[0_18px_52px_rgba(0,0,0,0.38)] backdrop-blur-xl transition hover:scale-[1.02]';
-  return `${base} border-orange-200/90 bg-orange-500/92`;
+  return isQteButtonClip(clip) ? `${base} border-cyan-200/90 bg-cyan-500/92` : `${base} border-orange-200/90 bg-orange-500/92`;
+};
+
+const isTextEditingTarget = (target: EventTarget | null) => {
+  if (!(target instanceof HTMLElement)) return false;
+  const tagName = target.tagName.toLowerCase();
+  return target.isContentEditable || tagName === 'input' || tagName === 'textarea' || tagName === 'select';
 };
 
 function RuntimeVisualMediaLayer({
@@ -320,7 +384,11 @@ const TimelineRuntimeOverlay = ({
 }) => {
   const shownClipIdsRef = useRef<Set<string>>(new Set());
   const timedOutClipIdsRef = useRef<Set<string>>(new Set());
+  const resolvedQteClipIdsRef = useRef<Set<string>>(new Set());
+  const qteStartedAtRef = useRef<Map<string, number>>(new Map());
+  const qteClickCountsRef = useRef<Map<string, number>>(new Map());
   const triggerStateRef = useRef<{ nodeId?: string | null; time: number }>({ nodeId: null, time: 0 });
+  const [qteClockTick, setQteClockTick] = useState(0);
 
   useEffect(() => {
     const nextNodeId = timelineEffect?.nodeId ?? currentNode?.id ?? null;
@@ -332,6 +400,9 @@ const TimelineRuntimeOverlay = ({
     })) {
       shownClipIdsRef.current = new Set();
       timedOutClipIdsRef.current = new Set();
+      resolvedQteClipIdsRef.current = new Set();
+      qteStartedAtRef.current = new Map();
+      qteClickCountsRef.current = new Map();
     }
     triggerStateRef.current = { nodeId: nextNodeId, time: currentTime };
   }, [currentNode?.id, currentTime, timelineEffect?.nodeId]);
@@ -339,6 +410,35 @@ const TimelineRuntimeOverlay = ({
   const activeClips = useMemo(() => (
     currentNode && timelineEffect ? getActiveTimelineClips(currentNode, currentTime) : []
   ), [currentNode, currentTime, timelineEffect]);
+
+  const visibleActiveClips = activeClips.filter((clip) => !isQteButtonClip(clip) || !resolvedQteClipIdsRef.current.has(clip.id));
+  const activeQteClips = activeClips.filter((clip) => isQteButtonClip(clip) && !resolvedQteClipIdsRef.current.has(clip.id));
+
+  const completeQteClip = useCallback((clip: TimelineInteractionClip, reason: 'success' | 'timeout') => {
+    if (!isQteButtonClip(clip) || resolvedQteClipIdsRef.current.has(clip.id)) return;
+    resolvedQteClipIdsRef.current.add(clip.id);
+    qteClickCountsRef.current.delete(clip.id);
+    setQteClockTick(window.performance.now());
+
+    const action = reason === 'timeout' ? clip.timeoutAction : getTimelineClipAction(clip);
+    if (reason === 'timeout') timedOutClipIdsRef.current.add(clip.id);
+
+    if (!action) {
+      if (clip.pauseOnShow) {
+        onResumeTimeline();
+        void videoRef.current?.play();
+      }
+      return;
+    }
+
+    if (action.type === 'continue') {
+      onResumeTimeline();
+      void videoRef.current?.play();
+      return;
+    }
+
+    dispatch({ type: reason === 'timeout' ? 'timeline.clip.timeout' : 'timeline.clip.triggered', clipId: clip.id, action });
+  }, [dispatch, onResumeTimeline, videoRef]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -354,29 +454,102 @@ const TimelineRuntimeOverlay = ({
   }, [activeClips, onPauseTimeline, videoRef]);
 
   useEffect(() => {
+    if (activeQteClips.length === 0) return;
+    const now = window.performance.now();
+    const activeQteClipIds = new Set(activeQteClips.map((clip) => clip.id));
+    activeQteClips.forEach((clip) => {
+      if (!qteStartedAtRef.current.has(clip.id)) qteStartedAtRef.current.set(clip.id, now);
+    });
+    qteStartedAtRef.current.forEach((_startedAt, clipId) => {
+      if (!activeQteClipIds.has(clipId)) qteStartedAtRef.current.delete(clipId);
+    });
+    qteClickCountsRef.current.forEach((_count, clipId) => {
+      if (!activeQteClipIds.has(clipId)) qteClickCountsRef.current.delete(clipId);
+    });
+  }, [activeQteClips]);
+
+  const clickQteClip = useCallback((clip: TimelineInteractionClip) => {
+    const qteConfig = getQteConfig(clip);
+    const clickCount = getQteClickCount(qteConfig);
+    const nextCount = (qteClickCountsRef.current.get(clip.id) ?? 0) + 1;
+    qteClickCountsRef.current.set(clip.id, nextCount);
+    setQteClockTick(window.performance.now());
+    if (nextCount >= clickCount) completeQteClip(clip, 'success');
+  }, [completeQteClip]);
+
+  useEffect(() => {
+    if (activeQteClips.length === 0) return;
+    const timers = activeQteClips.map((clip) => {
+      const startedAt = qteStartedAtRef.current.get(clip.id) ?? window.performance.now();
+      const durationMs = Math.max(0, clip.duration * 1000);
+      const remainingMs = Math.max(0, startedAt + durationMs - window.performance.now());
+      return window.setTimeout(() => completeQteClip(clip, 'timeout'), remainingMs);
+    });
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
+  }, [activeQteClips, completeQteClip]);
+
+  useEffect(() => {
+    if (!activeQteClips.some((clip) => getQteConfig(clip).showCountdown !== false)) return;
+    const timer = window.setInterval(() => setQteClockTick(window.performance.now()), 100);
+    return () => window.clearInterval(timer);
+  }, [activeQteClips]);
+
+  const activeKeyboardQteClips = useMemo(() => (
+    activeQteClips.filter((clip) => getQteConfig(clip).input === 'space')
+  ), [activeQteClips]);
+
+  useEffect(() => {
+    if (activeKeyboardQteClips.length === 0) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (isTextEditingTarget(event.target)) return;
+      const clip = activeKeyboardQteClips.find((item) => doesKeyboardEventMatchQte(event, getQteConfig(item)));
+      if (!clip) return;
+      event.preventDefault();
+      completeQteClip(clip, 'success');
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [activeKeyboardQteClips, completeQteClip]);
+
+  useEffect(() => {
     if (!timelineEffect) return;
     timelineEffect.clips.forEach((clip) => {
       const endTime = getTimelineClipEndTime(clip);
       const action = clip.type === 'button' ? clip.timeoutAction : undefined;
-      if (!action || currentTime < endTime || timedOutClipIdsRef.current.has(clip.id)) return;
+      if (isQteButtonClip(clip) || !action || currentTime < endTime || timedOutClipIdsRef.current.has(clip.id)) return;
       timedOutClipIdsRef.current.add(clip.id);
       dispatch({ type: 'timeline.clip.timeout', clipId: clip.id, action });
     });
   }, [currentTime, dispatch, timelineEffect]);
 
-  if (!timelineEffect || !currentNode || activeClips.length === 0) return null;
+  if (!timelineEffect || !currentNode || visibleActiveClips.length === 0) return null;
 
   return (
     <div className="pointer-events-none absolute inset-0 z-20" data-openfmv-runtime-overlay>
-      {activeClips.map((clip) => {
+      {visibleActiveClips.map((clip) => {
         const rect = getTimelineClipRect(clip);
+        const isQte = isQteButtonClip(clip);
+        const qteConfig = getQteConfig(clip);
         const label = getTimelineClipLabel(clip);
+        const qteStartedAt = qteStartedAtRef.current.get(clip.id);
+        const qteCompletedClicks = qteClickCountsRef.current.get(clip.id) ?? 0;
+        const qteCueLabel = isQte ? getQteCueLabel(qteConfig, qteCompletedClicks) : null;
+        const qteDurationMs = Math.max(1, clip.duration * 1000);
+        const qteNow = qteClockTick || (typeof window !== 'undefined' ? window.performance.now() : qteStartedAt || 0);
+        const qteRemainingRatio = qteStartedAt
+          ? Math.max(0, Math.min(1, 1 - (qteNow - qteStartedAt) / qteDurationMs))
+          : 1;
 
         return (
           <button
             key={clip.id}
             type="button"
             onClick={() => {
+              if (isQte) {
+                if (qteConfig.input !== 'click') return;
+                clickQteClip(clip);
+                return;
+              }
               const action = getTimelineClipAction(clip);
               if (action.type === 'continue') {
                 if (shouldResumeTimelineOnClick(clip)) {
@@ -388,6 +561,7 @@ const TimelineRuntimeOverlay = ({
               dispatch({ type: 'timeline.clip.triggered', clipId: clip.id, action });
             }}
             className={getTimelineClipClassName(clip)}
+            data-qte-input={isQte ? qteConfig.input : undefined}
             style={{
               left: `${rect.x * 100}%`,
               top: `${rect.y * 100}%`,
@@ -398,7 +572,25 @@ const TimelineRuntimeOverlay = ({
               transformOrigin: 'center',
             }}
           >
-            <span className="truncate">{label}</span>
+            {isQte ? (
+              <>
+                <span className="flex min-w-0 max-w-full flex-col items-center justify-center gap-0.5 text-center leading-tight">
+                  {qteCueLabel && (
+                    <span className="block max-w-full truncate font-mono text-[10px] font-semibold leading-none text-white/75">
+                      {qteCueLabel}
+                    </span>
+                  )}
+                  <span className="block max-w-full truncate">{getQteDisplayName(clip)}</span>
+                </span>
+                {qteConfig.showCountdown !== false && (
+                  <span className="absolute bottom-1 left-2 right-2 h-1 overflow-hidden rounded-full bg-white/18">
+                    <span className="block h-full rounded-full bg-white" style={{ width: `${qteRemainingRatio * 100}%` }} />
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="truncate">{label}</span>
+            )}
           </button>
         );
       })}

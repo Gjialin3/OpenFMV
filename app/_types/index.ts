@@ -155,6 +155,8 @@ export type TimelineInteractionClipType = 'button';
 export type TimelineClipType = TimelineMediaClipType | TimelineInteractionClipType;
 export type TimelineKeyframeProperty = 'opacity' | 'rotation' | 'x' | 'y' | 'width' | 'height' | 'volume';
 export type TimelineKeyframeInterpolation = 'linear' | 'hold';
+export type ButtonMode = 'normal' | 'qte';
+export type ButtonQteInput = 'click' | 'space';
 
 export interface TimelineClipKeyframe {
   id: string;
@@ -212,13 +214,23 @@ export interface TimelineMediaClip extends BaseTimelineClip {
   sourceVideoClipId?: string;
 }
 
+export interface ButtonQteConfig {
+  input: ButtonQteInput;
+  prompt?: string;
+  clickCount?: number;
+  keyLabel?: string;
+  showCountdown?: boolean;
+}
+
 export interface ButtonChoiceClip extends BaseTimelineClip {
   type: 'button';
+  mode?: ButtonMode;
   label: string;
   rect: OverlayRect;
   action: TimelineAction;
   pauseOnShow: boolean;
   timeoutAction?: TimelineAction;
+  qte?: ButtonQteConfig;
 }
 
 export type TimelineInteractionClip = ButtonChoiceClip;

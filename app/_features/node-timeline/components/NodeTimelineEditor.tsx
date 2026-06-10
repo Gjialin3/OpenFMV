@@ -13,6 +13,7 @@ import {
   ArrowDownUp,
   ArrowUp,
   Bookmark,
+  Check,
   ChevronDown,
   ChevronsRight,
   ClipboardPaste,
@@ -27,12 +28,14 @@ import {
   Hand,
   Headphones,
   Image as ImageIcon,
+  Keyboard,
   Layers,
   Link as LinkIcon,
   List,
   Lock,
   Magnet,
   Maximize2,
+  Minus,
   MousePointerClick,
   Music,
   Pause,
@@ -43,12 +46,14 @@ import {
   Snowflake,
   Redo2,
   Trash2,
+  Type,
   Upload,
   Undo2,
   Unlink2,
   Unlock,
   Volume2,
   VolumeX,
+  X,
   ZoomIn,
   ZoomOut,
   type LucideIcon,
@@ -56,7 +61,9 @@ import {
 
 import {
   AppNode,
-  InteractionRule,
+  ButtonMode,
+  ButtonQteConfig,
+  ButtonQteInput,
   NodeTimeline,
   OpenFMVAsset,
   OverlayRect,
@@ -115,6 +122,7 @@ import {
   getLinkedTimelineClipIds,
   getTimelineEdgeScroll,
   getFitTimelineZoom,
+  getButtonMode,
   getNodeTimelineTrackHeight,
   getTimelineRulerTicks,
   getSnapAdjustedClipStart,
@@ -130,6 +138,7 @@ import {
   insertTimelineClip,
   isInteractionClipType,
   isMediaClipType,
+  isQteButtonClip,
   isTimelineClipActive,
   isTimelineSourceAudioSeparated,
   isVisualMediaClip,
@@ -293,7 +302,6 @@ type LibraryTab = 'assets' | 'interactions' | 'audio';
 type AssetViewMode = 'grid' | 'list';
 type AssetSortMode = 'recent' | 'name';
 
-type RuleNode = AppNode & { data: Extract<AppNode['data'], { type: 'start' | 'interaction' }> };
 type NodeTimelineTranslator = ReturnType<typeof useTranslations<'nodeTimeline'>>;
 
 const TIMELINE_HISTORY_LIMIT = 80;
@@ -428,8 +436,6 @@ const getNodeSubtitle = (node: AppNode) => {
   return node.data.content || node.data.fullText || '';
 };
 
-const canUseRules = (node: AppNode): node is RuleNode => node.data.type === 'start' || node.data.type === 'interaction';
-
 const isMediaClip = (clip: TimelineClip): clip is TimelineMediaClip => isMediaClipType(clip.type);
 
 const isInteractionClip = (clip: TimelineClip): clip is TimelineInteractionClip => isInteractionClipType(clip.type);
@@ -501,29 +507,6 @@ const getAssetMetadataLabel = (asset: OpenFMVAsset) => {
   return [getAssetDurationLabel(asset), getAssetDimensionLabel(asset), getAssetSizeLabel(asset)].filter(Boolean).join(' / ');
 };
 
-const getRules = (node: AppNode): InteractionRule[] => {
-  if (!canUseRules(node)) return [];
-  return node.data.rules || [];
-};
-
-const getSourceHandleOptions = (node: AppNode | null, t?: NodeTimelineTranslator) => {
-  if (!node || !canUseRules(node)) return [];
-  const options = getRules(node)
-    .filter((rule) => rule.handleId !== 'else')
-    .map((rule) => ({
-      value: `handle:${rule.handleId}`,
-      label: rule.condition || rule.keyword || t?.('fallback.branch') || 'Branch',
-      handleId: rule.handleId as string | null,
-    }));
-
-  if (node.data.interactionMode === 'slider') {
-    options.push({ value: 'handle:slider', label: t?.('fallback.sliderSuccess') || 'Slider success', handleId: 'slider' });
-  }
-
-  options.push({ value: 'handle:else', label: node.data.elseLabel || t?.('fallback.defaultBranch') || 'Default branch', handleId: 'else' });
-  return options;
-};
-
 const actionToValue = (action?: TimelineAction) => {
   if (!action || action.type === 'continue') return 'continue';
   if (action.type === 'goToHandle') return `handle:${action.handleId || '__default__'}`;
@@ -541,11 +524,57 @@ const valueToAction = (value: string): TimelineAction => {
 };
 
 const timeoutActionToValue = (action?: TimelineAction) => {
-  return !action || action.type === 'continue' ? 'none' : actionToValue(action);
+  return action ? actionToValue(action) : 'none';
 };
 
 const getInteractionAction = (clip: TimelineInteractionClip): TimelineAction => {
   return clip.action;
+};
+
+const normalizeQteKeyLabel = (value: string | undefined) => {
+  const label = value?.trim();
+  if (!label) return 'Space';
+  if (label === ' ') return 'Space';
+  if (label.length === 1) return label.toUpperCase();
+  return label === 'Escape' ? 'Esc' : label;
+};
+
+const clampQteClickCount = (value: unknown) => {
+  const count = Number(value);
+  if (!Number.isFinite(count)) return 1;
+  return Math.max(1, Math.min(20, Math.round(count)));
+};
+
+const getQteClickLabel = (clickCount?: number) => {
+  const count = clampQteClickCount(clickCount);
+  return count > 1 ? `Click x${count}` : 'Click';
+};
+
+const getQteInputLabel = (input: ButtonQteInput | undefined, keyLabel?: string, clickCount?: number) => (
+  input === 'space' ? normalizeQteKeyLabel(keyLabel === 'Click' ? undefined : keyLabel) : getQteClickLabel(clickCount)
+);
+
+const getQteCueLabel = (config: ButtonQteConfig) => {
+  if (config.input === 'space') return normalizeQteKeyLabel(config.keyLabel);
+  const count = clampQteClickCount(config.clickCount);
+  return count > 1 ? `x${count}` : null;
+};
+
+const getQteDisplayName = (clip: TimelineInteractionClip) => {
+  const label = (clip.label || clip.name || '').trim();
+  if (!label || label === 'New choice' || label === 'Choice') return 'QTE';
+  return label;
+};
+
+const getQteConfig = (clip: TimelineInteractionClip): ButtonQteConfig => {
+  const input = clip.qte?.input === 'space' ? 'space' : 'click';
+  return {
+    input,
+    prompt: clip.qte?.prompt,
+    clickCount: clampQteClickCount(clip.qte?.clickCount),
+    keyLabel: getQteInputLabel(input, clip.qte?.keyLabel, clip.qte?.clickCount),
+    showCountdown: clip.qte?.showCountdown !== false,
+  };
 };
 
 const getTrackIcon = (track: TimelineTrack) => {
@@ -564,13 +593,14 @@ const getClipTone = (clip: TimelineClip, selected: boolean) => {
   if (clip.type === 'video') return `${base} ${ring} ${disabled} ${muted} ${linked} border-sky-300/55 bg-sky-500/52 text-white`;
   if (clip.type === 'image') return `${base} ${ring} ${disabled} ${muted} ${linked} border-emerald-300/55 bg-emerald-500/48 text-white`;
   if (clip.type === 'audio') return `${base} ${ring} ${disabled} ${muted} ${linked} border-fuchsia-300/50 bg-fuchsia-500/42 text-white`;
+  if (clip.type === 'button' && isQteButtonClip(clip)) return `${base} ${ring} ${disabled} ${muted} ${linked} border-cyan-200/75 bg-cyan-500/52 text-white`;
   if (clip.type === 'button') return `${base} ${ring} ${disabled} ${muted} ${linked} border-orange-200/70 bg-orange-500/72 text-white`;
   return `${base} ${ring} ${disabled} ${muted} ${linked} border-white/20 bg-white/12 text-white`;
 };
 
-const getPreviewClipClassName = (_clip: TimelineInteractionClip, selected: boolean, active: boolean) => {
-  const base = 'absolute flex min-h-10 min-w-12 items-center justify-center overflow-hidden rounded-[8px] border px-3 text-xs font-bold text-white shadow-[0_18px_52px_rgba(0,0,0,0.38)] backdrop-blur-xl transition hover:scale-[1.02]';
-  const tone = 'border-orange-200/90 bg-orange-500/92';
+const getPreviewClipClassName = (clip: TimelineInteractionClip, selected: boolean, active: boolean) => {
+  const base = 'absolute flex min-h-10 min-w-12 items-center justify-center overflow-hidden rounded-[8px] border px-2 text-xs font-bold text-white shadow-[0_18px_52px_rgba(0,0,0,0.38)] backdrop-blur-xl transition hover:scale-[1.02]';
+  const tone = isQteButtonClip(clip) ? 'border-cyan-200/90 bg-cyan-500/92' : 'border-orange-200/90 bg-orange-500/92';
   return `${base} ${tone} ${selected ? 'ring-2 ring-white ring-offset-2 ring-offset-black' : ''} ${active ? '' : 'opacity-45'}`;
 };
 
@@ -764,11 +794,56 @@ const updateInteractionAction = (clip: TimelineInteractionClip, action: Timeline
 };
 
 const updateInteractionPauseMode = (clip: TimelineInteractionClip, pauseOnShow: boolean): TimelineInteractionClip => {
-  return pauseOnShow ? { ...clip, pauseOnShow, timeoutAction: undefined } : { ...clip, pauseOnShow };
+  if (pauseOnShow && !isQteButtonClip(clip)) return { ...clip, pauseOnShow, timeoutAction: undefined };
+  return { ...clip, pauseOnShow };
 };
 
 const updateInteractionTimeoutAction = (clip: TimelineInteractionClip, action?: TimelineAction): TimelineInteractionClip => {
-  return action && action.type !== 'continue' ? { ...clip, timeoutAction: action } : { ...clip, timeoutAction: undefined };
+  return action ? { ...clip, timeoutAction: action } : { ...clip, timeoutAction: undefined };
+};
+
+const updateInteractionMode = (clip: TimelineInteractionClip, mode: ButtonMode): TimelineInteractionClip => {
+  if (mode !== 'qte') {
+    const buttonClip = { ...clip };
+    delete buttonClip.mode;
+    delete buttonClip.qte;
+    return buttonClip;
+  }
+
+  const qteConfig = getQteConfig(clip);
+  return {
+    ...clip,
+    mode: 'qte',
+    qte: {
+      input: qteConfig.input,
+      clickCount: clampQteClickCount(qteConfig.clickCount),
+      keyLabel: getQteInputLabel(qteConfig.input, qteConfig.keyLabel, qteConfig.clickCount),
+      showCountdown: qteConfig.showCountdown !== false,
+    },
+  };
+};
+
+const updateInteractionQteConfig = (clip: TimelineInteractionClip, patch: Partial<ButtonQteConfig>): TimelineInteractionClip => {
+  const currentQte = getQteConfig(clip);
+  const mergedQte = {
+    ...currentQte,
+    ...patch,
+  };
+  const input = mergedQte.input === 'space' ? 'space' : 'click';
+  const keyLabel = typeof patch.keyLabel === 'string'
+    ? patch.keyLabel
+    : input === currentQte.input ? currentQte.keyLabel : undefined;
+  const nextQte: ButtonQteConfig = {
+    input,
+    clickCount: clampQteClickCount(mergedQte.clickCount),
+    keyLabel: getQteInputLabel(input, keyLabel, mergedQte.clickCount),
+    showCountdown: mergedQte.showCountdown !== false,
+  };
+  return {
+    ...clip,
+    mode: 'qte',
+    qte: nextQte,
+  };
 };
 
 const updateInteractionRect = (clip: TimelineInteractionClip, rect: OverlayRect): TimelineInteractionClip => {
@@ -3565,6 +3640,8 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
                 const resolvedClip = resolveTimelineClipKeyframes(clip, currentTime);
                 const rect = getClipRect(resolvedClip);
                 const active = isTimelineClipActive(clip, currentTime);
+                const qteConfig = isQteButtonClip(resolvedClip) ? getQteConfig(resolvedClip) : null;
+                const qteCueLabel = qteConfig ? getQteCueLabel(qteConfig) : null;
                 return (
                   <button
                     key={clip.id}
@@ -3582,7 +3659,18 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
                       transformOrigin: 'center',
                     }}
                   >
-                    <span className="truncate">{getTimelineClipLabel(resolvedClip)}</span>
+                    {qteConfig ? (
+                      <span className="flex min-w-0 max-w-full flex-col items-center justify-center gap-0.5 text-center leading-tight">
+                        {qteCueLabel && (
+                          <span className="block max-w-full truncate font-mono text-[10px] font-semibold leading-none text-white/75">
+                            {qteCueLabel}
+                          </span>
+                        )}
+                        <span className="block max-w-full truncate">{getQteDisplayName(resolvedClip)}</span>
+                      </span>
+                    ) : (
+                      <span className="truncate">{getTimelineClipLabel(resolvedClip)}</span>
+                    )}
                     {resolvedClip.id === selectedClip?.id && overlayResizeHandles.map((item) => (
                       <span
                         key={item.handle}
@@ -3617,15 +3705,16 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
         </div>
       </section>
 
-      <aside className="min-h-0 overflow-y-auto rounded-sm border border-white/10 bg-[#171717] p-3 shadow-[0_18px_56px_rgba(0,0,0,0.30)]">
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div className="min-w-0">
+      <aside className="min-h-0 overflow-y-auto rounded-sm border border-white/10 bg-[#202020] shadow-[0_18px_56px_rgba(0,0,0,0.30)]">
+        <div className="border-b border-white/10 px-3 py-2.5">
+          <div className="flex items-center justify-between gap-3">
             <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-openfmv-muted">{t('inspector.title')}</div>
-            <h2 className="mt-2 truncate text-lg font-semibold">{selectedClip ? getTimelineClipLabel(selectedClip) : t('inspector.noClipSelected')}</h2>
+            {selectedClip && <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-0.5 text-[9px] font-semibold uppercase text-openfmv-sub">{selectedClip.type}</span>}
           </div>
-          {selectedClip && <span className="rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-[10px] font-semibold uppercase text-openfmv-sub">{selectedClip.type}</span>}
+          <h2 className="mt-1.5 truncate text-sm font-semibold text-white">{selectedClip ? getTimelineClipLabel(selectedClip) : t('inspector.noClipSelected')}</h2>
         </div>
 
+        <div className="p-3">
         {!selectedClip ? (
           <div className="rounded-[8px] border border-white/10 bg-white/[0.035] p-4 text-sm leading-6 text-openfmv-muted">
             {t('inspector.empty')}
@@ -3646,10 +3735,10 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
             clip={resolveTimelineClipKeyframes(selectedClip, currentTime)}
             nodes={nodes}
             activeNode={selectedOrFirstNode}
-            sourceHandleOptions={getSourceHandleOptions(selectedOrFirstNode, t)}
             onUpdate={(update) => updateClip(selectedClip.id, (clip) => (isInteractionClip(clip) ? update(clip) : clip))}
           />
         ) : null}
+        </div>
       </aside>
       </div>
 
@@ -4697,46 +4786,36 @@ function MediaClipInspector({
   );
 }
 
-function InteractionActionSelect({
+function QteRuleActionSelect({
   t,
   value,
   nodes,
   activeNode,
-  sourceHandleOptions,
-  includeNone,
+  includeNone = false,
   onChange,
 }: {
   t: NodeTimelineTranslator;
   value: string;
   nodes: AppNode[];
   activeNode: AppNode;
-  sourceHandleOptions: Array<{ value: string; label: string; handleId: string | null }>;
   includeNone?: boolean;
   onChange: (value: string) => void;
 }) {
+  type RuleActionOption = { value: string; label: string; icon: LucideIcon };
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const targetNodes = nodes.filter((node) => node.id !== activeNode.id);
-  const optionGroups = [
-    {
-      label: null,
-      options: [
-        includeNone
-          ? { value: 'none', label: t('actions.disappear') }
-          : { value: 'continue', label: t('actions.continueCurrentMedia') },
-      ],
-    },
-    {
-      label: t('fields.outputLine'),
-      options: sourceHandleOptions.map((option) => ({ value: option.value, label: option.label })),
-    },
-    {
-      label: t('fields.goToNode'),
-      options: targetNodes.map((node) => ({ value: `node:${node.id}`, label: getNodeTitle(node, t) })),
-    },
-  ].filter((group) => group.options.length > 0);
-  const flatOptions = optionGroups.flatMap((group) => group.options);
-  const selectedOption = flatOptions.find((option) => option.value === value) ?? flatOptions[0];
+  const options: RuleActionOption[] = [
+    ...(includeNone ? [{ value: 'none', label: t('actions.disappear'), icon: X }] : []),
+    { value: 'continue', label: t('actions.continue'), icon: Play },
+    ...targetNodes.map((node) => {
+      const scene = getNodeTitle(node, t);
+      return { value: `node:${node.id}`, label: t('fields.goToScene', { scene }), icon: Layers };
+    }),
+  ];
+  const normalizedValue = value === 'none' && !includeNone ? 'continue' : value;
+  const selectedOption = options.find((option) => option.value === normalizedValue) ?? options[0];
+  const SelectedIcon = selectedOption?.icon;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -4758,39 +4837,289 @@ function InteractionActionSelect({
         }}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
-        className={`flex h-9 w-full items-center justify-between gap-2 rounded-[8px] border px-3 text-left text-sm text-white outline-none transition ${isOpen ? 'border-openfmv-accent/80 bg-white/[0.10] shadow-[0_0_0_3px_rgba(249,115,22,0.12)]' : 'border-white/12 bg-white/[0.075] hover:border-white/22 hover:bg-white/[0.095]'}`}
+        className={`flex h-8 w-full items-center justify-between gap-2 rounded-[7px] border border-white/10 bg-[#171717] px-2.5 text-left text-[11px] text-white outline-none transition hover:border-white/18 hover:bg-[#1d1d1d] ${isOpen ? 'border-white/20 bg-[#1d1d1d]' : ''}`}
       >
-        <span className="min-w-0 truncate">{selectedOption?.label}</span>
-        <ChevronDown size={15} className={`shrink-0 text-openfmv-muted transition ${isOpen ? 'rotate-180 text-white' : ''}`} />
+        <span className="flex min-w-0 items-center gap-2">
+          {SelectedIcon && <SelectedIcon size={13} className="shrink-0 text-openfmv-muted" />}
+          <span className="min-w-0 truncate">{selectedOption?.label}</span>
+        </span>
+        <ChevronDown size={14} className={`shrink-0 text-openfmv-muted transition ${isOpen ? 'rotate-180 text-white' : ''}`} />
       </button>
 
       {isOpen && (
-        <div role="listbox" className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-y-auto rounded-[9px] border border-white/12 bg-[#171b22] p-1 shadow-[0_18px_48px_rgba(0,0,0,0.42)]">
-          {optionGroups.map((group, groupIndex) => (
-            <div key={group.label ?? `base-${groupIndex}`} className={groupIndex > 0 ? 'mt-1 border-t border-white/10 pt-1' : ''}>
-              {group.label && <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-openfmv-muted">{group.label}</div>}
-              {group.options.map((option) => {
-                const selected = option.value === value;
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    role="option"
-                    aria-selected={selected}
-                    onClick={() => {
-                      onChange(option.value);
-                      setIsOpen(false);
-                    }}
-                    className={`flex min-h-8 w-full items-center rounded-[7px] px-2 py-1.5 text-left text-sm transition ${selected ? 'bg-openfmv-accent text-white' : 'text-openfmv-sub hover:bg-white/[0.075] hover:text-white'}`}
-                  >
-                    <span className="min-w-0 truncate">{option.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          ))}
+        <div role="listbox" className="absolute left-0 right-0 top-full z-50 mt-1 max-h-48 overflow-y-auto rounded-[8px] border border-white/10 bg-[#171717] p-1 shadow-[0_18px_44px_rgba(0,0,0,0.38)]">
+          {options.map((option) => {
+            const selected = option.value === normalizedValue;
+            const OptionIcon = option.icon;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                onClick={() => {
+                  onChange(option.value);
+                  setIsOpen(false);
+                }}
+                className={`grid min-h-8 w-full grid-cols-[24px_minmax(0,1fr)] items-center gap-2 rounded-[7px] px-2 py-1.5 text-left text-[11px] transition ${selected ? 'bg-white/[0.12] text-white' : 'text-openfmv-sub hover:bg-[#1d1d1d] hover:text-white'}`}
+              >
+                <span className="grid h-5 w-5 shrink-0 place-items-center rounded-[5px] bg-white/[0.055] text-openfmv-muted">
+                  <OptionIcon size={13} />
+                </span>
+                <span className="min-w-0 truncate">{option.label}</span>
+              </button>
+            );
+          })}
         </div>
       )}
+    </div>
+  );
+}
+
+function InspectorFieldRow({
+  label,
+  icon: Icon,
+  children,
+}: {
+  label: string;
+  icon?: LucideIcon;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="grid grid-cols-[28px_minmax(0,1fr)] items-center gap-2 py-1.5">
+      <div className="grid h-7 w-7 place-items-center rounded-[6px] text-openfmv-muted" title={label} aria-label={label}>
+        {Icon && <Icon size={14} />}
+        <span className="sr-only">{label}</span>
+      </div>
+      <div className="min-w-0">{children}</div>
+    </div>
+  );
+}
+
+function InspectorDivider() {
+  return <div className="my-1.5 border-t border-white/10" />;
+}
+
+function InspectorTextInput({
+  value,
+  placeholder,
+  onChange,
+}: {
+  value: string;
+  placeholder?: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <input
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      placeholder={placeholder}
+      className="h-8 w-full rounded-[7px] border border-white/10 bg-[#171717] px-2.5 text-xs text-white outline-none placeholder:text-openfmv-muted transition hover:border-white/18 hover:bg-[#1d1d1d] focus:border-white/20 focus:bg-[#1d1d1d]"
+    />
+  );
+}
+
+function InspectorSegmentedControl({
+  value,
+  options,
+  tone = 'neutral',
+  compact = false,
+  onChange,
+}: {
+  value: string;
+  options: Array<{ value: string; label: string; icon?: LucideIcon }>;
+  tone?: 'neutral' | 'accent' | 'cyan';
+  compact?: boolean;
+  onChange: (value: string) => void;
+}) {
+  const activeClass = tone === 'cyan'
+    ? 'bg-cyan-400/28 text-white'
+    : tone === 'accent'
+      ? 'bg-openfmv-accent text-white'
+      : 'bg-white/[0.16] text-white';
+
+  return (
+    <div className="grid h-8 rounded-[7px] border border-white/10 bg-[#171717] p-0.5 transition hover:border-white/18 hover:bg-[#1d1d1d]" style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}>
+      {options.map((option) => {
+        const Icon = option.icon;
+        const selected = value === option.value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onChange(option.value)}
+            aria-pressed={selected}
+            title={option.label}
+            aria-label={option.label}
+            className={`flex min-w-0 items-center justify-center gap-1 rounded-[6px] ${compact ? 'px-0' : 'px-1.5'} text-xs font-semibold transition ${selected ? activeClass : 'text-openfmv-muted hover:bg-white/[0.06] hover:text-white'}`}
+          >
+            {Icon && <Icon size={13} className="shrink-0" />}
+            {!compact && <span className="truncate">{option.label}</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function InspectorSwitch({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={checked}
+      onClick={() => onChange(!checked)}
+      className={`relative h-5 w-10 rounded-full transition ${checked ? 'bg-cyan-400' : 'bg-white/18'}`}
+    >
+      <span className={`absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full bg-white shadow transition ${checked ? 'left-[21px]' : 'left-1'}`} />
+    </button>
+  );
+}
+
+function InspectorSwitchRow({
+  label,
+  icon,
+  shortLabel,
+  checked,
+  onChange,
+}: {
+  label: string;
+  icon: LucideIcon;
+  shortLabel: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  const Icon = icon;
+  return (
+    <div className="grid grid-cols-[28px_minmax(0,1fr)] items-center gap-2 py-1.5">
+      <div className="grid h-7 w-7 place-items-center rounded-[6px] text-openfmv-muted" title={label} aria-label={label}>
+        <Icon size={14} />
+        <span className="sr-only">{label}</span>
+      </div>
+      <div className="flex h-8 items-center justify-between gap-2 rounded-[7px] border border-white/10 bg-[#171717] px-2.5 transition hover:border-white/18 hover:bg-[#1d1d1d]">
+        <span className={`truncate text-xs font-semibold ${checked ? 'text-white' : 'text-openfmv-muted'}`}>{shortLabel}</span>
+        <InspectorSwitch checked={checked} onChange={onChange} />
+      </div>
+    </div>
+  );
+}
+
+const getQteKeyLabelFromEvent = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+  if (event.code === 'Space' || event.key === ' ') return 'Space';
+  if (event.key === 'Escape') return 'Esc';
+  if (event.key.length === 1) return event.key.toUpperCase();
+  if (event.key.startsWith('Arrow')) return event.key.replace('Arrow', 'Arrow ');
+  return event.key;
+};
+
+function InspectorKeyCapture({
+  value,
+  changeLabel,
+  captureLabel,
+  onChange,
+}: {
+  value: string;
+  changeLabel: string;
+  captureLabel: string;
+  onChange: (value: string) => void;
+}) {
+  const [isCapturing, setIsCapturing] = useState(false);
+  const label = isCapturing ? captureLabel : normalizeQteKeyLabel(value);
+
+  return (
+    <button
+      type="button"
+      aria-label={isCapturing ? captureLabel : changeLabel}
+      title={isCapturing ? captureLabel : changeLabel}
+      onClick={(event) => {
+        event.currentTarget.focus();
+        setIsCapturing(true);
+      }}
+      onBlur={() => setIsCapturing(false)}
+      onKeyDown={(event) => {
+        if (!isCapturing) {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            setIsCapturing(true);
+          }
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        onChange(getQteKeyLabelFromEvent(event));
+        setIsCapturing(false);
+      }}
+      className={`flex h-8 w-full items-center rounded-[7px] border px-2.5 text-left text-xs font-semibold text-white outline-none transition hover:border-white/18 hover:bg-[#1d1d1d] ${isCapturing ? 'border-cyan-300/70 bg-cyan-400/10' : 'border-white/10 bg-[#171717] focus:border-cyan-300/65 focus:bg-cyan-400/10'}`}
+    >
+      <span className="min-w-0 truncate">{label}</span>
+    </button>
+  );
+}
+
+function InspectorClickCountStepper({
+  value,
+  ariaLabel,
+  onChange,
+}: {
+  value: number;
+  ariaLabel: string;
+  onChange: (value: number) => void;
+}) {
+  const count = clampQteClickCount(value);
+
+  return (
+    <div className="grid h-8 w-full grid-cols-[32px_minmax(0,1fr)_32px] overflow-hidden rounded-[7px] border border-white/10 bg-[#171717] text-xs font-semibold text-white transition hover:border-white/18 hover:bg-[#1d1d1d]">
+      <button
+        type="button"
+        aria-label={`${ariaLabel} -`}
+        disabled={count <= 1}
+        onClick={() => onChange(count - 1)}
+        className="grid h-full place-items-center border-r border-white/10 text-openfmv-muted transition hover:bg-white/[0.06] hover:text-white disabled:opacity-35"
+      >
+        <Minus size={13} />
+      </button>
+      <input
+        type="text"
+        inputMode="numeric"
+        aria-label={ariaLabel}
+        value={count}
+        onChange={(event) => onChange(clampQteClickCount(event.target.value))}
+        className="h-full min-w-0 border-0 bg-transparent px-2 text-center font-mono text-xs text-white outline-none"
+      />
+      <button
+        type="button"
+        aria-label={`${ariaLabel} +`}
+        disabled={count >= 20}
+        onClick={() => onChange(count + 1)}
+        className="grid h-full place-items-center border-l border-white/10 text-openfmv-muted transition hover:bg-white/[0.06] hover:text-white disabled:opacity-35"
+      >
+        <Plus size={13} />
+      </button>
+    </div>
+  );
+}
+
+function QteOutcomeRow({
+  label,
+  icon: Icon,
+  children,
+}: {
+  label: string;
+  icon: LucideIcon;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="grid grid-cols-[64px_minmax(0,1fr)] items-center gap-2">
+      <div className="flex min-w-0 items-center gap-1.5 text-[11px] font-semibold text-openfmv-muted" title={label}>
+        <Icon size={13} className="shrink-0" />
+        <span className="min-w-0 truncate">{label}</span>
+      </div>
+      <div className="min-w-0">{children}</div>
     </div>
   );
 }
@@ -4800,79 +5129,138 @@ function InteractionClipInspector({
   clip,
   nodes,
   activeNode,
-  sourceHandleOptions,
   onUpdate,
 }: {
   t: NodeTimelineTranslator;
   clip: TimelineInteractionClip;
   nodes: AppNode[];
   activeNode: AppNode;
-  sourceHandleOptions: Array<{ value: string; label: string; handleId: string | null }>;
   onUpdate: (update: (clip: TimelineInteractionClip) => TimelineInteractionClip) => void;
 }) {
   const action = getInteractionAction(clip);
   const isPauseWait = clip.pauseOnShow === true;
+  const mode = getButtonMode(clip);
+  const isQte = mode === 'qte';
+  const qteConfig = getQteConfig(clip);
 
   return (
-    <div className="space-y-4">
-      <label className="block">
-        <span className="mb-2 block text-xs font-semibold text-openfmv-muted">{t('fields.label')}</span>
-        <input value={getTimelineClipLabel(clip)} onChange={(event) => onUpdate((item) => updateInteractionLabel(item, event.target.value))} className="h-10 w-full rounded-[8px] border border-white/12 bg-white/[0.075] px-3 text-sm text-white outline-none focus:border-white/30" />
-      </label>
+    <div className="space-y-1">
+      <InspectorFieldRow label={t('fields.buttonMode')} icon={Diamond}>
+        <InspectorSegmentedControl
+          value={mode}
+          tone="accent"
+          options={[
+            { label: t('fields.buttonModeNormal'), value: 'normal', icon: MousePointerClick },
+            { label: t('fields.buttonModeQte'), value: 'qte', icon: Diamond },
+          ]}
+          onChange={(value) => onUpdate((item) => updateInteractionMode(item, value === 'qte' ? 'qte' : 'normal'))}
+        />
+      </InspectorFieldRow>
 
-      <div>
-        <span className="mb-2 block text-xs font-semibold text-openfmv-muted">{t('fields.buttonType')}</span>
-        <div className="grid grid-cols-2 rounded-[8px] border border-white/10 bg-white/[0.045] p-1">
-          {[
-            { label: t('fields.optionalClick'), value: false },
-            { label: t('fields.pauseWait'), value: true },
-          ].map((option) => {
-            const selected = isPauseWait === option.value;
-            return (
-              <button
-                key={option.label}
-                type="button"
-                onClick={() => onUpdate((item) => updateInteractionPauseMode(item, option.value))}
-                aria-pressed={selected}
-                className={`h-8 rounded-[7px] px-2 text-xs font-semibold transition ${selected ? 'bg-openfmv-accent text-white shadow-[0_8px_22px_rgba(249,115,22,0.24)]' : 'text-openfmv-muted hover:bg-white/[0.07] hover:text-white'}`}
-              >
-                {option.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      {isQte ? (
+        <>
+          <InspectorFieldRow label={t('fields.qteName')} icon={Type}>
+            <InspectorTextInput value={getQteDisplayName(clip)} onChange={(value) => onUpdate((item) => updateInteractionLabel(item, value))} />
+          </InspectorFieldRow>
+          <InspectorFieldRow label={t('fields.qteCondition')} icon={Keyboard}>
+            <InspectorSegmentedControl
+              value={qteConfig.input}
+              tone="cyan"
+              options={[
+                { label: t('fields.qteInputClick'), value: 'click', icon: MousePointerClick },
+                { label: t('fields.qteInputSpace'), value: 'space', icon: Keyboard },
+              ]}
+              onChange={(value) => onUpdate((item) => updateInteractionQteConfig(item, { input: value === 'space' ? 'space' : 'click' }))}
+            />
+          </InspectorFieldRow>
+          {qteConfig.input === 'click' && (
+            <InspectorFieldRow label={t('fields.qteClickCount')} icon={MousePointerClick}>
+              <InspectorClickCountStepper
+                value={qteConfig.clickCount || 1}
+                ariaLabel={t('fields.qteClickCount')}
+                onChange={(value) => onUpdate((item) => updateInteractionQteConfig(item, { input: 'click', clickCount: value }))}
+              />
+            </InspectorFieldRow>
+          )}
+          {qteConfig.input === 'space' && (
+            <InspectorFieldRow label={t('fields.qteKey')} icon={Keyboard}>
+              <InspectorKeyCapture
+                value={qteConfig.keyLabel || 'Space'}
+                changeLabel={t('fields.qteChangeKey')}
+                captureLabel={t('fields.qtePressNewKey')}
+                onChange={(value) => onUpdate((item) => updateInteractionQteConfig(item, { input: 'space', keyLabel: value }))}
+              />
+            </InspectorFieldRow>
+          )}
+        </>
+      ) : (
+        <InspectorFieldRow label={t('fields.label')} icon={Type}>
+          <InspectorTextInput value={clip.label || ''} onChange={(value) => onUpdate((item) => updateInteractionLabel(item, value))} />
+        </InspectorFieldRow>
+      )}
 
-      <div className="rounded-[8px] border border-white/10 bg-white/[0.045] p-3">
-        <div className="mb-3 text-xs font-semibold text-openfmv-muted">{t('fields.triggerEvents')}</div>
-        <div className="space-y-3">
-          <label className="grid gap-2">
-            <span className="text-[11px] font-semibold text-openfmv-sub">{t('fields.onClick')}</span>
-            <InteractionActionSelect
+      <InspectorDivider />
+
+      {!isQte && (
+        <>
+          <InspectorSwitchRow
+            label={t('fields.pauseOnShow')}
+            icon={Pause}
+            shortLabel={t('fields.pauseShort')}
+            checked={isPauseWait}
+            onChange={(checked) => onUpdate((item) => updateInteractionPauseMode(item, checked))}
+          />
+
+          <InspectorDivider />
+        </>
+      )}
+
+      {isQte ? (
+        <div className="space-y-2 py-1">
+          <QteOutcomeRow label={t('fields.qteSuccessAction')} icon={Check}>
+            <QteRuleActionSelect
               t={t}
               value={actionToValue(action)}
               nodes={nodes}
               activeNode={activeNode}
-              sourceHandleOptions={sourceHandleOptions}
               onChange={(value) => onUpdate((item) => updateInteractionAction(item, valueToAction(value)))}
             />
-          </label>
+          </QteOutcomeRow>
+          <QteOutcomeRow label={t('fields.qteFailAction')} icon={X}>
+            <QteRuleActionSelect
+              t={t}
+              value={timeoutActionToValue(clip.timeoutAction)}
+              nodes={nodes}
+              activeNode={activeNode}
+              onChange={(value) => onUpdate((item) => updateInteractionTimeoutAction(item, valueToAction(value)))}
+            />
+          </QteOutcomeRow>
+        </div>
+      ) : (
+        <div className="space-y-2 py-1">
+          <QteOutcomeRow label={t('fields.qteSuccessAction')} icon={Check}>
+            <QteRuleActionSelect
+              t={t}
+              value={actionToValue(action)}
+              nodes={nodes}
+              activeNode={activeNode}
+              onChange={(value) => onUpdate((item) => updateInteractionAction(item, valueToAction(value)))}
+            />
+          </QteOutcomeRow>
           {!isPauseWait && (
-            <label className="grid gap-2">
-              <span className="text-[11px] font-semibold text-openfmv-sub">{t('fields.onMiss')}</span>
-              <InteractionActionSelect
+            <QteOutcomeRow label={t('fields.qteFailAction')} icon={X}>
+              <QteRuleActionSelect
                 t={t}
                 value={timeoutActionToValue(clip.timeoutAction)}
                 nodes={nodes}
                 activeNode={activeNode}
-                sourceHandleOptions={sourceHandleOptions}
                 includeNone
                 onChange={(value) => onUpdate((item) => updateInteractionTimeoutAction(item, value === 'none' ? undefined : valueToAction(value)))}
               />
-            </label>
+            </QteOutcomeRow>
           )}
         </div>
-      </div>
+      )}
     </div>
   );
 }

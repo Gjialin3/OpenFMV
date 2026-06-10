@@ -254,6 +254,93 @@ describe('game exporter', () => {
     expect(main).toContain('frame: false');
   });
 
+  it('exports QTE timeline support with a non-video timeline clock', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'openfmv-export-qte-'));
+    const project = {
+      schemaVersion: 1,
+      id: 'project-qte',
+      title: 'QTE Game',
+      graphData: {
+        nodes: [
+          {
+            id: 'start',
+            type: 'start',
+            position: { x: 0, y: 0 },
+            data: {
+              type: 'start',
+              label: 'Start',
+              timeline: {
+                version: 2,
+                duration: 4,
+                bookmarks: [],
+                tracks: [
+                  {
+                    id: 'interaction-track',
+                    type: 'interaction',
+                    name: 'Interaction',
+                    clips: [
+                      {
+                        id: 'space-qte',
+                        type: 'button',
+                        mode: 'qte',
+                        startTime: 0,
+                        duration: 2,
+                        enabled: true,
+                        label: 'Dodge',
+                        rect: { x: 0.4, y: 0.7, width: 0.2, height: 0.1 },
+                        action: { type: 'goToNode', nodeId: 'success' },
+                        pauseOnShow: true,
+                        timeoutAction: { type: 'goToNode', nodeId: 'fail' },
+                        qte: { input: 'space', prompt: 'Press Space', keyLabel: 'Space', showCountdown: true },
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+          {
+            id: 'success',
+            type: 'story',
+            position: { x: 200, y: 0 },
+            data: { type: 'story', title: 'Success', content: '' },
+          },
+          {
+            id: 'fail',
+            type: 'story',
+            position: { x: 400, y: 0 },
+            data: { type: 'story', title: 'Fail', content: '' },
+          },
+        ],
+        edges: [],
+      },
+      assets: [],
+      metadata: {},
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const result = await exportWebGamePackage({
+      project,
+      config: {
+        gameTitle: 'QTE Game',
+        outputDirectory: root,
+        entryNodeId: 'start',
+        windowMode: 'windowed',
+        resolution: { width: 1280, height: 720 },
+        includeDebugOverlay: false,
+      },
+    });
+
+    const html = await readFile(join(result.outputDirectory, 'index.html'), 'utf8');
+    expect(html).toContain('timelineResolvedQteClipIds');
+    expect(html).toContain('timelineClockTimer = setInterval');
+    expect(html).toContain('data-qte-input');
+    expect(html).toContain("document.addEventListener('keydown'");
+    expect(html).toContain("send({ type: reason === 'timeout' ? 'timeline.clip.timeout' : 'timeline.clip.triggered'");
+    expect(html).toContain("if (timeline) return ''");
+  });
+
   it('exports the shared graph runtime for navigation rules', async () => {
     const root = await mkdtemp(join(tmpdir(), 'openfmv-export-runtime-rules-'));
     const project = {

@@ -89,6 +89,66 @@ describe('NodeTimeline v2', () => {
     expect(timeline.bookmarks).toEqual([]);
   });
 
+  it('creates normal button clips without QTE config by default', () => {
+    const buttonClip = createInteractionClip('button', 1, 8);
+
+    expect(buttonClip.mode).toBeUndefined();
+    expect(buttonClip.qte).toBeUndefined();
+    expect(buttonClip.label).toBe('New choice');
+    expect(buttonClip.action).toEqual({ type: 'continue' });
+  });
+
+  it('normalizes QTE button clips while keeping old buttons compatible', () => {
+    const timeline = ensureNodeTimeline({
+      version: 2,
+      duration: 8,
+      bookmarks: [],
+      tracks: [
+        {
+          id: 'interaction-track',
+          type: 'interaction',
+          name: 'Interaction',
+          clips: [
+            {
+              id: 'old-button',
+              type: 'button',
+              startTime: 0,
+              duration: 2,
+              enabled: true,
+              label: 'Old button',
+              rect: { x: 0.1, y: 0.2, width: 0.3, height: 0.1 },
+              action: { type: 'continue' },
+            },
+            {
+              id: 'space-qte',
+              type: 'button',
+              mode: 'qte',
+              startTime: 2,
+              duration: 2.5,
+              enabled: true,
+              label: 'Dodge',
+              rect: { x: 0.2, y: 0.3, width: 0.2, height: 0.1 },
+              action: { type: 'continue' },
+              pauseOnShow: true,
+              qte: { input: 'space' },
+            },
+          ],
+        },
+      ],
+    } as NodeTimeline);
+
+    const clips = getInteractionTimelineClips(timeline);
+    expect(clips[0]?.id).toBe('old-button');
+    expect(clips[0]?.mode).toBeUndefined();
+    expect(clips[0]?.qte).toBeUndefined();
+    expect(clips[1]).toMatchObject({
+      id: 'space-qte',
+      mode: 'qte',
+      pauseOnShow: true,
+      qte: { input: 'space', keyLabel: 'Space', showCountdown: true },
+    });
+  });
+
   it('creates optional-click buttons by default and preserves explicit pause waits', () => {
     const buttonClip = createInteractionClip('button', 1, 8);
     const pauseButtonClip = { ...buttonClip, id: 'pause-button', pauseOnShow: true };
@@ -1961,6 +2021,49 @@ describe('NodeTimeline v2', () => {
     expect(lateTrigger.currentNodeId).toBe('start');
     const timeout = runtime.dispatch({ type: 'timeline.clip.timeout', clipId: buttonClip.id });
     expect(timeout.currentNodeId).toBe('timeout');
+  });
+
+  it('allows QTE timeouts while the active clip is paused before its timeline end', () => {
+    const qteClip = {
+      ...createInteractionClip('button', 1, 6),
+      mode: 'qte' as const,
+      duration: 2,
+      pauseOnShow: true,
+      qte: { input: 'space' as const, keyLabel: 'Space', showCountdown: true },
+      action: { type: 'goToNode', nodeId: 'success' } satisfies TimelineAction,
+      timeoutAction: { type: 'goToNode', nodeId: 'timeout' } satisfies TimelineAction,
+    };
+    const timeline = insertTimelineClip({
+      timeline: ensureNodeTimeline({ duration: 6 }),
+      clip: qteClip,
+    });
+    const graph: OpenFMVGraph = {
+      nodes: [
+        node('start', 'start', { type: 'start', label: 'Start', timeline }),
+        node('success', 'story', { type: 'story', title: 'Success', content: '' }),
+        node('timeout', 'story', { type: 'story', title: 'Timeout', content: '' }),
+      ],
+      edges: [] as AppEdge[],
+    };
+
+    let runtime = createRuntime(graph, { entryNodeId: 'start' });
+    runtime.start();
+    const early = runtime.dispatch({ type: 'timeline.clip.timeout', clipId: qteClip.id });
+    expect(early.currentNodeId).toBe('start');
+
+    runtime = createRuntime(graph, { entryNodeId: 'start' });
+    runtime.start();
+    runtime.dispatch({ type: 'timeline.time.update', time: 1 });
+    const timeout = runtime.dispatch({ type: 'timeline.clip.timeout', clipId: qteClip.id });
+    expect(timeout.currentNodeId).toBe('timeout');
+    expect(timeout.timelineTime).toBe(0);
+
+    runtime = createRuntime(graph, { entryNodeId: 'start' });
+    runtime.start();
+    runtime.dispatch({ type: 'timeline.time.update', time: 1.2 });
+    const success = runtime.dispatch({ type: 'timeline.clip.triggered', clipId: qteClip.id });
+    expect(success.currentNodeId).toBe('success');
+    expect(success.timelineTime).toBe(0);
   });
 
   it('omits hidden tracks from runtime media and interaction overlays', () => {

@@ -336,7 +336,13 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
     .timeline-clip { pointer-events: auto; position: absolute; display: flex; min-width: 48px; min-height: 36px; align-items: center; justify-content: center; box-sizing: border-box; border-radius: 12px; padding: 0 12px; color: white; font-size: 14px; font-weight: 750; cursor: pointer; box-shadow: 0 18px 54px rgba(0,0,0,.32); backdrop-filter: blur(14px); transition: transform .16s ease; }
     .timeline-clip:hover { transform: scale(1.02); }
     .timeline-clip.button { border: 1px solid rgba(253,186,116,.9); background: rgba(249,115,22,.92); }
+    .timeline-clip.qte { border-color: rgba(165,243,252,.9); background: rgba(6,182,212,.92); }
     .timeline-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .timeline-qte-label { display: flex; min-width: 0; max-width: 100%; flex-direction: column; align-items: center; justify-content: center; gap: 2px; text-align: center; line-height: 1.1; }
+    .timeline-qte-cue { display: block; max-width: 100%; overflow: hidden; color: rgba(255,255,255,.75); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; font-weight: 650; line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
+    .timeline-qte-name { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .timeline-qte-countdown { position: absolute; left: 8px; right: 8px; bottom: 4px; display: block; height: 4px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.18); }
+    .timeline-qte-countdown span { display: block; height: 100%; border-radius: 999px; background: white; }
     @keyframes timer { from { transform: scaleX(1); } to { transform: scaleX(0); } }
     @media (max-width: 720px) {
       .content { padding: 28px 20px; }
@@ -361,6 +367,11 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
     let timelineNodeId = null;
     let timelineShownClipIds = new Set();
     let timelineTimedOutClipIds = new Set();
+    let timelineResolvedQteClipIds = new Set();
+    let timelineQteStartedAt = new Map();
+    let timelineQteClickCounts = new Map();
+    let timelineClockTimer = null;
+    let timelineClockPaused = false;
 
     const escapeHtml = (value) => String(value || '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
     const effect = (type) => (snapshot && snapshot.effects || []).find((item) => item.type === type);
@@ -383,16 +394,107 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
       if (!clip) return '';
       return clip.label || clip.name || 'Continue';
     };
+    const timelineQteDisplayName = (clip) => {
+      const rawLabel = clip && (clip.label || clip.name);
+      const label = typeof rawLabel === 'string' ? rawLabel.trim() : '';
+      return !label || label === 'New choice' || label === 'Choice' ? 'QTE' : label;
+    };
+
+    const isTimelineQteClip = (clip) => clip && clip.type === 'button' && clip.mode === 'qte';
+    const timelineQteClickCount = (config) => {
+      const count = Number(config && config.clickCount);
+      return Number.isFinite(count) ? Math.max(1, Math.min(20, Math.round(count))) : 1;
+    };
+    const timelineQteConfig = (clip) => {
+      const input = clip && clip.qte && clip.qte.input === 'space' ? 'space' : 'click';
+      return {
+        input,
+        prompt: clip && clip.qte && clip.qte.prompt,
+        clickCount: clip && clip.qte && clip.qte.clickCount,
+        keyLabel: input === 'space' ? clip && clip.qte && clip.qte.keyLabel && clip.qte.keyLabel !== 'Click' ? clip.qte.keyLabel : 'Space' : 'Click',
+        showCountdown: !clip || !clip.qte || clip.qte.showCountdown !== false,
+      };
+    };
+    const timelineQteCueLabel = (config, completedClicks) => {
+      if (!config) return '';
+      if (config.input === 'space') return config.keyLabel || 'Space';
+      const clickCount = timelineQteClickCount(config);
+      if (clickCount <= 1) return '';
+      return completedClicks > 0 ? Math.min(completedClicks, clickCount) + '/' + clickCount : 'x' + clickCount;
+    };
+    const normalizeTimelineQteKeyToken = (value) => {
+      if (value === ' ') return 'space';
+      const normalized = (value || '').trim().toLowerCase().replace(/\s+/g, '');
+      if (normalized === 'spacebar') return 'space';
+      if (normalized === 'esc') return 'escape';
+      return normalized;
+    };
+    const timelineQteMatchesKeyEvent = (event, config) => {
+      if (!config || config.input !== 'space') return false;
+      const expected = normalizeTimelineQteKeyToken(config.keyLabel || 'Space');
+      const codeAlias = event.code && event.code.indexOf('Key') === 0
+        ? event.code.slice(3)
+        : event.code && event.code.indexOf('Digit') === 0
+          ? event.code.slice(5)
+          : event.code;
+      return [event.key, event.code, codeAlias, event.key === ' ' ? 'Space' : undefined]
+        .some((candidate) => normalizeTimelineQteKeyToken(candidate) === expected);
+    };
 
     const timelineClipAction = (clip) => {
       if (!clip) return { type: 'continue' };
       return clip.action || { type: 'continue' };
     };
 
+    const isTextEditingTarget = (target) => {
+      if (!target || !target.tagName) return false;
+      const tagName = target.tagName.toLowerCase();
+      return target.isContentEditable || tagName === 'input' || tagName === 'textarea' || tagName === 'select';
+    };
+
+    const clearTimelineClock = () => {
+      if (!timelineClockTimer) return;
+      clearInterval(timelineClockTimer);
+      timelineClockTimer = null;
+    };
+
+    const resumeTimelineClock = (video) => {
+      timelineClockPaused = false;
+      if (video) video.play();
+    };
+
+    const completeTimelineQte = (clip, reason, video) => {
+      if (!isTimelineQteClip(clip) || timelineResolvedQteClipIds.has(clip.id)) return false;
+      timelineResolvedQteClipIds.add(clip.id);
+      timelineQteClickCounts.delete(clip.id);
+      const action = reason === 'timeout' ? clip.timeoutAction : timelineClipAction(clip);
+      if (reason === 'timeout') timelineTimedOutClipIds.add(clip.id);
+      if (!action) {
+        if (clip.pauseOnShow) resumeTimelineClock(video);
+        return false;
+      }
+      if (action.type === 'continue') {
+        resumeTimelineClock(video);
+        return false;
+      }
+      send({ type: reason === 'timeout' ? 'timeline.clip.timeout' : 'timeline.clip.triggered', clipId: clip.id, action });
+      return true;
+    };
+
     const renderTimelineOverlay = (overlay, activeClips) => {
       overlay.innerHTML = '<div class="timeline-frame">' + activeClips.map((clip) => {
         const rect = timelineClipRect(clip);
-        return '<button class="timeline-clip ' + escapeHtml(clip.type) + '" data-timeline-clip="' + escapeHtml(clip.id) + '" style="left:' + (rect.x * 100) + '%;top:' + (rect.y * 100) + '%;width:' + (rect.width * 100) + '%;height:' + (rect.height * 100) + '%"><span class="timeline-label">' + escapeHtml(timelineClipLabel(clip)) + '</span></button>';
+        const isQte = isTimelineQteClip(clip);
+        const qte = timelineQteConfig(clip);
+        const qteStartedAt = timelineQteStartedAt.get(clip.id);
+        const qteDuration = Math.max(1, (clip.duration || 0) * 1000);
+        const qteRemainingRatio = qteStartedAt ? Math.max(0, Math.min(1, 1 - ((performance.now() - qteStartedAt) / qteDuration))) : 1;
+        const qteCueLabel = isQte ? timelineQteCueLabel(qte, timelineQteClickCounts.get(clip.id) || 0) : '';
+        const label = timelineClipLabel(clip);
+        const labelHtml = isQte
+          ? '<span class="timeline-qte-label">' + (qteCueLabel ? '<span class="timeline-qte-cue">' + escapeHtml(qteCueLabel) + '</span>' : '') + '<span class="timeline-qte-name">' + escapeHtml(timelineQteDisplayName(clip)) + '</span>' + (qte.showCountdown ? '<span class="timeline-qte-countdown"><span style="width:' + (qteRemainingRatio * 100) + '%"></span></span>' : '') + '</span>'
+          : '<span class="timeline-label">' + escapeHtml(label) + '</span>';
+        return '<button class="timeline-clip ' + escapeHtml(clip.type) + (isQte ? ' qte' : '') + '" data-timeline-clip="' + escapeHtml(clip.id) + '"' + (isQte ? ' data-qte-input="' + escapeHtml(qte.input) + '"' : '') + ' style="left:' + (rect.x * 100) + '%;top:' + (rect.y * 100) + '%;width:' + (rect.width * 100) + '%;height:' + (rect.height * 100) + '%">' + labelHtml + '</button>';
       }).join('') + '</div>';
     };
 
@@ -401,6 +503,10 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
       timelineNodeId = timeline.nodeId;
       timelineShownClipIds = new Set();
       timelineTimedOutClipIds = new Set();
+      timelineResolvedQteClipIds = new Set();
+      timelineQteStartedAt = new Map();
+      timelineQteClickCounts = new Map();
+      timelineClockPaused = false;
     };
 
     const wireTimelineOverlay = () => {
@@ -408,38 +514,87 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
       const mediaEffect = effect('playMedia');
       const overlay = document.getElementById('timelineOverlay');
       const video = appRoot.querySelector('video.media');
-      if (!timeline || !overlay || !video || !snapshot.currentNode || !mediaEffect || mediaEffect.mediaType !== 'video') return;
+      if (!timeline || !overlay || !snapshot.currentNode) return;
 
       resetTimelineSessionIfNeeded(timeline);
 
+      const getTimelineTime = () => {
+        if (video && mediaEffect && mediaEffect.mediaType === 'video') {
+          const playbackRate = Number(mediaEffect.playbackRate) > 0 ? Number(mediaEffect.playbackRate) : 1;
+          return (mediaEffect.timelineStartTime || 0) + Math.max(0, (video.currentTime || 0) - (mediaEffect.sourceStart || 0)) / playbackRate;
+        }
+        return snapshot.timelineTime || 0;
+      };
+
+      const updateRuntimeTimelineTime = (time) => {
+        if (!snapshot || snapshot.status !== 'running') return;
+        if (Math.abs((snapshot.timelineTime || 0) - time) <= 0.02) return;
+        snapshot = runtime.dispatch({ type: 'timeline.time.update', time });
+      };
+
       const syncTimeline = () => {
-        const time = (mediaEffect.timelineStartTime || 0) + (video.currentTime || 0) - (mediaEffect.sourceStart || 0);
-        const activeClips = runtimeCore.getActiveTimelineClips(snapshot.currentNode, time);
-        renderTimelineOverlay(overlay, activeClips);
+        if (!snapshot || !snapshot.currentNode) return;
+        const time = getTimelineTime();
+        updateRuntimeTimelineTime(time);
+        const activeClips = runtimeCore.getActiveTimelineClips(snapshot.currentNode, snapshot.timelineTime || time);
+        const activeQteClipIds = new Set(activeClips.filter(isTimelineQteClip).map((clip) => clip.id));
+        activeClips.forEach((clip) => {
+          if (isTimelineQteClip(clip) && !timelineQteStartedAt.has(clip.id)) timelineQteStartedAt.set(clip.id, performance.now());
+        });
+        timelineQteStartedAt.forEach((_startedAt, clipId) => {
+          if (!activeQteClipIds.has(clipId)) timelineQteStartedAt.delete(clipId);
+        });
+        timelineQteClickCounts.forEach((_count, clipId) => {
+          if (!activeQteClipIds.has(clipId)) timelineQteClickCounts.delete(clipId);
+        });
 
         activeClips.forEach((clip) => {
           if (timelineShownClipIds.has(clip.id)) return;
           if (clip.pauseOnShow) {
             timelineShownClipIds.add(clip.id);
-            video.pause();
+            timelineClockPaused = true;
+            if (video) video.pause();
           }
         });
 
+        for (const clip of activeClips) {
+          if (!isTimelineQteClip(clip) || timelineResolvedQteClipIds.has(clip.id)) continue;
+          const startedAt = timelineQteStartedAt.get(clip.id) || performance.now();
+          const durationMs = Math.max(0, (clip.duration || 0) * 1000);
+          if (performance.now() - startedAt >= durationMs && completeTimelineQte(clip, 'timeout', video)) return;
+        }
+
         timeline.clips.forEach((clip) => {
           const endTime = runtimeCore.getTimelineClipEndTime(clip);
-          if (clip.type !== 'button' || !clip.timeoutAction || time < endTime || timelineTimedOutClipIds.has(clip.id)) return;
+          if (isTimelineQteClip(clip) || clip.type !== 'button' || !clip.timeoutAction || (snapshot.timelineTime || time) < endTime || timelineTimedOutClipIds.has(clip.id)) return;
           timelineTimedOutClipIds.add(clip.id);
           send({ type: 'timeline.clip.timeout', clipId: clip.id, action: clip.timeoutAction });
         });
+        if (!snapshot || !snapshot.currentNode || effect('timelineOverlay')?.nodeId !== timeline.nodeId) return;
+
+        renderTimelineOverlay(overlay, activeClips.filter((clip) => !isTimelineQteClip(clip) || !timelineResolvedQteClipIds.has(clip.id)));
 
         overlay.querySelectorAll('[data-timeline-clip]').forEach((button) => {
           button.addEventListener('click', (event) => {
             event.stopPropagation();
             const clip = timeline.clips.find((item) => item.id === button.dataset.timelineClip);
             if (!clip) return;
+            if (isTimelineQteClip(clip)) {
+              const qte = timelineQteConfig(clip);
+              if (qte.input !== 'click') return;
+              const clickCount = timelineQteClickCount(qte);
+              const nextCount = (timelineQteClickCounts.get(clip.id) || 0) + 1;
+              timelineQteClickCounts.set(clip.id, nextCount);
+              if (nextCount >= clickCount) {
+                if (!completeTimelineQte(clip, 'success', video)) syncTimeline();
+                return;
+              }
+              syncTimeline();
+              return;
+            }
             const action = timelineClipAction(clip);
             if (action.type === 'continue') {
-              video.play();
+              resumeTimelineClock(video);
               return;
             }
             send({ type: 'timeline.clip.triggered', clipId: clip.id, action });
@@ -448,15 +603,26 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
       };
 
       syncTimeline();
-      video.addEventListener('timeupdate', syncTimeline);
-      video.addEventListener('seeked', syncTimeline);
-      video.addEventListener('loadedmetadata', syncTimeline);
+      if (video) {
+        video.addEventListener('timeupdate', syncTimeline);
+        video.addEventListener('seeked', syncTimeline);
+        video.addEventListener('loadedmetadata', syncTimeline);
+      }
+      timelineClockTimer = setInterval(() => {
+        const activeTimeline = effect('timelineOverlay');
+        if (!activeTimeline || !snapshot || snapshot.status !== 'running') return;
+        if (!video && !timelineClockPaused) {
+          const duration = Number(activeTimeline.duration) || 0;
+          const nextTime = duration > 0 ? Math.min(duration, (snapshot.timelineTime || 0) + 0.1) : (snapshot.timelineTime || 0) + 0.1;
+          snapshot = runtime.dispatch({ type: 'timeline.time.update', time: nextTime });
+        }
+        syncTimeline();
+      }, 100);
     };
 
     const renderActions = () => {
-      const mediaEffect = effect('playMedia');
       const timeline = effect('timelineOverlay');
-      if (timeline && mediaEffect && mediaEffect.mediaType === 'video') return '';
+      if (timeline) return '';
       if (!snapshot || snapshot.status === 'ended' || (snapshot.currentNode && snapshot.currentNode.type === 'end')) {
         return '<div class="actions actions-single actions-start"><button class="action-button" data-restart="1"><span class="action-label">' + escapeHtml(t('restart')) + '</span><span class="action-arrow">↻</span></button></div>';
       }
@@ -482,6 +648,7 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
         clearTimeout(countdownTimer);
         countdownTimer = null;
       }
+      clearTimelineClock();
       const scene = effect('scene');
       const mediaEffect = effect('playMedia');
       const timerEffect = effect('startTimer');
@@ -534,6 +701,18 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
         });
       });
     };
+
+    document.addEventListener('keydown', (event) => {
+      if (isTextEditingTarget(event.target)) return;
+      const timeline = effect('timelineOverlay');
+      if (!timeline || !snapshot || !snapshot.currentNode) return;
+      const activeClips = runtimeCore.getActiveTimelineClips(snapshot.currentNode, snapshot.timelineTime || 0);
+      const clip = activeClips.find((item) => isTimelineQteClip(item) && !timelineResolvedQteClipIds.has(item.id) && timelineQteMatchesKeyEvent(event, timelineQteConfig(item)));
+      if (!clip) return;
+      event.preventDefault();
+      const video = appRoot.querySelector('video.media');
+      if (!completeTimelineQte(clip, 'success', video)) render();
+    });
 
     try {
       const game = JSON.parse(document.getElementById('game-data').textContent);

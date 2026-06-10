@@ -1,6 +1,7 @@
 import {
   NodeTimeline,
   OverlayRect,
+  ButtonQteConfig,
   TimelineAction,
   TimelineBookmark,
   TimelineClip,
@@ -195,6 +196,31 @@ export const getDefaultOverlayRect = (type: TimelineInteractionClipType): Overla
   return { x: 0.39, y: 0.72, width: 0.22, height: 0.1 };
 };
 
+export const getButtonMode = (clip: Pick<TimelineInteractionClip, 'mode'> | null | undefined) => (
+  clip?.mode === 'qte' ? 'qte' : 'normal'
+);
+
+export const isQteButtonClip = (clip: Pick<TimelineInteractionClip, 'mode'> | null | undefined) => (
+  getButtonMode(clip) === 'qte'
+);
+
+const normalizeButtonQteConfig = (value: unknown): ButtonQteConfig => {
+  const source = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  const input = source.input === 'space' ? 'space' : 'click';
+  const prompt = typeof source.prompt === 'string' && source.prompt.trim() ? source.prompt : undefined;
+  const clickCount = Number.isFinite(Number(source.clickCount)) ? Math.max(1, Math.min(20, Math.round(Number(source.clickCount)))) : 1;
+  const keyLabel = typeof source.keyLabel === 'string' && source.keyLabel.trim()
+    ? input === 'space' && source.keyLabel === 'Click' ? 'Space' : source.keyLabel
+    : input === 'space' ? 'Space' : 'Click';
+  return {
+    input,
+    ...(prompt ? { prompt } : {}),
+    clickCount,
+    keyLabel,
+    showCountdown: source.showCountdown !== false,
+  };
+};
+
 export const createEmptyTimelineTrack = (
   type: TimelineTrackType,
   id = getDefaultTrackIdForType(type),
@@ -262,15 +288,19 @@ const normalizeInteractionClip = (clip: ClipRecord): TimelineInteractionClip | n
   if (!isInteractionClipType(clip.type)) return null;
   const base = normalizeBaseClip(clip);
   const action = (clip.action || { type: 'continue' }) as TimelineAction;
+  const label = typeof clip.label === 'string' ? clip.label : 'Choice';
+  const mode = clip.mode === 'qte' ? 'qte' : undefined;
 
   return {
     ...base,
     type: 'button',
-    label: typeof clip.label === 'string' ? clip.label : 'Choice',
+    ...(mode ? { mode } : {}),
+    label,
     rect: clampOverlayRect((clip.rect as OverlayRect | undefined) || getDefaultOverlayRect('button')),
     action,
     pauseOnShow: clip.pauseOnShow === true,
     timeoutAction: clip.timeoutAction as TimelineAction | undefined,
+    ...(mode === 'qte' ? { qte: normalizeButtonQteConfig(clip.qte) } : {}),
   };
 };
 
@@ -442,7 +472,16 @@ export const resolveTimelineClipKeyframes = <TClip extends TimelineClip>(clip: T
 };
 
 export const getTimelineClipLabel = (clip: TimelineClip) => {
-  if (clip.type === 'button') return clip.label || clip.name || 'Continue';
+  if (clip.type === 'button') {
+    if (isQteButtonClip(clip)) {
+      const clickCount = Number.isFinite(Number(clip.qte?.clickCount)) ? Math.max(1, Math.round(Number(clip.qte?.clickCount))) : 1;
+      const input = clip.qte?.input === 'space' ? clip.qte.keyLabel || 'Space' : clickCount > 1 ? `Click x${clickCount}` : 'Click';
+      const label = (clip.label || clip.name || '').trim();
+      const name = !label || label === 'New choice' || label === 'Choice' ? 'QTE' : label;
+      return `${name} · ${input} · ${roundTimelineTime(clip.duration).toFixed(2)}s`;
+    }
+    return clip.label || clip.name || 'Continue';
+  }
   if (isMediaClipType(clip.type) && 'src' in clip) return clip.name || clip.src.split(/[\\/]/).pop() || clip.type;
   return clip.name || clip.type;
 };
