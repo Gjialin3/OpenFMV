@@ -6,9 +6,11 @@ import {
 } from './projectPersistence';
 import { classifyAssetSource } from './assetPaths';
 import { saveBrowserAssetFile } from './browserAssets';
+import { resolveMediaSrc } from './mediaSrc';
 import { decodeTextBuffer } from './textEncoding';
 
 const PROJECTS_KEY = 'openfmv-local-projects';
+const VIDEO_POSTER_MAX_WIDTH = 360;
 
 export const defaultGraphData = (): { nodes: AppNode[]; edges: AppEdge[] } => createDefaultGraphData();
 
@@ -55,6 +57,23 @@ const toFileUrl = (absolutePath: string) => {
   return encodeURI(`file:///${absolutePath.replace(/\\/g, '/')}`);
 };
 
+const resolveProjectAssetValueForEditor = (projectDirectory: string, value: unknown) => {
+  return isRelativeAssetPath(value) ? toFileUrl(`${projectDirectory}\\${String(value)}`) : value;
+};
+
+const resolveProjectAssetMetadataForEditor = (
+  projectDirectory: string,
+  metadata: OpenFMVAsset['metadata']
+): OpenFMVAsset['metadata'] => {
+  if (!metadata) return metadata;
+  const nextMetadata = { ...metadata };
+  for (const key of ['poster', 'thumbnail'] as const) {
+    const value = nextMetadata[key];
+    if (isRelativeAssetPath(value)) nextMetadata[key] = resolveProjectAssetValueForEditor(projectDirectory, value);
+  }
+  return nextMetadata;
+};
+
 const readAsDataUrl = (file: File) => {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -79,6 +98,103 @@ const getAssetTypeFromFile = (file: File): OpenFMVAsset['type'] => {
 };
 
 const roundAssetMetadataNumber = (value: number) => Math.round(value * 1000) / 1000;
+
+const getVideoPosterSeekTimes = (duration: number) => {
+  const fallbackTimes = [0.2, 0.8, 1.6, 2.8];
+  const durationTimes = Number.isFinite(duration) && duration > 0
+    ? [duration * 0.08, duration * 0.16, duration * 0.28]
+    : [];
+
+  return [...fallbackTimes, ...durationTimes]
+    .map((time) => Math.max(0, Number(time) || 0))
+    .filter((time) => !Number.isFinite(duration) || duration <= 0 || time < Math.max(0.05, duration - 0.05))
+    .map((time) => roundAssetMetadataNumber(time))
+    .filter((time, index, times) => times.indexOf(time) === index)
+    .slice(0, 5);
+};
+
+const seekVideo = (video: HTMLVideoElement, time: number) => {
+  return new Promise<boolean>((resolve) => {
+    if (typeof video.addEventListener !== 'function' || typeof video.removeEventListener !== 'function') {
+      try {
+        video.currentTime = time;
+        resolve(video.readyState >= 2);
+      } catch {
+        resolve(false);
+      }
+      return;
+    }
+
+    let finished = false;
+    const cleanup = () => {
+      window.clearTimeout(timeoutId);
+      video.removeEventListener('seeked', handleSeeked);
+      video.removeEventListener('error', handleError);
+    };
+    const finish = (value: boolean) => {
+      if (finished) return;
+      finished = true;
+      cleanup();
+      resolve(value);
+    };
+    const handleSeeked = () => finish(true);
+    const handleError = () => finish(false);
+    const timeoutId = window.setTimeout(() => finish(video.readyState >= 2), 1200);
+
+    video.addEventListener('seeked', handleSeeked, { once: true });
+    video.addEventListener('error', handleError, { once: true });
+
+    try {
+      video.currentTime = time;
+    } catch {
+      finish(false);
+    }
+  });
+};
+
+const captureVideoPosterFrame = (video: HTMLVideoElement) => {
+  if (typeof document === 'undefined') return null;
+  if (!video.videoWidth || !video.videoHeight) return null;
+
+  const canvas = document.createElement('canvas');
+  const scale = Math.min(1, VIDEO_POSTER_MAX_WIDTH / video.videoWidth);
+  canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+  canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  if (!context) return null;
+
+  context.drawImage(video, 0, 0, canvas.width, canvas.height);
+  const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+  const step = Math.max(4, Math.floor(pixels.length / 2400) * 4);
+  let luminanceTotal = 0;
+  let sampleCount = 0;
+  for (let index = 0; index < pixels.length; index += step) {
+    luminanceTotal += (pixels[index] * 0.2126) + (pixels[index + 1] * 0.7152) + (pixels[index + 2] * 0.0722);
+    sampleCount += 1;
+  }
+
+  return {
+    dataUrl: canvas.toDataURL('image/jpeg', 0.72),
+    luminance: sampleCount > 0 ? luminanceTotal / sampleCount : 0,
+  };
+};
+
+const readVideoPoster = async (video: HTMLVideoElement) => {
+  const duration = Number(video.duration);
+  let bestFrame: { dataUrl: string; luminance: number } | null = null;
+
+  for (const time of getVideoPosterSeekTimes(duration)) {
+    const canCapture = await seekVideo(video, time);
+    if (!canCapture) continue;
+    const frame = captureVideoPosterFrame(video);
+    if (!frame) continue;
+    if (!bestFrame || frame.luminance > bestFrame.luminance) bestFrame = frame;
+    if (frame.luminance >= 18) break;
+  }
+
+  return bestFrame?.dataUrl;
+};
 
 const readMediaElementMetadata = (src: string, type: 'video' | 'audio') => {
   if (typeof document === 'undefined' || typeof window === 'undefined') return Promise.resolve({});
@@ -107,6 +223,10 @@ const readMediaElementMetadata = (src: string, type: 'video' | 'audio') => {
         const video = element as HTMLVideoElement;
         if (Number.isFinite(video.videoWidth) && video.videoWidth > 0) metadata.width = video.videoWidth;
         if (Number.isFinite(video.videoHeight) && video.videoHeight > 0) metadata.height = video.videoHeight;
+        void readVideoPoster(video)
+          .then((poster) => finish(poster ? { ...metadata, poster, thumbnail: poster } : metadata))
+          .catch(() => finish(metadata));
+        return;
       }
       finish(metadata);
     };
@@ -165,7 +285,8 @@ export const readBrowserAssetMetadata = async (file: File): Promise<Record<strin
 const enrichAssetMetadata = async (asset: OpenFMVAsset): Promise<OpenFMVAsset> => {
   if (asset.type === 'text') return asset;
   const source = asset.relativePath || asset.path;
-  const metadata = source ? await readAssetSourceMetadata(source, asset.type) : {};
+  const metadataSource = source ? resolveMediaSrc(source) || source : '';
+  const metadata = metadataSource ? await readAssetSourceMetadata(metadataSource, asset.type) : {};
   if (Object.keys(metadata).length === 0) return asset;
   return {
     ...asset,
@@ -176,11 +297,18 @@ const enrichAssetMetadata = async (asset: OpenFMVAsset): Promise<OpenFMVAsset> =
   };
 };
 
-const resolveProjectForEditor = (project: OpenFMVProject): OpenFMVProject => {
+export const resolveLocalProjectForEditor = (project: OpenFMVProject): OpenFMVProject => {
   const projectDirectory = project.metadata?.projectDirectory;
   if (!projectDirectory) return project;
 
   const graphData = ensureGraphData(JSON.parse(JSON.stringify(project.graphData)) as OpenFMVProject['graphData']);
+  const assets = (project.assets || []).map((asset) => ({
+    ...asset,
+    path: resolveProjectAssetValueForEditor(projectDirectory, asset.path) as string,
+    relativePath: resolveProjectAssetValueForEditor(projectDirectory, asset.relativePath) as string,
+    metadata: resolveProjectAssetMetadataForEditor(projectDirectory, asset.metadata),
+  }));
+
   for (const node of graphData.nodes) {
     if (!node.data) continue;
     const timeline = (node.data as Record<string, unknown>).timeline as { tracks?: Array<{ clips?: Array<Record<string, unknown>> }> } | undefined;
@@ -190,9 +318,7 @@ const resolveProjectForEditor = (project: OpenFMVProject): OpenFMVProject => {
       for (const clip of clips) {
         for (const key of ['src', 'poster'] as const) {
           const value = clip[key];
-          if (isRelativeAssetPath(value)) {
-            clip[key] = toFileUrl(`${projectDirectory}\\${value}`);
-          }
+          clip[key] = resolveProjectAssetValueForEditor(projectDirectory, value);
         }
       }
     }
@@ -200,6 +326,7 @@ const resolveProjectForEditor = (project: OpenFMVProject): OpenFMVProject => {
 
   return {
     ...project,
+    assets,
     graphData,
   };
 };
@@ -234,7 +361,7 @@ export const listLocalProjects = (): OpenFMVProject[] => {
 export const getLocalProject = (id: string | null | undefined): OpenFMVProject | null => {
   if (!id) return null;
   const project = listLocalProjects().find((item) => item.id === id) ?? null;
-  return project ? resolveProjectForEditor(project) : null;
+  return project ? resolveLocalProjectForEditor(project) : null;
 };
 
 const getStoredLocalProject = (id: string | null | undefined): OpenFMVProject | null => {
@@ -252,7 +379,7 @@ export const saveLocalProject = async (project: OpenFMVProject): Promise<OpenFMV
       ? projects.map((item) => (item.id === savedProject.id ? savedProject : item))
       : [savedProject, ...projects];
     writeRawProjects(nextProjects);
-    return savedProject;
+    return resolveLocalProjectForEditor(savedProject);
   }
   const projects = listLocalProjects();
   const existingIndex = projects.findIndex((item) => item.id === nextProject.id);
@@ -313,7 +440,7 @@ export const registerLocalProject = (project: OpenFMVProject): OpenFMVProject =>
     ? projects.map((item) => (item.id === normalizedProject.id ? normalizedProject : item))
     : [normalizedProject, ...projects];
   writeRawProjects(nextProjects);
-  return normalizedProject;
+  return resolveLocalProjectForEditor(normalizedProject);
 };
 
 export const openLocalProject = async (): Promise<OpenFMVProject | null> => {

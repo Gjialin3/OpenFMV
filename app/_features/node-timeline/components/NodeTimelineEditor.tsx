@@ -85,7 +85,7 @@ import { useProjectSessionStore } from '@/app/_features/project-session/store';
 import { useResolvedMediaSrc } from '@/app/_hooks/useResolvedMediaSrc';
 import { useEditorStore } from '@/app/_store/useEditorStore';
 import { getLocalizedPath } from '@/app/_utils/localePaths';
-import { addAssetsToLocalProject, canUseNativeAssetPicker, importAssetFromFile, importAssetFromNativePicker, isStorageQuotaError, listLocalProjects, removeAssetFromLocalProject } from '@/app/_utils/localProjects';
+import { addAssetsToLocalProject, canUseNativeAssetPicker, importAssetFromFile, importAssetFromNativePicker, isStorageQuotaError, listLocalProjects, removeAssetFromLocalProject, resolveLocalProjectForEditor } from '@/app/_utils/localProjects';
 import {
   addTimelineTrack,
   buildAudioWaveformPeaks,
@@ -131,6 +131,7 @@ import {
   getTimelineSplitTargetClipIds,
   getMediaFilesFromClipboardData,
   getTimelineMediaElementTime,
+  getTimelineMediaAssetPoster,
   getTimelineMediaPlaybackRate,
   getTimelineMediaSourceEnd,
   getTrackMediaRole,
@@ -1289,7 +1290,7 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
   }, [selectClipIds, selectSingleClip, timeline]);
 
   const refreshAssetLibrary = useCallback(() => {
-    const projects = listLocalProjects();
+    const projects = listLocalProjects().map(resolveLocalProjectForEditor);
     const activeProject = currentProjectId ? projects.find((project) => project.id === currentProjectId) : null;
     const visibleProjects = activeProject
       ? [activeProject, ...projects.filter((project) => project.id !== activeProject.id)]
@@ -4396,10 +4397,14 @@ function ContextMenuButton({
 
 function AssetLibraryPreview({ asset }: { asset: OpenFMVAsset }) {
   const src = useResolvedMediaSrc(getAssetSource(asset));
+  const poster = useResolvedMediaSrc(getTimelineMediaAssetPoster(asset.metadata));
   const Icon = mediaIcons[asset.type as TimelineMediaClipType] || Film;
 
   if (asset.type === 'image') return <img src={src} alt={asset.name} className="h-full w-full object-cover" />;
-  if (asset.type === 'video') return <video src={src} className="h-full w-full object-cover" muted playsInline preload="metadata" />;
+  if (asset.type === 'video') {
+    if (poster) return <img src={poster} alt={asset.name} className="h-full w-full object-cover" />;
+    return <video src={src} className="h-full w-full object-cover" muted playsInline preload="metadata" />;
+  }
   return <Icon size={18} />;
 }
 

@@ -28,6 +28,38 @@ const resolveLocalPath = (src: string) => {
   return null;
 };
 
+const parseRangeHeader = (rangeHeader: string | null, fileSize: number) => {
+  if (!rangeHeader) return null;
+
+  const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim());
+  if (!match) return null;
+
+  const [, rawStart, rawEnd] = match;
+  if (!rawStart && !rawEnd) return 'invalid';
+
+  let start: number;
+  let end: number;
+
+  if (!rawStart) {
+    const suffixLength = Number(rawEnd);
+    if (!Number.isInteger(suffixLength) || suffixLength <= 0) return 'invalid';
+    start = Math.max(fileSize - suffixLength, 0);
+    end = fileSize - 1;
+  } else {
+    start = Number(rawStart);
+    end = rawEnd ? Number(rawEnd) : fileSize - 1;
+  }
+
+  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start || start >= fileSize) {
+    return 'invalid';
+  }
+
+  return {
+    start,
+    end: Math.min(end, fileSize - 1),
+  };
+};
+
 export async function GET(request: Request) {
   const src = new URL(request.url).searchParams.get('src');
   if (!src) {
@@ -50,14 +82,42 @@ export async function GET(request: Request) {
       return new Response('Not found', { status: 404 });
     }
 
-    const stream = Readable.toWeb(createReadStream(filePath)) as ReadableStream;
+    const range = parseRangeHeader(request.headers.get('range'), fileStat.size);
     const contentType = contentTypes[path.extname(filePath).toLowerCase()] || 'application/octet-stream';
+    const baseHeaders = {
+      'Accept-Ranges': 'bytes',
+      'Content-Type': contentType,
+      'Cache-Control': 'no-store',
+    };
+
+    if (range === 'invalid') {
+      return new Response(null, {
+        status: 416,
+        headers: {
+          ...baseHeaders,
+          'Content-Range': `bytes */${fileStat.size}`,
+        },
+      });
+    }
+
+    if (range) {
+      const stream = Readable.toWeb(createReadStream(filePath, { start: range.start, end: range.end })) as ReadableStream;
+      return new Response(stream, {
+        status: 206,
+        headers: {
+          ...baseHeaders,
+          'Content-Length': String(range.end - range.start + 1),
+          'Content-Range': `bytes ${range.start}-${range.end}/${fileStat.size}`,
+        },
+      });
+    }
+
+    const stream = Readable.toWeb(createReadStream(filePath)) as ReadableStream;
 
     return new Response(stream, {
       headers: {
-        'Content-Type': contentType,
+        ...baseHeaders,
         'Content-Length': String(fileStat.size),
-        'Cache-Control': 'no-store',
       },
     });
   } catch {

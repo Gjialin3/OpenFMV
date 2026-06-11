@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { OpenFMVAsset, OpenFMVProject } from '@/app/_types';
-import { addAssetsToLocalProject, importAssetFromFile, removeAssetFromLocalProject } from '@/app/_utils/localProjects';
+import { addAssetsToLocalProject, importAssetFromFile, removeAssetFromLocalProject, saveLocalProject } from '@/app/_utils/localProjects';
 
 vi.mock('@/app/_utils/browserAssets', () => ({
   saveBrowserAssetFile: vi.fn(async () => 'openfmv-idb://asset-2'),
@@ -82,6 +82,10 @@ describe('localProjects', () => {
       configurable: true,
       value: localStorageMock,
     });
+    Object.defineProperty(window, 'openfmv', {
+      configurable: true,
+      value: undefined,
+    });
   });
 
   it('adds editor imported assets to the current local project with de-duplication', async () => {
@@ -143,6 +147,83 @@ describe('localProjects', () => {
 
     expect(savedProjects[0].assets).toEqual([]);
     expect(timeline.tracks[0].clips[0].assetId).toBe('asset-1');
+  });
+
+  it('returns editor-resolved native project asset paths while storing raw project-relative paths', async () => {
+    const nativeProject: OpenFMVProject = {
+      ...project,
+      metadata: {
+        projectDirectory: 'D:\\OpenFMVProject',
+        projectPath: 'D:\\OpenFMVProject\\project.openfmv.json',
+      },
+      assets: [
+        {
+          ...nextAsset,
+          path: 'assets/videos/clip.mp4',
+          relativePath: 'assets/videos/clip.mp4',
+          metadata: {
+            poster: 'assets/images/poster.jpg',
+            thumbnail: 'assets/images/poster.jpg',
+          },
+        },
+      ],
+      graphData: {
+        nodes: [
+          {
+            ...project.graphData.nodes[0],
+            data: {
+              ...project.graphData.nodes[0].data,
+              timeline: {
+                version: 2,
+                duration: 6,
+                zoom: 64,
+                bookmarks: [],
+                tracks: [
+                  {
+                    id: 'media-track-main',
+                    type: 'media',
+                    name: 'Media',
+                    clips: [
+                      {
+                        id: 'clip-1',
+                        type: 'video',
+                        src: 'assets/videos/clip.mp4',
+                        poster: 'assets/images/poster.jpg',
+                        assetId: 'asset-2',
+                        startTime: 0,
+                        duration: 6,
+                        enabled: true,
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+        ],
+        edges: [],
+      },
+    };
+    Object.defineProperty(window, 'openfmv', {
+      configurable: true,
+      value: {
+        saveProject: vi.fn(async () => nativeProject),
+      },
+    });
+
+    const savedProject = await saveLocalProject(project);
+    const savedTimeline = savedProject.graphData.nodes[0].data.timeline as { tracks: Array<{ clips: Array<{ src: string; poster?: string }> }> };
+    const storedProjects = JSON.parse(storage[PROJECTS_KEY]) as OpenFMVProject[];
+    const storedTimeline = storedProjects[0].graphData.nodes[0].data.timeline as { tracks: Array<{ clips: Array<{ src: string; poster?: string }> }> };
+
+    expect(savedProject.assets[0].relativePath).toBe('file:///D:/OpenFMVProject/assets/videos/clip.mp4');
+    expect(savedProject.assets[0].metadata?.poster).toBe('file:///D:/OpenFMVProject/assets/images/poster.jpg');
+    expect(savedTimeline.tracks[0].clips[0].src).toBe('file:///D:/OpenFMVProject/assets/videos/clip.mp4');
+    expect(savedTimeline.tracks[0].clips[0].poster).toBe('file:///D:/OpenFMVProject/assets/images/poster.jpg');
+    expect(storedProjects[0].assets[0].relativePath).toBe('assets/videos/clip.mp4');
+    expect(storedProjects[0].assets[0].metadata?.poster).toBe('assets/images/poster.jpg');
+    expect(storedTimeline.tracks[0].clips[0].src).toBe('assets/videos/clip.mp4');
+    expect(storedTimeline.tracks[0].clips[0].poster).toBe('assets/images/poster.jpg');
   });
 
   it('reads browser video metadata during asset import', async () => {
