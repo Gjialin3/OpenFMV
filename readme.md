@@ -173,6 +173,27 @@ updatedAt
 
 Imported assets are copied into the local project or app data directory. When exporting a project or desktop experience, related timeline `src` and `poster` assets are copied into the output directory so the result can run without relying on the original asset paths.
 
+In the installed Electron app on Windows, OpenFMV keeps its local workspace under:
+
+```text
+%APPDATA%\openfmv-client
+```
+
+Native file imports are first copied into:
+
+```text
+%APPDATA%\openfmv-client\assets
+```
+
+When a project is saved, project-owned copies are written under:
+
+```text
+%APPDATA%\openfmv-client\projects\<project-title>\assets
+%APPDATA%\openfmv-client\projects\<project-title>\project.openfmv.json
+```
+
+Project asset folders are grouped by media type, for example `assets\videos`, `assets\images`, and `assets\files`. Original source files are copied, not moved.
+
 ## Desktop Export
 
 Use:
@@ -181,7 +202,25 @@ Use:
 npm run package:desktop
 ```
 
-After the build completes, the desktop app is output to `dist/`. Interactive stories exported from the app include the runtime, project graph data, node timelines, and asset resources, making them suitable for distribution to players or testers.
+After the build completes, desktop distribution files are output to `dist/`:
+
+```text
+dist\OpenFMV-win32-x64\OpenFMV.exe
+dist\OpenFMV-win32-x64.zip
+dist\installers\OpenFMV-Setup-<version>.exe
+```
+
+The installer version comes from `package.json`; for example, version `0.0.1` produces `OpenFMV-Setup-0.0.1.exe`.
+
+The Windows installer copies the app to:
+
+```text
+%LOCALAPPDATA%\OpenFMV\app
+```
+
+It also creates Start Menu and desktop shortcuts named `OpenFMV`. After installation, launch OpenFMV from the shortcut instead of re-running the setup executable.
+
+Interactive stories exported from the app include the runtime, project graph data, node timelines, and asset resources, making them suitable for distribution to players or testers.
 
 ## Development Notes
 
