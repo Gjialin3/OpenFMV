@@ -114,6 +114,7 @@ const getInteractionClipAction = (clip: TimelineInteractionClip): TimelineAction
 };
 
 const getTimelineOutputLabel = (clip: TimelineInteractionClip, t: EditorTranslator) => t('nodePreview.clicked', { label: getTimelineClipLabel(clip) });
+const getTimelineFailureOutputLabel = (clip: TimelineInteractionClip, t: EditorTranslator) => `${getTimelineClipLabel(clip)}: ${t('nodePreview.fail')}`;
 
 const buildOutputRows = ({
   data,
@@ -156,6 +157,11 @@ const buildOutputRows = ({
       return;
     }
 
+    if (action.type === 'pause') {
+      addRow({ key, label, targetLabel: t('nodePreview.pause'), handleId: rowHandleId, connectable: false, unlinked: false });
+      return;
+    }
+
     if (action.type === 'goToNode') {
       const targetLabel = action.nodeId ? getNodeDisplayName(nodesById.get(action.nodeId), t) : t('nodePreview.unlinked');
       addRow({ key, label, targetLabel, handleId: rowHandleId, connectable: canConnectRow, unlinked: !action.nodeId });
@@ -174,7 +180,7 @@ const buildOutputRows = ({
       connectable: true,
     });
     if (clip.timeoutAction) {
-      addActionRow(`clip:${clip.id}:timeout`, t('nodePreview.noAction'), clip.timeoutAction, {
+      addActionRow(`clip:${clip.id}:timeout`, getTimelineFailureOutputLabel(clip, t), clip.timeoutAction, {
         includeUnlinked: true,
         handleId: getTimelineClipOutputHandleId(clip.id, 'timeout'),
         connectable: true,

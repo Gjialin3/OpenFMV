@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { FolderOpen, LayoutList, MousePointer2, Plus, UserRound, X } from 'lucide-react';
+import { FolderOpen, LayoutList, MousePointer2, Plus, X } from 'lucide-react';
 import { NodeType } from '../../_types';
 import { nodeRegistry } from '../../_registry/nodeRegistry';
 
@@ -40,10 +40,6 @@ export default function FloatingToolbar({ onAddNode, onLayout, toolMode, onToolM
         </button>
         <button onClick={onLayout} className="flex h-11 w-11 items-center justify-center rounded-full text-openfmv-sub transition hover:bg-white/[0.10] hover:text-white" title={t('autoLayout')}>
           <LayoutList size={20} />
-        </button>
-        <div className="my-2 h-px w-8 bg-white/10" />
-        <button className="grid h-12 w-12 place-items-center rounded-full border border-white/10 bg-white/[0.08] text-openfmv-sub transition hover:bg-white/[0.12] hover:text-white" title={t('personalSpace')}>
-          <UserRound size={19} />
         </button>
       </div>
 

@@ -236,6 +236,7 @@ export function compileNodeTimeline(node) {
 
 export function resolveTimelineActionNodeId(node, edges, action = {}) {
   if (!action || action.type === 'continue') return node?.id ?? null;
+  if (action.type === 'pause') return node?.id ?? null;
   if (action.type === 'goToNode') return action.nodeId ?? null;
   if (action.type === 'goToHandle') return resolveNextNodeId(node, edges, { handleId: action.handleId ?? null });
   return node?.id ?? null;
@@ -454,6 +455,7 @@ export function dispatchRuntimeEvent(program, state, event) {
 
     const action = event.action || (type === 'timeline.clip.timeout' ? interactionClip?.timeoutAction : interactionClip?.action);
     if (!action || action.type === 'continue') return state;
+    if (action.type === 'pause') return state;
     const targetNodeId = resolveTimelineActionNodeId(currentNode, program.graph.edges, action);
     const targetNode = getNodeById(program.graph.nodes, targetNodeId);
     if (!targetNode) return state;

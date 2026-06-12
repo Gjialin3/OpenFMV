@@ -458,6 +458,11 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
       timelineClockTimer = null;
     };
 
+    const pauseTimelineClock = (video) => {
+      timelineClockPaused = true;
+      if (video) video.pause();
+    };
+
     const resumeTimelineClock = (video) => {
       timelineClockPaused = false;
       if (video) video.play();
@@ -475,6 +480,10 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
       }
       if (action.type === 'continue') {
         resumeTimelineClock(video);
+        return false;
+      }
+      if (action.type === 'pause') {
+        pauseTimelineClock(video);
         return false;
       }
       send({ type: reason === 'timeout' ? 'timeline.clip.timeout' : 'timeline.clip.triggered', clipId: clip.id, action });
@@ -550,12 +559,22 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
 
         activeClips.forEach((clip) => {
           if (timelineShownClipIds.has(clip.id)) return;
-          if (clip.pauseOnShow) {
+          if (clip.pauseOnShow && isTimelineQteClip(clip)) {
             timelineShownClipIds.add(clip.id);
             timelineClockPaused = true;
             if (video) video.pause();
           }
         });
+
+        for (const clip of timeline.clips) {
+          if (isTimelineQteClip(clip) || clip.type !== 'button' || !clip.pauseOnShow || timelineShownClipIds.has(clip.id)) continue;
+          const endTime = runtimeCore.getTimelineClipEndTime(clip);
+          if ((snapshot.timelineTime || time) < endTime - 0.001) continue;
+          timelineShownClipIds.add(clip.id);
+          snapshot = runtime.dispatch({ type: 'timeline.time.update', time: Math.max(clip.startTime || 0, endTime - 0.001) });
+          pauseTimelineClock(video);
+          return;
+        }
 
         for (const clip of activeClips) {
           if (!isTimelineQteClip(clip) || timelineResolvedQteClipIds.has(clip.id)) continue;
@@ -568,6 +587,10 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
           const endTime = runtimeCore.getTimelineClipEndTime(clip);
           if (isTimelineQteClip(clip) || clip.type !== 'button' || !clip.timeoutAction || (snapshot.timelineTime || time) < endTime || timelineTimedOutClipIds.has(clip.id)) return;
           timelineTimedOutClipIds.add(clip.id);
+          if (clip.timeoutAction.type === 'pause') {
+            pauseTimelineClock(video);
+            return;
+          }
           send({ type: 'timeline.clip.timeout', clipId: clip.id, action: clip.timeoutAction });
         });
         if (!snapshot || !snapshot.currentNode || effect('timelineOverlay')?.nodeId !== timeline.nodeId) return;
@@ -595,6 +618,11 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
             const action = timelineClipAction(clip);
             if (action.type === 'continue') {
               resumeTimelineClock(video);
+              return;
+            }
+            if (action.type === 'pause') {
+              pauseTimelineClock(video);
+              syncTimeline();
               return;
             }
             send({ type: 'timeline.clip.triggered', clipId: clip.id, action });

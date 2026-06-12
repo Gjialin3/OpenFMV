@@ -514,12 +514,14 @@ const getAssetMetadataLabel = (asset: OpenFMVAsset) => {
 
 const actionToValue = (action?: TimelineAction) => {
   if (!action || action.type === 'continue') return 'continue';
+  if (action.type === 'pause') return 'pause';
   if (action.type === 'goToHandle') return `handle:${action.handleId || '__default__'}`;
   if (action.type === 'goToNode') return `node:${action.nodeId || ''}`;
   return 'continue';
 };
 
 const valueToAction = (value: string): TimelineAction => {
+  if (value === 'pause') return { type: 'pause' };
   if (value.startsWith('handle:')) {
     const handleId = value.slice('handle:'.length);
     return { type: 'goToHandle', handleId: handleId === '__default__' ? null : handleId };
@@ -611,6 +613,38 @@ const getPreviewClipClassName = (clip: TimelineInteractionClip, selected: boolea
 
 const getPreviewFrameClassName = () => {
   return 'relative shrink-0 overflow-hidden border border-white/20 bg-black shadow-[0_18px_52px_rgba(0,0,0,0.22)]';
+};
+
+const TIMELINE_PLAYBACK_PAUSE_EPSILON = 0.001;
+
+const getPauseOnShowPlaybackStop = ({
+  clips,
+  currentTime,
+  nextTime,
+  pausedClipIds,
+}: {
+  clips: TimelineInteractionClip[];
+  currentTime: number;
+  nextTime: number;
+  pausedClipIds: Set<string>;
+}) => {
+  if (nextTime < currentTime) return null;
+  const pauseClip = clips
+    .filter((clip) => clip.pauseOnShow && !pausedClipIds.has(clip.id))
+    .map((clip) => ({
+      clip,
+      pauseTime: isQteButtonClip(clip)
+        ? clip.startTime
+        : Math.max(clip.startTime, getClipEndTime(clip) - TIMELINE_PLAYBACK_PAUSE_EPSILON),
+    }))
+    .filter(({ pauseTime }) => pauseTime <= nextTime + TIMELINE_PLAYBACK_PAUSE_EPSILON && pauseTime >= currentTime - TIMELINE_PLAYBACK_PAUSE_EPSILON)
+    .sort((first, second) => first.pauseTime - second.pauseTime || first.clip.duration - second.clip.duration)
+    .at(0);
+  if (!pauseClip) return null;
+  return {
+    clipId: pauseClip.clip.id,
+    time: pauseClip.pauseTime,
+  };
 };
 
 const getMediaClipRect = (clip?: TimelineMediaClip | null): OverlayRect => {
@@ -971,6 +1005,7 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
   const timelineRef = useRef<NodeTimeline>(ensureNodeTimeline());
   const currentTimeRef = useRef(0);
   const playbackNodeIdRef = useRef<string | null>(null);
+  const previewPauseOnShowClipIdsRef = useRef<Set<string>>(new Set());
   const isSnappingEnabledRef = useRef(true);
   const overlaySnapLinesRef = useRef<PreviewSnapLine[]>([]);
   const timelineScrollSyncingRef = useRef(false);
@@ -1372,6 +1407,7 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
     const nextNodeId = selectedOrFirstNode?.id ?? null;
     if (playbackNodeIdRef.current === nextNodeId) return;
     playbackNodeIdRef.current = nextNodeId;
+    previewPauseOnShowClipIdsRef.current = new Set();
     setIsTimelinePlaying(false);
   }, [selectedOrFirstNode?.id]);
 
@@ -1456,6 +1492,16 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
     writeTimeline(nextTimeline, { history: false });
   }, [currentTime, isTimelinePlaying, selectedOrFirstNode, timeline, timelineScrub, writeTimeline]);
 
+  useEffect(() => {
+    const pauseClipsById = new Map(compiledTimeline.interactionClips.map((clip) => [clip.id, clip]));
+    previewPauseOnShowClipIdsRef.current.forEach((clipId) => {
+      const clip = pauseClipsById.get(clipId);
+      if (!clip || currentTime < clip.startTime - TIMELINE_PLAYBACK_PAUSE_EPSILON) {
+        previewPauseOnShowClipIdsRef.current.delete(clipId);
+      }
+    });
+  }, [compiledTimeline.interactionClips, currentTime]);
+
   const updateCurrentTime = useCallback((time: number) => {
     const nextTime = clampTimelineTime(time, timeline.duration);
     setCurrentTime(nextTime);
@@ -1508,6 +1554,17 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
       previousTimestamp = timestamp;
       setCurrentTime((time) => {
         const nextTime = clampTimelineTime(time + deltaSeconds, timeline.duration);
+        const pauseStop = getPauseOnShowPlaybackStop({
+          clips: compiledTimelineRef.current.interactionClips,
+          currentTime: time,
+          nextTime,
+          pausedClipIds: previewPauseOnShowClipIdsRef.current,
+        });
+        if (pauseStop) {
+          previewPauseOnShowClipIdsRef.current.add(pauseStop.clipId);
+          window.setTimeout(() => setIsTimelinePlaying(false), 0);
+          return clampTimelineTime(pauseStop.time, timeline.duration);
+        }
         if (nextTime >= timeline.duration) {
           window.setTimeout(() => setIsTimelinePlaying(false), 0);
         }
@@ -3432,7 +3489,7 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
 
   return (
     <>
-      <div className="flex h-full min-h-0 flex-col gap-[0.18rem] pt-[46px] text-white">
+      <div className="flex h-full min-h-0 flex-col gap-[0.18rem] pt-[58px] text-white">
       <div className="grid min-h-0 flex-1 grid-cols-[minmax(220px,250px)_minmax(420px,1fr)_minmax(210px,250px)] gap-[0.19rem] px-3 min-[1180px]:grid-cols-[minmax(250px,330px)_minmax(520px,1fr)_minmax(230px,330px)] min-[1440px]:grid-cols-[minmax(320px,460px)_minmax(640px,1fr)_minmax(320px,400px)]">
       <aside className="grid min-h-0 grid-cols-[48px_minmax(0,1fr)] overflow-hidden rounded-sm border border-white/10 bg-[#171717] shadow-[0_18px_56px_rgba(0,0,0,0.30)]">
         <div className="flex flex-col border-r border-white/10 bg-[#141516]">
@@ -4833,6 +4890,7 @@ function QteRuleActionSelect({
   nodes,
   activeNode,
   includeNone = false,
+  includePause = false,
   onChange,
 }: {
   t: NodeTimelineTranslator;
@@ -4840,6 +4898,7 @@ function QteRuleActionSelect({
   nodes: AppNode[];
   activeNode: AppNode;
   includeNone?: boolean;
+  includePause?: boolean;
   onChange: (value: string) => void;
 }) {
   type RuleActionOption = { value: string; label: string; icon: LucideIcon };
@@ -4849,6 +4908,7 @@ function QteRuleActionSelect({
   const options: RuleActionOption[] = [
     ...(includeNone ? [{ value: 'none', label: t('actions.disappear'), icon: X }] : []),
     { value: 'continue', label: t('actions.continue'), icon: Play },
+    ...(includePause ? [{ value: 'pause', label: t('actions.pause'), icon: Pause }] : []),
     ...targetNodes.map((node) => {
       const scene = getNodeTitle(node, t);
       return { value: `node:${node.id}`, label: t('fields.goToScene', { scene }), icon: Layers };
@@ -5264,6 +5324,7 @@ function InteractionClipInspector({
               value={actionToValue(action)}
               nodes={nodes}
               activeNode={activeNode}
+              includePause
               onChange={(value) => onUpdate((item) => updateInteractionAction(item, valueToAction(value)))}
             />
           </QteOutcomeRow>
@@ -5273,6 +5334,7 @@ function InteractionClipInspector({
               value={timeoutActionToValue(clip.timeoutAction)}
               nodes={nodes}
               activeNode={activeNode}
+              includePause
               onChange={(value) => onUpdate((item) => updateInteractionTimeoutAction(item, valueToAction(value)))}
             />
           </QteOutcomeRow>

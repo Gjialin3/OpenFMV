@@ -23,7 +23,6 @@ import FloatingToolbar from './FloatingToolbar';
 import { getLayoutedElements } from '@/app/lib/autoLayout';
 
 import AssetPicker from './AssetPicker';
-import EditorLoading from './EditorLoading';
 import { addAssetsToLocalProject, importAssetFromFile } from '@/app/_utils/localProjects';
 import { defaultGraphData } from '@/app/_utils/projectPersistence';
 import { isValidGraphConnection } from '@/app/_utils/graphRules';
@@ -476,9 +475,7 @@ const EditorContent = ({ projectId }: { projectId?: string | null }) => {
   );
 
   if (projectId && !isInitialized) {
-    return (
-      <EditorLoading />
-    );
+    return <div className="openfmv-infinite-canvas relative h-full w-full" />;
   }
 
   const showCanvasPrompt = nodes.length === 0;

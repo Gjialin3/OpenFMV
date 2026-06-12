@@ -4,12 +4,11 @@ import React from 'react';
 import dynamic from 'next/dynamic';
 
 import PlayerOverlay from '@/app/_components/player/PlayerOverlay';
-import EditorLoading from './EditorLoading';
 import TopBar from './TopBar';
 
 const EditorCanvas = dynamic(() => import('./EditorCanvas'), {
   ssr: false,
-  loading: () => <EditorLoading />,
+  loading: () => null,
 });
 
 export default function EditorPageClient({ projectId }: { projectId?: string }) {

@@ -2066,6 +2066,36 @@ describe('NodeTimeline v2', () => {
     expect(success.timelineTime).toBe(0);
   });
 
+  it('keeps the current runtime position when a timeline action pauses', () => {
+    const qteClip = {
+      ...createInteractionClip('button', 1, 6),
+      mode: 'qte' as const,
+      duration: 2,
+      qte: { input: 'click' as const, clickCount: 1, showCountdown: true },
+      action: { type: 'pause' } satisfies TimelineAction,
+      timeoutAction: { type: 'pause' } satisfies TimelineAction,
+    };
+    const timeline = insertTimelineClip({
+      timeline: ensureNodeTimeline({ duration: 6 }),
+      clip: qteClip,
+    });
+    const graph: OpenFMVGraph = {
+      nodes: [
+        node('start', 'start', { type: 'start', label: 'Start', timeline }),
+        node('next', 'story', { type: 'story', title: 'Next', content: '' }),
+      ],
+      edges: [] as AppEdge[],
+    };
+    const runtime = createRuntime(graph, { entryNodeId: 'start' });
+
+    runtime.start();
+    runtime.dispatch({ type: 'timeline.time.update', time: 1.25 });
+    const paused = runtime.dispatch({ type: 'timeline.clip.triggered', clipId: qteClip.id });
+
+    expect(paused.currentNodeId).toBe('start');
+    expect(paused.timelineTime).toBe(1.25);
+  });
+
   it('omits hidden tracks from runtime media and interaction overlays', () => {
     const buttonClip = {
       ...createInteractionClip('button', 1, 8),

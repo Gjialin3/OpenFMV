@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
-import { Check, ChevronDown, Clock3, Download, Film, GitBranch, Globe2, Loader2, MonitorDown, Play, Settings } from 'lucide-react';
+import { Check, ChevronDown, Clock3, Download, Film, GitBranch, Globe2, Loader2, MonitorDown, Play, Settings2 } from 'lucide-react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useShallow } from 'zustand/react/shallow';
 
@@ -69,7 +69,6 @@ export default function TopBar() {
   const pathname = usePathname();
   const routeProjectId = searchParams.get('id');
   const initialTitleFromQuery = searchParams.get('title')?.trim();
-  const [isSaving, setIsSaving] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState('');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -133,7 +132,7 @@ export default function TopBar() {
     return () => window.clearTimeout(timer);
   }, [autoSaveEnabled, dirty, revision, saveNow, status]);
 
-  const isProjectSaving = isSaving || status === 'saving';
+  const isProjectSaving = status === 'saving';
   const saveStatus = !autoSaveEnabled
     ? { label: t('autoSavePaused'), icon: Clock3, className: 'text-openfmv-muted', spin: false }
     : isProjectSaving
@@ -142,38 +141,6 @@ export default function TopBar() {
         ? { label: t('autoSaving'), icon: Clock3, className: 'text-orange-200', spin: false }
         : { label: t('autoSaved'), icon: Check, className: 'text-emerald-200', spin: false };
   const SaveStatusIcon = saveStatus.icon;
-
-  const handleSave = useCallback(async () => {
-    setIsSaving(true);
-    try {
-      await saveNow();
-    } catch (error) {
-      console.error('Failed to save local project', error);
-      alert(t('saveLocalFailed'));
-    } finally {
-      setIsSaving(false);
-    }
-  }, [saveNow, t]);
-
-  const handleSaveAs = useCallback(async () => {
-    if (!window.openfmv?.selectDirectory) {
-      await handleSave();
-      return;
-    }
-
-    const projectDirectory = await window.openfmv.selectDirectory();
-    if (!projectDirectory) return;
-
-    setIsSaving(true);
-    try {
-      await saveNow({ projectDirectory });
-    } catch (error) {
-      console.error('Failed to save local project as', error);
-      alert(t('saveAsFailed'));
-    } finally {
-      setIsSaving(false);
-    }
-  }, [handleSave, saveNow, t]);
 
   const handlePlay = () => {
     const graph = getGraphSnapshot();
@@ -229,7 +196,7 @@ export default function TopBar() {
   };
 
   return (
-    <Header position="absolute" className={`border-b border-white/[0.06] bg-black/24 shadow-[0_16px_44px_rgba(0,0,0,0.24)] ${isNodeMode ? '!h-10 px-2 shadow-none' : 'h-14 px-3'}`}>
+    <Header position="absolute" className="h-14 border-b border-white/[0.06] bg-black/24 px-3 shadow-[0_16px_44px_rgba(0,0,0,0.24)]">
       <div className="grid w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
         <div className="pointer-events-auto flex min-w-0 items-center">
           <div className="flex h-9 min-w-0 items-center gap-2 rounded-full border border-white/10 bg-white/[0.075] px-2.5 shadow-[0_10px_28px_rgba(0,0,0,0.18)] backdrop-blur-2xl">
@@ -257,29 +224,21 @@ export default function TopBar() {
           <div className="flex h-9 items-center gap-1 rounded-full border border-white/10 bg-white/[0.075] p-1 shadow-[0_10px_28px_rgba(0,0,0,0.18)] backdrop-blur-2xl">
             <div className="relative" ref={settingsRef}>
               <Button onClick={() => setIsSettingsOpen((value) => !value)} variant="icon" size="icon" className={`h-7 w-7 rounded-full border-0 bg-transparent shadow-none ${isSettingsOpen ? 'text-openfmv-accent' : 'text-openfmv-sub'}`} title={t('settings')}>
-                <Settings size={15} />
+                <Settings2 size={15} />
               </Button>
 
               {isSettingsOpen && (
                 <div className="absolute right-0 top-full z-50 mt-3 w-72 overflow-hidden rounded-[18px] border border-white/15 bg-[#15171c]/95 p-1.5 shadow-[0_24px_80px_rgba(0,0,0,0.56)] ring-1 ring-black/40 backdrop-blur-xl">
                   <div className="px-3 py-3">
-                    <div className="flex items-center gap-3">
-                      <button type="button" role="switch" aria-checked={autoSaveEnabled} onClick={() => setAutoSaveEnabled(!autoSaveEnabled)} className={`flex h-6 w-11 shrink-0 items-center rounded-full border p-0.5 transition ${autoSaveEnabled ? 'border-emerald-300/40 bg-emerald-400/25' : 'border-white/15 bg-white/[0.08]'}`} title={autoSaveEnabled ? t('pauseAutoSave') : t('enableAutoSave')}>
+                    <button type="button" role="switch" aria-checked={autoSaveEnabled} onClick={() => setAutoSaveEnabled(!autoSaveEnabled)} className="flex h-9 w-full items-center justify-between gap-3 rounded-[12px] border border-white/15 bg-white/[0.075] px-3 text-left transition hover:border-white/25 hover:bg-white/[0.10]" title={autoSaveEnabled ? t('pauseAutoSave') : t('enableAutoSave')}>
+                      <span className="flex min-w-0 items-center gap-2 text-sm font-semibold text-openfmv-text">
+                        <span className="truncate">{t('autoSave')}</span>
+                        <SaveStatusIcon size={13} className={`shrink-0 ${saveStatus.className} ${saveStatus.spin ? 'animate-spin' : ''}`} />
+                      </span>
+                      <span aria-hidden="true" className={`flex h-6 w-11 shrink-0 items-center rounded-full border p-0.5 transition ${autoSaveEnabled ? 'border-emerald-300/40 bg-emerald-400/25' : 'border-white/15 bg-white/[0.08]'}`}>
                         <span className={`h-5 w-5 rounded-full bg-white shadow-[0_3px_10px_rgba(0,0,0,0.35)] transition-transform ${autoSaveEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
-                      </button>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 text-sm font-semibold text-openfmv-text">
-                          {t('autoSave')}
-                          <SaveStatusIcon size={13} className={`${saveStatus.className} ${saveStatus.spin ? 'animate-spin' : ''}`} />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="border-t border-white/[0.08] px-1.5 py-1.5">
-                    <Button onClick={() => { setIsSettingsOpen(false); void handleSaveAs(); }} variant="ghost" className="h-9 w-full justify-start rounded-[12px] px-2.5 text-sm font-semibold text-openfmv-text hover:bg-white/[0.075]">
-                      {t('saveAs')}
-                    </Button>
+                      </span>
+                    </button>
                   </div>
 
                   <div className="border-t border-white/[0.08] px-3 py-3">

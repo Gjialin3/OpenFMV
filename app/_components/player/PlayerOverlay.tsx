@@ -59,6 +59,7 @@ const DEFAULT_RUNTIME_STAGE_ASPECT_RATIO = 16 / 9;
 const MIN_RUNTIME_STAGE_ASPECT_RATIO = 1 / 4;
 const MAX_RUNTIME_STAGE_ASPECT_RATIO = 4;
 const RUNTIME_TIMELINE_UPDATE_EPSILON = 0.02;
+const RUNTIME_INTERACTION_PAUSE_EPSILON = 0.001;
 
 const shouldDispatchTimelineTimeUpdate = (currentTime: number, nextTime: number) => (
   Number.isFinite(nextTime) && Math.abs(nextTime - currentTime) > RUNTIME_TIMELINE_UPDATE_EPSILON
@@ -437,21 +438,41 @@ const TimelineRuntimeOverlay = ({
       return;
     }
 
+    if (action.type === 'pause') {
+      onPauseTimeline();
+      videoRef.current?.pause();
+      return;
+    }
+
     dispatch({ type: reason === 'timeout' ? 'timeline.clip.timeout' : 'timeline.clip.triggered', clipId: clip.id, action });
-  }, [dispatch, onResumeTimeline, videoRef]);
+  }, [dispatch, onPauseTimeline, onResumeTimeline, videoRef]);
 
   useEffect(() => {
     const video = videoRef.current;
 
     activeClips.forEach((clip) => {
       if (shownClipIdsRef.current.has(clip.id)) return;
-      if (clip.pauseOnShow) {
+      if (clip.pauseOnShow && isQteButtonClip(clip)) {
         shownClipIdsRef.current.add(clip.id);
         video?.pause();
         onPauseTimeline();
       }
     });
   }, [activeClips, onPauseTimeline, videoRef]);
+
+  useEffect(() => {
+    if (!timelineEffect) return;
+    const video = videoRef.current;
+    timelineEffect.clips.forEach((clip) => {
+      if (isQteButtonClip(clip) || clip.type !== 'button' || !clip.pauseOnShow || shownClipIdsRef.current.has(clip.id)) return;
+      const endTime = getTimelineClipEndTime(clip);
+      if (currentTime < endTime - RUNTIME_INTERACTION_PAUSE_EPSILON) return;
+      shownClipIdsRef.current.add(clip.id);
+      dispatch({ type: 'timeline.time.update', time: Math.max(clip.startTime, endTime - RUNTIME_INTERACTION_PAUSE_EPSILON) });
+      video?.pause();
+      onPauseTimeline();
+    });
+  }, [currentTime, dispatch, onPauseTimeline, timelineEffect, videoRef]);
 
   useEffect(() => {
     if (activeQteClips.length === 0) return;
@@ -518,9 +539,14 @@ const TimelineRuntimeOverlay = ({
       const action = clip.type === 'button' ? clip.timeoutAction : undefined;
       if (isQteButtonClip(clip) || !action || currentTime < endTime || timedOutClipIdsRef.current.has(clip.id)) return;
       timedOutClipIdsRef.current.add(clip.id);
+      if (action.type === 'pause') {
+        onPauseTimeline();
+        videoRef.current?.pause();
+        return;
+      }
       dispatch({ type: 'timeline.clip.timeout', clipId: clip.id, action });
     });
-  }, [currentTime, dispatch, timelineEffect]);
+  }, [currentTime, dispatch, onPauseTimeline, timelineEffect, videoRef]);
 
   if (!timelineEffect || !currentNode || visibleActiveClips.length === 0) return null;
 
@@ -556,6 +582,11 @@ const TimelineRuntimeOverlay = ({
                   onResumeTimeline();
                   void videoRef.current?.play();
                 }
+                return;
+              }
+              if (action.type === 'pause') {
+                onPauseTimeline();
+                videoRef.current?.pause();
                 return;
               }
               dispatch({ type: 'timeline.clip.triggered', clipId: clip.id, action });

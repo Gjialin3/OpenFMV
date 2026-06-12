@@ -288,7 +288,7 @@ describe('game exporter', () => {
                         enabled: true,
                         label: 'Dodge',
                         rect: { x: 0.4, y: 0.7, width: 0.2, height: 0.1 },
-                        action: { type: 'goToNode', nodeId: 'success' },
+                        action: { type: 'pause' },
                         pauseOnShow: true,
                         timeoutAction: { type: 'goToNode', nodeId: 'fail' },
                         qte: { input: 'space', prompt: 'Press Space', keyLabel: 'Space', showCountdown: true },
@@ -337,6 +337,7 @@ describe('game exporter', () => {
     expect(html).toContain('timelineClockTimer = setInterval');
     expect(html).toContain('data-qte-input');
     expect(html).toContain("document.addEventListener('keydown'");
+    expect(html).toContain("action.type === 'pause'");
     expect(html).toContain("send({ type: reason === 'timeout' ? 'timeline.clip.timeout' : 'timeline.clip.triggered'");
     expect(html).toContain("if (timeline) return ''");
   });

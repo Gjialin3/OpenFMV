@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
-import { Bot, CheckCircle2, ChevronDown, Globe2, Loader2, RefreshCw, Settings2, X, XCircle } from 'lucide-react';
+import { Bot, CheckCircle2, Globe2, Loader2, RefreshCw, Settings2, X, XCircle } from 'lucide-react';
 
 import {
   OpenFMVAgentId,
@@ -27,6 +27,8 @@ interface OpenFMVAiSettingsCenterProps {
   onClose: () => void;
 }
 
+type SettingsSection = 'coreEngine' | 'language';
+
 const getResultClassName = (result?: OpenFMVConnectionTestResult) => {
   if (!result) return 'text-openfmv-muted';
   return result.ok ? 'text-emerald-300' : 'text-red-300';
@@ -47,7 +49,7 @@ export default function OpenFMVAiSettingsCenter({ onClose }: OpenFMVAiSettingsCe
   const [savingState, setSavingState] = useState<'' | 'saving' | 'saved' | 'saveFailed'>('');
   const [testingId, setTestingId] = useState('');
   const [testResults, setTestResults] = useState<Record<string, OpenFMVConnectionTestResult>>({});
-  const [isLocaleMenuOpen, setIsLocaleMenuOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState<SettingsSection>('coreEngine');
 
   const availableAgents = agents.filter((agent) => agent.available);
   const missingAgents = agents.filter((agent) => !agent.available);
@@ -96,7 +98,6 @@ export default function OpenFMVAiSettingsCenter({ onClose }: OpenFMVAiSettingsCe
   };
 
   const changeLocale = (nextLocale: string) => {
-    setIsLocaleMenuOpen(false);
     const nextPath = getLocalizedPath(nextLocale, stripLocaleFromPath(pathname || '/projects'));
     const query = searchParams.toString();
     window.localStorage.setItem('openfmv.locale', nextLocale);
@@ -161,57 +162,8 @@ export default function OpenFMVAiSettingsCenter({ onClose }: OpenFMVAiSettingsCe
           </div>
 
           <nav className="space-y-2">
-            <SidebarButton active icon={Bot} title={t('coreEngine')} subtitle={t('localCli')} />
-            <div className="rounded-[12px] border border-white/10 bg-white/[0.045] p-3.5">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-2 text-sm font-semibold text-white">
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] border border-white/10 bg-white/[0.06] text-openfmv-sub">
-                    <Globe2 size={16} />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block">{t('language')}</span>
-                    <span className="mt-0.5 block truncate text-xs font-medium text-openfmv-muted">{t('interfaceLanguage')}</span>
-                  </span>
-                </div>
-                <div className="relative shrink-0">
-                  <button
-                    type="button"
-                    aria-label={t('interfaceLanguage')}
-                    aria-expanded={isLocaleMenuOpen}
-                    onClick={() => setIsLocaleMenuOpen((current) => !current)}
-                    onBlur={() => window.setTimeout(() => setIsLocaleMenuOpen(false), 120)}
-                    className="inline-flex h-9 min-w-[116px] items-center justify-between gap-2 rounded-full border border-openfmv-accent/55 bg-openfmv-accent/8 px-3 text-xs font-semibold text-white outline-none transition hover:bg-openfmv-accent/12 focus:border-openfmv-accent"
-                  >
-                    <span className="max-w-[78px] truncate">{currentLocaleLabel}</span>
-                    <ChevronDown size={14} className={`shrink-0 text-openfmv-sub transition ${isLocaleMenuOpen ? 'rotate-180 text-openfmv-accent' : ''}`} />
-                  </button>
-
-                  {isLocaleMenuOpen ? (
-                    <div className="absolute right-0 top-full z-40 mt-2 w-[156px] overflow-hidden rounded-[12px] border border-white/12 bg-[#202020]/98 p-1.5 shadow-[0_18px_60px_rgba(0,0,0,0.48)] backdrop-blur-2xl">
-                      {routing.locales.map((localeOption) => {
-                        const isCurrentLocale = localeOption === locale;
-                        return (
-                          <button
-                            key={localeOption}
-                            type="button"
-                            onMouseDown={(event) => event.preventDefault()}
-                            onClick={() => changeLocale(localeOption)}
-                            className={`flex h-9 w-full items-center justify-between gap-2 rounded-[9px] px-3 text-left text-xs font-semibold transition ${
-                              isCurrentLocale
-                                ? 'bg-openfmv-accent text-white'
-                                : 'text-openfmv-sub hover:bg-white/[0.07] hover:text-white'
-                            }`}
-                          >
-                            <span className="truncate">{localeT(localeOption)}</span>
-                            {isCurrentLocale ? <CheckCircle2 size={13} className="shrink-0" /> : null}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            </div>
+            <SidebarButton active={activeSection === 'coreEngine'} icon={Bot} title={t('coreEngine')} subtitle={t('localCli')} onClick={() => setActiveSection('coreEngine')} />
+            <SidebarButton active={activeSection === 'language'} icon={Globe2} title={t('language')} subtitle={currentLocaleLabel} onClick={() => setActiveSection('language')} />
           </nav>
 
           <div className="mt-auto space-y-3">
@@ -230,9 +182,43 @@ export default function OpenFMVAiSettingsCenter({ onClose }: OpenFMVAiSettingsCe
         </aside>
 
         <div className="min-w-0 flex-1 overflow-y-auto">
-          {isLoading ? (
+          {activeSection === 'coreEngine' && isLoading ? (
             <div className="grid h-full min-h-[420px] place-items-center text-openfmv-sub">
               <Loader2 size={24} className="animate-spin" />
+            </div>
+          ) : activeSection === 'language' ? (
+            <div className="p-7">
+              <PanelHeader
+                title={t('interfaceLanguage')}
+                description={t('languageDescription')}
+              />
+
+              <section className="mt-6 rounded-[14px] border border-white/10 bg-white/[0.035] p-4">
+                <div className="grid gap-2">
+                  {routing.locales.map((localeOption) => {
+                    const isCurrentLocale = localeOption === locale;
+                    return (
+                      <button
+                        key={localeOption}
+                        type="button"
+                        aria-current={isCurrentLocale ? 'true' : undefined}
+                        onClick={() => changeLocale(localeOption)}
+                        className={`flex min-h-[58px] items-center justify-between gap-4 rounded-[12px] border px-4 text-left transition ${
+                          isCurrentLocale
+                            ? 'border-openfmv-accent/45 bg-openfmv-accent/10 text-white'
+                            : 'border-white/10 bg-white/[0.035] text-openfmv-sub hover:border-white/20 hover:bg-white/[0.06] hover:text-white'
+                        }`}
+                      >
+                        <span className="min-w-0">
+                          <span className="block text-sm font-semibold">{localeT(localeOption)}</span>
+                          <span className="mt-1 block text-xs text-openfmv-muted">{localeOption}</span>
+                        </span>
+                        {isCurrentLocale ? <CheckCircle2 size={18} className="shrink-0 text-openfmv-accent" /> : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
             </div>
           ) : (
             <div className="p-7">
@@ -264,15 +250,15 @@ export default function OpenFMVAiSettingsCenter({ onClose }: OpenFMVAiSettingsCe
   );
 }
 
-function SidebarButton({ active, icon: Icon, title, subtitle }: { active: boolean; icon: React.ElementType; title: string; subtitle: string }) {
+function SidebarButton({ active, icon: Icon, title, subtitle, onClick }: { active: boolean; icon: React.ElementType; title: string; subtitle: string; onClick: () => void }) {
   return (
-    <div className={`flex w-full items-center gap-3 rounded-[12px] px-4 py-3 text-left ${active ? 'bg-white/[0.10] text-white' : 'text-openfmv-sub'}`}>
+    <button type="button" onClick={onClick} className={`flex w-full items-center gap-3 rounded-[12px] px-4 py-3 text-left transition ${active ? 'bg-white/[0.10] text-white' : 'text-openfmv-sub hover:bg-white/[0.055] hover:text-white'}`}>
       <Icon size={18} />
       <span className="min-w-0">
         <span className="block text-sm font-semibold">{title}</span>
         <span className="mt-0.5 block truncate text-xs text-openfmv-muted">{subtitle}</span>
       </span>
-    </div>
+    </button>
   );
 }
 

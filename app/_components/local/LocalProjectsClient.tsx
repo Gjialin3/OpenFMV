@@ -4,9 +4,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
-import { CheckSquare2, Clock3, Copy, Download, Edit3, FileJson, FileText, Film, Grid2X2, Image as ImageIcon, Layout, Library, List, MoreHorizontal, PackageOpen, Play, Plus, Search, Settings, Square, Trash2, Upload, X } from 'lucide-react';
+import { CheckSquare2, Clock3, Copy, Download, Edit3, FileJson, FileText, Film, Grid2X2, Image as ImageIcon, Layout, Library, List, PackageOpen, Play, Plus, Search, Square, Trash2, Upload, X } from 'lucide-react';
 import BorderGlow from '@/app/_components/ui/BorderGlow';
-import OpenFMVAiSettingsCenter from '@/app/_components/local/OpenFMVAiSettingsCenter';
 import { AppNode, OpenFMVAsset, OpenFMVProject } from '@/app/_types';
 import { createAndSaveLocalProject, deleteLocalProject, exportProjectJson, importAssetFromFile, listLocalProjects, openLocalProject, registerLocalProject, saveLocalProject } from '@/app/_utils/localProjects';
 import { getLocalizedPath } from '@/app/_utils/localePaths';
@@ -15,19 +14,19 @@ import { resolveMediaSrc } from '@/app/_utils/mediaSrc';
 const upgradeCards = [
   {
     key: 'nodeStory',
-    className: 'from-cyan-300/16 via-white/6 to-[#202020]',
+    image: '/feature-node-storytelling.png',
   },
   {
     key: 'interactivePreview',
-    className: 'from-fuchsia-300/14 via-white/5 to-[#202020]',
+    image: '/feature-interactive-preview.png',
   },
   {
     key: 'assetManagement',
-    className: 'from-sky-300/12 via-white/4 to-[#202020]',
+    image: '/feature-asset-management.png',
   },
   {
     key: 'localExport',
-    className: 'from-violet-300/12 via-white/5 to-[#202020]',
+    image: '/feature-local-export.png',
   },
 ];
 
@@ -149,7 +148,6 @@ export default function LocalProjectsClient() {
   const [assetQuery, setAssetQuery] = useState('');
   const [assetFilter, setAssetFilter] = useState<AssetFilter>('all');
   const [isImportingAssets, setIsImportingAssets] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
 
   const refreshProjects = () => {
     const nextProjects = listLocalProjects();
@@ -183,8 +181,6 @@ export default function LocalProjectsClient() {
   }, [projects, query, sortMode]);
 
   const projectTotal = projects.length;
-  const nodeTotal = projects.reduce((total, project) => total + (project.graphData?.nodes?.length ?? 0), 0);
-  const assetTotal = projects.reduce((total, project) => total + (project.assets?.length ?? 0), 0);
   const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? null;
   const selectedProjectIdSet = useMemo(() => new Set(selectedProjectIds), [selectedProjectIds]);
   const selectedProjects = useMemo(() => projects.filter((project) => selectedProjectIdSet.has(project.id)), [projects, selectedProjectIdSet]);
@@ -358,12 +354,12 @@ export default function LocalProjectsClient() {
       <input ref={assetFileInputRef} type="file" multiple accept="image/*,video/*,audio/*,.txt,.md" className="hidden" onChange={(event) => void handleImportAssets(event.target.files)} />
       <div className="pointer-events-none fixed inset-0 bg-[#181818]" />
 
-      <aside className="relative z-20 flex w-[272px] shrink-0 flex-col bg-[#1b1b1b] px-6 pb-7 pt-9">
+      <aside className="relative z-20 flex w-[272px] shrink-0 flex-col px-6 pb-7 pt-9">
         <nav className="space-y-3">
           {sidebarItems.map((item) => {
             const Icon = item.icon;
             const isActive = item.action === activeView;
-            const className = `flex h-[56px] w-full items-center gap-4 rounded-[10px] px-5 text-left text-base font-semibold transition ${isActive ? 'bg-[radial-gradient(circle_at_0%_50%,rgba(125,211,252,0.16),transparent_42%),rgba(255,255,255,0.07)] text-white' : 'text-white hover:bg-white/[0.045]'}`;
+            const className = `flex h-[56px] w-full items-center gap-4 rounded-[10px] px-5 text-left text-base font-semibold transition ${isActive ? 'bg-[linear-gradient(135deg,rgba(255,255,255,0.12),rgba(255,255,255,0.07)_48%,rgba(255,255,255,0.035))] text-white' : 'text-white hover:bg-white/[0.045]'}`;
             return (
               <button
                 key={item.labelKey}
@@ -382,7 +378,7 @@ export default function LocalProjectsClient() {
       </aside>
 
       <section className="relative z-10 flex min-w-0 flex-1 flex-col">
-        <div className="min-h-0 flex-1 overflow-y-auto px-7 py-6 lg:px-14">
+        <div className="min-h-0 flex-1 overflow-y-auto px-7 py-6 lg:pl-10 lg:pr-14">
           <section className="mx-auto max-w-[1330px]">
             {activeView === 'assets' ? (
               <>
@@ -489,8 +485,9 @@ export default function LocalProjectsClient() {
               </>) : (
               <>
             <BorderGlow className="w-full" edgeSensitivity={24} glowColor="190 86 72" backgroundColor="#1a1a1a" borderRadius={9} glowRadius={34} glowIntensity={0.55} coneSpread={20} colors={['#67e8f9', '#f0abfc', '#93c5fd']} fillOpacity={0.18}>
-              <button onClick={() => void handleCreate()} className="group relative flex h-[180px] w-full items-center justify-center overflow-hidden rounded-[9px] bg-[radial-gradient(circle_at_18%_108%,rgba(217,70,239,0.24),transparent_34%),radial-gradient(circle_at_70%_-8%,rgba(20,184,166,0.38),transparent_46%),linear-gradient(135deg,rgba(148,163,184,0.12),rgba(255,255,255,0.03)_46%,rgba(0,0,0,0.20))] text-white transition">
-                <span className="absolute inset-0 bg-black/10 transition group-hover:bg-black/0" />
+              <button onClick={() => void handleCreate()} className="group relative flex h-[180px] w-full items-center justify-center overflow-hidden rounded-[9px] bg-[#141414] text-white transition">
+                <img src="/start-creating-background.png" alt="" aria-hidden="true" draggable={false} className="absolute inset-0 h-full w-full scale-[1.035] object-cover opacity-80 transition duration-300 group-hover:scale-[1.05] group-hover:opacity-95" />
+                <span className="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,0.62),rgba(0,0,0,0.22)_50%,rgba(0,0,0,0.58)),radial-gradient(circle_at_50%_50%,rgba(0,0,0,0.12),rgba(0,0,0,0.52))] transition group-hover:opacity-80" />
                 <span className="relative flex items-center gap-4 text-[28px] font-semibold">
                   <span className="grid h-8 w-8 place-items-center rounded-[8px] bg-white/85 text-[#1b1b1b] shadow-[0_0_22px_rgba(103,232,249,0.22),0_8px_24px_rgba(0,0,0,0.22)]">
                     <Plus size={22} />
@@ -504,10 +501,11 @@ export default function LocalProjectsClient() {
               <h2 className="text-[26px] font-bold text-white">{t('featuresTitle')}</h2>
               <div className="mt-5 grid grid-cols-[repeat(auto-fit,minmax(min(100%,190px),1fr))] gap-5">
                 {upgradeCards.map((card) => (
-                  <BorderGlow key={card.key} className="h-[150px] overflow-hidden" edgeSensitivity={24} glowColor="190 82 74" backgroundColor="#1b1b1b" borderRadius={9} glowRadius={24} glowIntensity={0.42} coneSpread={20} colors={['#67e8f9', '#f0abfc', '#93c5fd']} fillOpacity={0.12}>
-                    <div className={`relative h-full overflow-hidden rounded-[9px] bg-gradient-to-br ${card.className}`}>
-                      <div className="absolute inset-0 opacity-20 [background-image:linear-gradient(90deg,rgba(255,255,255,0.32)_1px,transparent_1px),linear-gradient(rgba(255,255,255,0.20)_1px,transparent_1px)] [background-size:24px_24px]" />
-                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#202020]/95 to-transparent p-5">
+                  <BorderGlow key={card.key} className="group h-[150px] overflow-hidden" edgeSensitivity={24} glowColor="190 82 74" backgroundColor="#1b1b1b" borderRadius={9} glowRadius={24} glowIntensity={0.42} coneSpread={20} colors={['#67e8f9', '#f0abfc', '#93c5fd']} fillOpacity={0.12}>
+                    <div className="relative h-full overflow-hidden rounded-[9px] bg-[#171717]">
+                      <img src={card.image} alt="" aria-hidden="true" draggable={false} className="absolute inset-0 h-full w-full scale-[1.085] object-cover opacity-85 transition duration-300 group-hover:scale-[1.105]" />
+                      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,0.52),rgba(0,0,0,0.10)_58%),linear-gradient(180deg,rgba(0,0,0,0.64),rgba(0,0,0,0.20)_54%,rgba(0,0,0,0.38))]" />
+                      <div className="absolute inset-x-0 top-0 bg-gradient-to-b from-[#171717]/94 via-[#171717]/58 to-transparent p-5">
                         <div className="text-xl font-semibold text-white">{t(`features.${card.key}.title`)}</div>
                         <div className="mt-1 text-base text-white/55">{t(`features.${card.key}.description`)}</div>
                       </div>
@@ -518,13 +516,12 @@ export default function LocalProjectsClient() {
             </section>
 
             <section className="mt-12 scroll-mt-8">
-              <div className="mb-7 flex items-center justify-between gap-5">
-                <div>
+              <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="min-w-0">
                   <h2 className="text-[26px] font-bold text-white">{t('localDrafts')}</h2>
-                  <div className="mt-1 text-sm text-openfmv-muted">{t('draftSummary', { projects: filteredProjects.length, nodes: nodeTotal, assets: assetTotal })}</div>
                 </div>
                 {projects.length > 0 && isProjectSelectionMode ? (
-                  <div className="flex flex-wrap items-center justify-end gap-2">
+                  <div className="flex flex-wrap items-center gap-2 lg:justify-end">
                     <div className="mr-1 rounded-full border border-sky-300/20 bg-sky-400/10 px-3 py-2 text-sm font-semibold text-sky-100">
                       {t('selectedProjects', { count: selectedProjectIds.length })}
                     </div>
@@ -546,7 +543,7 @@ export default function LocalProjectsClient() {
                     </button>
                   </div>
                 ) : projects.length > 0 && (
-                  <div className="flex items-center gap-3">
+                  <div className="flex w-full flex-wrap items-center gap-3 lg:w-auto lg:justify-end">
                     <button type="button" onClick={() => setIsProjectSelectionMode(true)} className="inline-flex h-10 items-center gap-2 rounded-[12px] border border-white/10 bg-white/[0.06] px-4 text-sm font-semibold text-openfmv-sub transition hover:border-white/25 hover:text-white">
                       <CheckSquare2 size={16} />
                       {t('selectProjects')}
@@ -569,16 +566,6 @@ export default function LocalProjectsClient() {
                         <Clock3 size={16} />
                       </button>
                     </div>
-                    <button onClick={() => void handleOpenProject()} className="inline-flex h-10 items-center gap-2 rounded-[12px] border border-white/10 bg-white/[0.06] px-4 text-sm font-semibold text-openfmv-sub transition hover:border-white/25 hover:text-white">
-                      <FileJson size={15} />
-                      {t('importProject')}
-                    </button>
-                    <button onClick={() => setShowSettings(true)} className="inline-flex h-10 w-10 items-center justify-center rounded-[12px] border border-white/10 bg-white/[0.06] text-openfmv-sub transition hover:border-white/25 hover:text-white" title={t('settings')}>
-                      <Settings size={16} />
-                    </button>
-                    <button className="hidden h-10 w-10 items-center justify-center rounded-[12px] text-openfmv-sub transition hover:bg-white/[0.06] hover:text-white md:inline-flex" title={t('more')}>
-                      <MoreHorizontal size={19} />
-                    </button>
                   </div>
                 )}
               </div>
@@ -634,7 +621,7 @@ export default function LocalProjectsClient() {
                             </div>
                           </BorderGlow>
                         </Link>
-                        <button type="button" onClick={() => toggleProjectSelection(project.id)} aria-pressed={isSelected} className={`absolute left-3 top-3 z-30 flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-black/55 text-white shadow-[0_14px_34px_rgba(0,0,0,0.34)] backdrop-blur-3xl transition hover:border-sky-200/60 hover:text-sky-100 ${isProjectSelectionMode || isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`} title={isSelected ? t('deselectProject') : t('selectProject')}>
+                        <button type="button" onClick={() => toggleProjectSelection(project.id)} aria-pressed={isSelected} className={`absolute left-3 top-3 z-30 flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-black/55 text-white shadow-[0_14px_34px_rgba(0,0,0,0.34)] backdrop-blur-3xl transition hover:border-sky-200/60 hover:text-sky-100 ${isProjectSelectionMode || isSelected ? 'opacity-100' : 'pointer-events-none opacity-0'}`} title={isSelected ? t('deselectProject') : t('selectProject')}>
                           {isSelected ? <CheckSquare2 size={17} className="text-sky-200" /> : <Square size={17} />}
                         </button>
                         {!isProjectSelectionMode && (
@@ -752,7 +739,6 @@ export default function LocalProjectsClient() {
           </section>
         </div>
       </section>
-      {showSettings && <OpenFMVAiSettingsCenter onClose={() => setShowSettings(false)} />}
     </main>
   );
 }

@@ -190,14 +190,6 @@ export default function AssetPicker({ isOpen, onClose, onSelect, allowAudio = fa
         </div>
 
         <div className="space-y-4 border-b border-white/10 p-4">
-          <div className="grid grid-cols-2 rounded-[16px] border border-white/10 bg-white/[0.06] p-1">
-            <Button type="button" variant="ghost" size="sm" className="h-9 rounded-[12px] bg-white/[0.16] text-sm font-semibold text-white">
-              {t('title')}
-            </Button>
-            <Button type="button" variant="ghost" size="sm" className="h-9 rounded-[12px] text-sm font-semibold text-openfmv-muted">
-              {t('library')}
-            </Button>
-          </div>
           <div className="relative">
             <Search size={17} className="absolute left-4 top-1/2 -translate-y-1/2 text-openfmv-muted" />
             <Input

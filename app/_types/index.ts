@@ -192,7 +192,7 @@ export interface OverlayRect {
 }
 
 export interface TimelineAction {
-  type: 'goToHandle' | 'goToNode' | 'continue';
+  type: 'goToHandle' | 'goToNode' | 'continue' | 'pause';
   handleId?: string | null;
   nodeId?: string | null;
 }

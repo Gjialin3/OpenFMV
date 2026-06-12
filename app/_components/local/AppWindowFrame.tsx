@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 
 import AppNavigation from './AppNavigation';
 import InteractionDesignView from './InteractionDesignView';
+import OpenFMVAiSettingsCenter from './OpenFMVAiSettingsCenter';
 import { stripLocaleFromPath } from '@/app/_utils/localePaths';
 
 type ResizeDirection = 'top' | 'right' | 'bottom' | 'left' | 'top-left' | 'top-right' | 'bottom-right' | 'bottom-left';
@@ -12,8 +13,8 @@ type ResizeDirection = 'top' | 'right' | 'bottom' | 'left' | 'top-left' | 'top-r
 export default function AppWindowFrame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const pathWithoutLocale = stripLocaleFromPath(pathname || '/');
-  const isNodeWorkspace = pathWithoutLocale.startsWith('/nodes');
   const [showChat, setShowChat] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [chatFloating, setChatFloating] = useState(false);
   const [chatPosition, setChatPosition] = useState({ x: 620, y: 16 });
   const [chatSize, setChatSize] = useState({ width: 420, height: 760 });
@@ -151,8 +152,9 @@ export default function AppWindowFrame({ children }: { children: React.ReactNode
   if (pathWithoutLocale.startsWith('/asset-studio')) {
     return (
       <div className="relative h-[100dvh] overflow-hidden bg-[#111] text-openfmv-text">
-        <AppNavigation chatOpen={showChat} onToggleChat={toggleChat} />
+        <AppNavigation chatOpen={showChat} onOpenSettings={() => setShowSettings(true)} onToggleChat={toggleChat} />
         <div className="h-[calc(100dvh-3.5rem)] overflow-hidden">{children}</div>
+        {showSettings && <OpenFMVAiSettingsCenter onClose={() => setShowSettings(false)} />}
         {showChat && (
           <aside
             onPointerDown={startChatDrag}
@@ -174,9 +176,10 @@ export default function AppWindowFrame({ children }: { children: React.ReactNode
 
   return (
     <div className="h-[100dvh] overflow-hidden bg-[#181818] text-openfmv-text">
-      <AppNavigation chatOpen={showChat} compact={isNodeWorkspace} onToggleChat={toggleChat} />
-      <div className={`relative overflow-hidden ${isNodeWorkspace ? 'h-[calc(100dvh-2.5rem)]' : 'h-[calc(100dvh-3.5rem)]'}`}>
+      <AppNavigation chatOpen={showChat} onOpenSettings={() => setShowSettings(true)} onToggleChat={toggleChat} />
+      <div className="relative h-[calc(100dvh-3.5rem)] overflow-hidden">
         {children}
+        {showSettings && <OpenFMVAiSettingsCenter onClose={() => setShowSettings(false)} />}
         {showChat && (
           <aside
             onPointerDown={startChatDrag}
