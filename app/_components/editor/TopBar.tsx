@@ -280,10 +280,9 @@ export default function TopBar() {
 
               {isExportMenuOpen && (
                 <div role="menu" className="absolute right-0 top-full z-50 mt-3 w-64 overflow-hidden rounded-[14px] border border-white/15 bg-[#15171c]/95 p-1.5 shadow-[0_24px_80px_rgba(0,0,0,0.56)] ring-1 ring-black/40 backdrop-blur-xl">
-                  <button type="button" role="menuitem" disabled onClick={() => void handleExport()} className="flex h-10 w-full cursor-not-allowed items-center gap-2.5 rounded-[10px] px-2.5 text-left text-sm font-semibold text-openfmv-muted opacity-55">
+                  <button type="button" role="menuitem" onClick={() => void handleExport()} className="flex h-10 w-full items-center gap-2.5 rounded-[10px] px-2.5 text-left text-sm font-semibold text-openfmv-text transition hover:bg-white/[0.075] hover:text-white">
                     <Globe2 size={15} />
                     <span className="min-w-0 flex-1 truncate">{t('exportWebPackage')}</span>
-                    <span className="shrink-0 rounded bg-white/[0.06] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-normal text-openfmv-muted">{t('exportDisabled')}</span>
                   </button>
                   <div className="my-1 h-px bg-white/[0.08]" />
                   <button type="button" role="menuitem" disabled className="flex h-10 w-full cursor-not-allowed items-center gap-2.5 rounded-[10px] px-2.5 text-left text-sm font-semibold text-openfmv-muted opacity-55">
