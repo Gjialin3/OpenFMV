@@ -592,7 +592,7 @@ const getTrackIcon = (track: TimelineTrack) => {
 };
 
 const getClipTone = (clip: TimelineClip, selected: boolean) => {
-  const base = 'group absolute flex h-10 min-w-10 select-none items-center overflow-hidden rounded-[7px] border px-2 text-left text-xs font-semibold shadow-[0_12px_28px_rgba(0,0,0,0.28)] transition';
+  const base = 'group absolute flex h-openfmv-control min-w-10 select-none items-center overflow-hidden rounded-openfmv-tool border px-2 text-left text-xs font-semibold shadow-[0_12px_28px_rgba(0,0,0,0.28)] transition';
   const ring = selected ? 'ring-2 ring-white/90' : 'hover:ring-1 hover:ring-white/50';
   const disabled = clip.enabled === false || clip.hidden ? 'opacity-45 grayscale' : '';
   const muted = canTimelineClipHaveAudio(clip) && clip.muted ? 'saturate-50' : '';
@@ -606,7 +606,7 @@ const getClipTone = (clip: TimelineClip, selected: boolean) => {
 };
 
 const getPreviewClipClassName = (clip: TimelineInteractionClip, selected: boolean, active: boolean) => {
-  const base = 'absolute flex min-h-10 min-w-12 items-center justify-center overflow-hidden rounded-[8px] border px-2 text-xs font-bold text-white shadow-[0_18px_52px_rgba(0,0,0,0.38)] backdrop-blur-xl transition hover:scale-[1.02]';
+  const base = 'absolute flex min-h-openfmv-control min-w-12 items-center justify-center overflow-hidden rounded-openfmv-tool border px-2 text-xs font-bold text-white shadow-[0_18px_52px_rgba(0,0,0,0.38)] backdrop-blur-xl transition hover:scale-[1.02]';
   const tone = isQteButtonClip(clip) ? 'border-cyan-200/90 bg-cyan-500/92' : 'border-orange-200/90 bg-orange-500/92';
   return `${base} ${tone} ${selected ? 'ring-2 ring-white ring-offset-2 ring-offset-black' : ''} ${active ? '' : 'opacity-45'}`;
 };
@@ -3473,12 +3473,12 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
     return (
       <div className="flex h-full items-center justify-center p-8 text-white">
         <div className="max-w-sm text-center">
-          <div className="mx-auto grid h-14 w-14 place-items-center rounded-[8px] border border-white/10 bg-white/[0.07] text-openfmv-muted">
+          <div className="mx-auto grid h-14 w-14 place-items-center rounded-openfmv-card border border-white/10 bg-white/[0.07] text-openfmv-muted">
             <Layers size={26} />
           </div>
           <h2 className="mt-5 text-xl font-semibold">{t('empty.noNodesTitle')}</h2>
           <p className="mt-2 text-sm leading-6 text-openfmv-muted">{t('empty.noNodesDescription')}</p>
-          <Link href={blueprintHref} className="mt-5 inline-flex h-10 items-center gap-2 rounded-[8px] bg-white/[0.10] px-4 text-sm font-semibold text-white transition hover:bg-white/[0.15]">
+          <Link href={blueprintHref} className="mt-5 inline-flex h-openfmv-control items-center gap-2 rounded-openfmv-control bg-white/[0.10] px-4 text-sm font-semibold text-white transition hover:bg-white/[0.15]">
             <GitBranch size={16} />
             {t('empty.blueprint')}
           </Link>
@@ -3491,7 +3491,7 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
     <>
       <div className="flex h-full min-h-0 flex-col gap-[0.18rem] pt-[58px] text-white">
       <div className="grid min-h-0 flex-1 grid-cols-[minmax(220px,250px)_minmax(420px,1fr)_minmax(210px,250px)] gap-[0.19rem] px-3 min-[1180px]:grid-cols-[minmax(250px,330px)_minmax(520px,1fr)_minmax(230px,330px)] min-[1440px]:grid-cols-[minmax(320px,460px)_minmax(640px,1fr)_minmax(320px,400px)]">
-      <aside className="grid min-h-0 grid-cols-[48px_minmax(0,1fr)] overflow-hidden rounded-sm border border-white/10 bg-[#171717] shadow-[0_18px_56px_rgba(0,0,0,0.30)]">
+      <aside className="grid min-h-0 grid-cols-[48px_minmax(0,1fr)] overflow-hidden rounded-openfmv-tool border border-white/10 bg-[#171717] shadow-[0_18px_56px_rgba(0,0,0,0.30)]">
         <div className="flex flex-col border-r border-white/10 bg-[#141516]">
           <div className="flex flex-col gap-1 p-1.5">
             {([
@@ -3508,7 +3508,7 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
                   aria-label={item.label}
                   title={item.label}
                   aria-pressed={activeLibraryTab === item.id}
-                  className={`grid h-9 w-9 place-items-center rounded-[7px] border transition ${activeLibraryTab === item.id ? 'border-sky-400/45 bg-sky-500/14 text-sky-200' : 'border-transparent text-openfmv-muted hover:bg-white/[0.06] hover:text-white'}`}
+                  className={`grid h-openfmv-editor w-openfmv-editor place-items-center rounded-openfmv-tool border transition ${activeLibraryTab === item.id ? 'border-sky-400/45 bg-sky-500/14 text-sky-200' : 'border-transparent text-openfmv-muted hover:bg-white/[0.06] hover:text-white'}`}
                 >
                   <Icon size={17} />
                 </button>
@@ -3522,13 +3522,13 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
             <div className="min-w-0 text-sm font-semibold text-openfmv-sub">{activePanelTitle}</div>
             {isMediaLibraryTab ? (
               <div className="flex items-center gap-1">
-                <button type="button" onClick={() => setAssetViewMode((mode) => (mode === 'grid' ? 'list' : 'grid'))} className="grid h-8 w-8 place-items-center rounded-[7px] text-openfmv-muted transition hover:bg-white/[0.06] hover:text-white" title={t(assetViewMode === 'grid' ? 'panel.listView' : 'panel.gridView')} aria-label={t(assetViewMode === 'grid' ? 'panel.listView' : 'panel.gridView')}>
+                <button type="button" onClick={() => setAssetViewMode((mode) => (mode === 'grid' ? 'list' : 'grid'))} className="grid h-openfmv-tool w-openfmv-tool place-items-center rounded-openfmv-tool text-openfmv-muted transition hover:bg-white/[0.06] hover:text-white" title={t(assetViewMode === 'grid' ? 'panel.listView' : 'panel.gridView')} aria-label={t(assetViewMode === 'grid' ? 'panel.listView' : 'panel.gridView')}>
                   <List size={15} />
                 </button>
-                <button type="button" onClick={() => setAssetSortMode((mode) => (mode === 'recent' ? 'name' : 'recent'))} className="grid h-8 w-8 place-items-center rounded-[7px] text-openfmv-muted transition hover:bg-white/[0.06] hover:text-white" title={t(assetSortMode === 'recent' ? 'panel.sortByName' : 'panel.sortByRecent')} aria-label={t(assetSortMode === 'recent' ? 'panel.sortByName' : 'panel.sortByRecent')}>
+                <button type="button" onClick={() => setAssetSortMode((mode) => (mode === 'recent' ? 'name' : 'recent'))} className="grid h-openfmv-tool w-openfmv-tool place-items-center rounded-openfmv-tool text-openfmv-muted transition hover:bg-white/[0.06] hover:text-white" title={t(assetSortMode === 'recent' ? 'panel.sortByName' : 'panel.sortByRecent')} aria-label={t(assetSortMode === 'recent' ? 'panel.sortByName' : 'panel.sortByRecent')}>
                   <ArrowDownUp size={15} />
                 </button>
-                <button type="button" onClick={handleAssetImportClick} disabled={isImportingAsset} className="inline-flex h-8 items-center gap-2 rounded-[7px] border border-white/10 px-2.5 text-xs font-semibold text-white transition hover:bg-white/[0.07] disabled:opacity-50">
+                <button type="button" onClick={handleAssetImportClick} disabled={isImportingAsset} className="inline-flex h-openfmv-tool items-center gap-2 rounded-openfmv-tool border border-white/10 px-2.5 text-xs font-semibold text-white transition hover:bg-white/[0.07] disabled:opacity-50">
                   <Upload size={14} />
                   {isImportingAsset ? t('panel.importing') : t('actions.import')}
                 </button>
@@ -3553,7 +3553,7 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
                         setDraggedInteractionType(null);
                         setDragTargetTrackId(null);
                       }}
-                      className="grid h-8 w-8 place-items-center rounded-[7px] border border-white/10 text-openfmv-sub transition hover:bg-white/[0.07] hover:text-white"
+                      className="grid h-openfmv-tool w-openfmv-tool place-items-center rounded-openfmv-tool border border-white/10 text-openfmv-sub transition hover:bg-white/[0.07] hover:text-white"
                       title={t(`clipTypes.${type}`)}
                       aria-label={t(`clipTypes.${type}`)}
                     >
@@ -3583,12 +3583,12 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
             >
               <input ref={assetInputRef} type="file" accept={activeImportAccept} multiple className="hidden" onChange={(event) => void importFilesToAssets(Array.from(event.target.files || []))} />
               {assetLibraryError && (
-                <div className="mb-2 rounded-[7px] border border-orange-300/20 bg-orange-500/10 px-3 py-2 text-xs leading-5 text-orange-100">
+                <div className="mb-2 rounded-openfmv-tool border border-orange-300/20 bg-orange-500/10 px-3 py-2 text-xs leading-5 text-orange-100">
                   {assetLibraryError}
                 </div>
               )}
               {isAssetDropActive || visibleMediaAssetItems.length === 0 ? (
-                <button type="button" onClick={handleAssetImportClick} disabled={isImportingAsset} className="grid h-40 w-full place-items-center rounded-[8px] border border-dashed border-white/22 bg-white/[0.045] text-center transition hover:border-white/34 hover:bg-white/[0.065] disabled:opacity-60">
+                <button type="button" onClick={handleAssetImportClick} disabled={isImportingAsset} className="grid h-40 w-full place-items-center rounded-openfmv-tool border border-dashed border-white/22 bg-white/[0.045] text-center transition hover:border-white/34 hover:bg-white/[0.065] disabled:opacity-60">
                   <span>
                     <CloudUpload size={38} className="mx-auto text-openfmv-sub" />
                     <span className="mt-4 block text-sm text-openfmv-sub">{isImportingAsset ? t('panel.importing') : activeLibraryTab === 'audio' ? t('panel.dropAudio') : t('panel.dropMedia')}</span>
@@ -3614,10 +3614,10 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
                             event.dataTransfer.setData('text/plain', asset.name);
                           }}
                           onDragEnd={() => setDraggedAssetId(null)}
-                          className={`w-full min-w-0 rounded-[8px] border border-white/10 bg-white/[0.045] text-left transition hover:border-white/24 hover:bg-white/[0.075] ${assetViewMode === 'grid' ? 'p-2' : 'flex items-center gap-2 p-2 pr-9'}`}
+                          className={`w-full min-w-0 rounded-openfmv-tool border border-white/10 bg-white/[0.045] text-left transition hover:border-white/24 hover:bg-white/[0.075] ${assetViewMode === 'grid' ? 'p-2' : 'flex items-center gap-2 p-2 pr-9'}`}
                           title={t('panel.addToTimeline')}
                         >
-                          <div className={`grid shrink-0 place-items-center overflow-hidden rounded-[7px] bg-black/28 text-openfmv-sub ${assetViewMode === 'grid' ? 'mb-2 aspect-video w-full' : 'h-12 w-14'}`}>
+                          <div className={`grid shrink-0 place-items-center overflow-hidden rounded-openfmv-tool bg-black/28 text-openfmv-sub ${assetViewMode === 'grid' ? 'mb-2 aspect-video w-full' : 'h-12 w-14'}`}>
                             <AssetLibraryPreview asset={asset} />
                           </div>
                           <div className="min-w-0">
@@ -3635,7 +3635,7 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
                             event.stopPropagation();
                             void removeAssetFromLibrary(item);
                           }}
-                          className="absolute right-1 top-1 grid h-7 w-7 place-items-center rounded-[6px] border border-white/10 bg-black/70 text-openfmv-muted opacity-0 shadow-[0_10px_28px_rgba(0,0,0,0.35)] transition hover:border-red-300/35 hover:bg-red-500/16 hover:text-red-100 focus:opacity-100 group-hover/card:opacity-100"
+                          className="absolute right-1 top-1 grid h-7 w-7 place-items-center rounded-openfmv-tool border border-white/10 bg-black/70 text-openfmv-muted opacity-0 shadow-[0_10px_28px_rgba(0,0,0,0.35)] transition hover:border-red-300/35 hover:bg-red-500/16 hover:text-red-100 focus:opacity-100 group-hover/card:opacity-100"
                           title={t('panel.removeAsset')}
                           aria-label={t('panel.removeAsset')}
                         >
@@ -3668,7 +3668,7 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
                         setDraggedInteractionType(null);
                         setDragTargetTrackId(null);
                       }}
-                      className="flex h-20 flex-col items-center justify-center gap-2 rounded-[8px] border border-white/10 bg-white/[0.045] text-xs font-semibold text-openfmv-sub transition hover:bg-white/[0.07] hover:text-white"
+                      className="flex h-20 flex-col items-center justify-center gap-2 rounded-openfmv-tool border border-white/10 bg-white/[0.045] text-xs font-semibold text-openfmv-sub transition hover:bg-white/[0.07] hover:text-white"
                     >
                       <Icon size={18} />
                       <span className="truncate px-1">{t(`clipTypes.${type}`)}</span>
@@ -3683,7 +3683,7 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
         </div>
       </aside>
 
-      <section className="min-h-0 overflow-hidden rounded-sm border border-white/10 bg-[#171717] shadow-[0_18px_56px_rgba(0,0,0,0.30)]">
+      <section className="min-h-0 overflow-hidden rounded-openfmv-tool border border-white/10 bg-[#171717] shadow-[0_18px_56px_rgba(0,0,0,0.30)]">
         <div className="flex size-full min-h-0 min-w-0 flex-col">
           <div className="flex min-h-0 min-w-0 flex-1 p-2 pb-0">
             <div ref={previewViewportRef} className="relative flex size-full min-h-0 min-w-0 items-center justify-center overflow-hidden">
@@ -3783,13 +3783,13 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
             </div>
           </div>
 
-          <div className="grid h-10 shrink-0 grid-cols-[1fr_auto_1fr] items-center px-3">
+          <div className="grid h-openfmv-control shrink-0 grid-cols-[1fr_auto_1fr] items-center px-3">
             <div className="flex min-w-0 items-center font-mono text-xs">
               <span className="text-white">{currentTime.toFixed(2)}</span>
               <span className="px-2 text-openfmv-muted">/</span>
               <span className="text-openfmv-muted">{timeline.duration.toFixed(2)}s</span>
             </div>
-            <button type="button" onClick={toggleTimelinePlayback} className={`grid h-8 w-8 place-items-center rounded-[7px] transition hover:bg-white/[0.12] hover:text-white ${isTimelinePlaying ? 'bg-sky-400/18 text-sky-100' : 'text-openfmv-sub'}`} title={isTimelinePlaying ? t('actions.pause') : t('actions.play')} aria-label={isTimelinePlaying ? t('actions.pause') : t('actions.play')}>
+            <button type="button" onClick={toggleTimelinePlayback} className={`grid h-openfmv-tool w-openfmv-tool place-items-center rounded-openfmv-pill transition hover:bg-white/[0.12] hover:text-white ${isTimelinePlaying ? 'bg-sky-400/18 text-sky-100' : 'text-openfmv-sub'}`} title={isTimelinePlaying ? t('actions.pause') : t('actions.play')} aria-label={isTimelinePlaying ? t('actions.pause') : t('actions.play')}>
               {isTimelinePlaying ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
             </button>
             <div className="min-w-0 justify-self-end text-right text-xs font-semibold text-openfmv-sub">
@@ -3799,18 +3799,18 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
         </div>
       </section>
 
-      <aside className="min-h-0 overflow-y-auto rounded-sm border border-white/10 bg-[#202020] shadow-[0_18px_56px_rgba(0,0,0,0.30)]">
+      <aside className="min-h-0 overflow-y-auto rounded-openfmv-tool border border-white/10 bg-[#202020] shadow-[0_18px_56px_rgba(0,0,0,0.30)]">
         <div className="border-b border-white/10 px-3 py-2.5">
           <div className="flex items-center justify-between gap-3">
             <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-openfmv-muted">{t('inspector.title')}</div>
-            {selectedClip && <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-0.5 text-[9px] font-semibold uppercase text-openfmv-sub">{selectedClip.type}</span>}
+            {selectedClip && <span className="rounded-openfmv-pill border border-white/10 bg-white/[0.06] px-2 py-0.5 text-[9px] font-semibold uppercase text-openfmv-sub">{selectedClip.type}</span>}
           </div>
           <h2 className="mt-1.5 truncate text-sm font-semibold text-white">{selectedClip ? getTimelineClipLabel(selectedClip) : t('inspector.noClipSelected')}</h2>
         </div>
 
         <div className="p-3">
         {!selectedClip ? (
-          <div className="rounded-[8px] border border-white/10 bg-white/[0.035] p-4 text-sm leading-6 text-openfmv-muted">
+          <div className="rounded-openfmv-tool border border-white/10 bg-white/[0.035] p-4 text-sm leading-6 text-openfmv-muted">
             {t('inspector.empty')}
           </div>
         ) : isMediaClip(selectedClip) ? (
@@ -3836,8 +3836,8 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
       </aside>
       </div>
 
-      <section className="mx-3 mb-3 h-[34vh] min-h-[260px] shrink-0 overflow-hidden rounded-sm border border-white/10 bg-[#171717] shadow-[0_18px_56px_rgba(0,0,0,0.26)]">
-        <div className="relative flex h-10 items-center justify-between border-b border-white/10 bg-[#1b1b1b] px-3">
+      <section className="mx-3 mb-3 h-[34vh] min-h-[260px] shrink-0 overflow-hidden rounded-openfmv-tool border border-white/10 bg-[#171717] shadow-[0_18px_56px_rgba(0,0,0,0.26)]">
+        <div className="relative flex h-openfmv-control items-center justify-between border-b border-white/10 bg-[#1b1b1b] px-3">
           <div className="flex items-center gap-1 text-openfmv-sub">
             {([
               { icon: Undo2, label: t('timeline.toolbar.undo'), onClick: undoTimeline, disabled: !canUndoTimeline },
@@ -3862,7 +3862,7 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
                   type="button"
                   onClick={item.onClick}
                   disabled={item.disabled}
-                  className={`grid h-8 w-8 place-items-center rounded-[7px] transition hover:bg-white/[0.07] hover:text-white disabled:opacity-35 ${item.active ? 'bg-amber-400/16 text-amber-200' : ''}`}
+                  className={`grid h-openfmv-tool w-openfmv-tool place-items-center rounded-openfmv-tool transition hover:bg-white/[0.07] hover:text-white disabled:opacity-35 ${item.active ? 'bg-amber-400/16 text-amber-200' : ''}`}
                   title={item.label}
                   aria-label={item.label}
                 >
@@ -3872,13 +3872,13 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
             })}
           </div>
           <div className="flex items-center gap-1 text-openfmv-sub">
-            <button type="button" onClick={() => setIsRippleEditingEnabled((value) => !value)} aria-pressed={isRippleEditingEnabled} className={`grid h-8 w-8 place-items-center rounded-[7px] transition hover:bg-white/[0.07] ${isRippleEditingEnabled ? 'text-sky-300' : 'text-openfmv-muted'}`} title={isRippleEditingEnabled ? t('timeline.toolbar.disableRipple') : t('timeline.toolbar.enableRipple')} aria-label={isRippleEditingEnabled ? t('timeline.toolbar.disableRipple') : t('timeline.toolbar.enableRipple')}>
+            <button type="button" onClick={() => setIsRippleEditingEnabled((value) => !value)} aria-pressed={isRippleEditingEnabled} className={`grid h-openfmv-tool w-openfmv-tool place-items-center rounded-openfmv-tool transition hover:bg-white/[0.07] ${isRippleEditingEnabled ? 'text-sky-300' : 'text-openfmv-muted'}`} title={isRippleEditingEnabled ? t('timeline.toolbar.disableRipple') : t('timeline.toolbar.enableRipple')} aria-label={isRippleEditingEnabled ? t('timeline.toolbar.disableRipple') : t('timeline.toolbar.enableRipple')}>
               <ChevronsRight size={15} />
             </button>
-            <button type="button" onClick={() => setIsSnappingEnabled((value) => !value)} aria-pressed={isSnappingEnabled} className={`grid h-8 w-8 place-items-center rounded-[7px] transition hover:bg-white/[0.07] ${isSnappingEnabled ? 'text-sky-300' : 'text-openfmv-muted'}`} title={isSnappingEnabled ? t('timeline.toolbar.disableSnap') : t('timeline.toolbar.enableSnap')} aria-label={isSnappingEnabled ? t('timeline.toolbar.disableSnap') : t('timeline.toolbar.enableSnap')}>
+            <button type="button" onClick={() => setIsSnappingEnabled((value) => !value)} aria-pressed={isSnappingEnabled} className={`grid h-openfmv-tool w-openfmv-tool place-items-center rounded-openfmv-tool transition hover:bg-white/[0.07] ${isSnappingEnabled ? 'text-sky-300' : 'text-openfmv-muted'}`} title={isSnappingEnabled ? t('timeline.toolbar.disableSnap') : t('timeline.toolbar.enableSnap')} aria-label={isSnappingEnabled ? t('timeline.toolbar.disableSnap') : t('timeline.toolbar.enableSnap')}>
               <Magnet size={15} />
             </button>
-            <button type="button" onClick={zoomOut} className="grid h-8 w-8 place-items-center rounded-[7px] hover:bg-white/[0.08] hover:text-white" title={t('timeline.zoomOut')} aria-label={t('timeline.zoomOut')}>
+            <button type="button" onClick={zoomOut} className="grid h-openfmv-tool w-openfmv-tool place-items-center rounded-openfmv-tool hover:bg-white/[0.08] hover:text-white" title={t('timeline.zoomOut')} aria-label={t('timeline.zoomOut')}>
               <ZoomOut size={15} />
             </button>
             <div className="relative h-8 w-24">
@@ -3897,10 +3897,10 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
                 aria-label={t('timeline.zoom')}
               />
             </div>
-            <button type="button" onClick={zoomIn} className="grid h-8 w-8 place-items-center rounded-[7px] hover:bg-white/[0.08] hover:text-white" title={t('timeline.zoomIn')} aria-label={t('timeline.zoomIn')}>
+            <button type="button" onClick={zoomIn} className="grid h-openfmv-tool w-openfmv-tool place-items-center rounded-openfmv-tool hover:bg-white/[0.08] hover:text-white" title={t('timeline.zoomIn')} aria-label={t('timeline.zoomIn')}>
               <ZoomIn size={15} />
             </button>
-            <button type="button" onClick={fitTimelineToView} className="grid h-8 w-8 place-items-center rounded-[7px] hover:bg-white/[0.08] hover:text-white" title={t('timeline.zoomFit')} aria-label={t('timeline.zoomFit')}>
+            <button type="button" onClick={fitTimelineToView} className="grid h-openfmv-tool w-openfmv-tool place-items-center rounded-openfmv-tool hover:bg-white/[0.08] hover:text-white" title={t('timeline.zoomFit')} aria-label={t('timeline.zoomFit')}>
               <Maximize2 size={15} />
             </button>
           </div>
@@ -3925,28 +3925,28 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
                       data-node-timeline-track-head-id={track.id}
                       onContextMenu={(event) => handleTrackContextMenu(track, event, currentTime, { allowButtonTarget: true })}
                       onPointerDown={(event) => handleTrackReorderPointerDown(track, event)}
-                      className={`flex cursor-grab items-center justify-end gap-1 rounded-[7px] px-2 text-openfmv-sub transition active:cursor-grabbing ${track.hidden ? 'opacity-55' : ''} ${track.locked ? 'bg-white/[0.035]' : ''} ${trackReorder?.trackId === track.id ? 'bg-sky-400/12 text-sky-100' : ''}`}
+                      className={`flex cursor-grab items-center justify-end gap-1 rounded-openfmv-tool px-2 text-openfmv-sub transition active:cursor-grabbing ${track.hidden ? 'opacity-55' : ''} ${track.locked ? 'bg-white/[0.035]' : ''} ${trackReorder?.trackId === track.id ? 'bg-sky-400/12 text-sky-100' : ''}`}
                       style={{ height: trackHeight }}
                     >
                       {laneCount > 0 && (
-                        <span className="mr-auto rounded-[5px] border border-sky-300/20 bg-sky-400/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-sky-200">
+                        <span className="mr-auto rounded-openfmv-tool border border-sky-300/20 bg-sky-400/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-sky-200">
                           {t('fields.keyframes')}
                         </span>
                       )}
-                      <button type="button" onClick={() => updateTrack(track.id, { collapsed: !isCollapsed })} className="grid h-6 w-6 place-items-center rounded-[6px] text-openfmv-muted transition hover:bg-white/[0.07] hover:text-white" title={isCollapsed ? t('timeline.toolbar.expandTrack') : t('timeline.toolbar.collapseTrack')} aria-label={isCollapsed ? t('timeline.toolbar.expandTrack') : t('timeline.toolbar.collapseTrack')}>
+                      <button type="button" onClick={() => updateTrack(track.id, { collapsed: !isCollapsed })} className="grid h-6 w-6 place-items-center rounded-openfmv-tool text-openfmv-muted transition hover:bg-white/[0.07] hover:text-white" title={isCollapsed ? t('timeline.toolbar.expandTrack') : t('timeline.toolbar.collapseTrack')} aria-label={isCollapsed ? t('timeline.toolbar.expandTrack') : t('timeline.toolbar.collapseTrack')}>
                         <ChevronDown size={14} className={`transition ${isCollapsed ? '-rotate-90' : ''}`} />
                       </button>
                       {canTimelineTrackHaveAudio(track) && (
-                        <button type="button" onClick={() => updateTrack(track.id, { muted: !track.muted })} className="grid h-6 w-6 place-items-center rounded-[6px] text-openfmv-muted transition hover:bg-white/[0.07] hover:text-white" title={track.muted ? t('timeline.toolbar.unmuteTrack') : t('timeline.toolbar.muteTrack')} aria-label={track.muted ? t('timeline.toolbar.unmuteTrack') : t('timeline.toolbar.muteTrack')}>
+                        <button type="button" onClick={() => updateTrack(track.id, { muted: !track.muted })} className="grid h-6 w-6 place-items-center rounded-openfmv-tool text-openfmv-muted transition hover:bg-white/[0.07] hover:text-white" title={track.muted ? t('timeline.toolbar.unmuteTrack') : t('timeline.toolbar.muteTrack')} aria-label={track.muted ? t('timeline.toolbar.unmuteTrack') : t('timeline.toolbar.muteTrack')}>
                           <AudioIcon size={14} className={track.muted ? 'text-red-300' : ''} />
                         </button>
                       )}
                       {canTimelineTrackBeHidden(track) && (
-                        <button type="button" onClick={() => updateTrack(track.id, { hidden: !track.hidden })} className="grid h-6 w-6 place-items-center rounded-[6px] text-openfmv-muted transition hover:bg-white/[0.07] hover:text-white" title={track.hidden ? t('timeline.toolbar.showTrack') : t('timeline.toolbar.hideTrack')} aria-label={track.hidden ? t('timeline.toolbar.showTrack') : t('timeline.toolbar.hideTrack')}>
+                        <button type="button" onClick={() => updateTrack(track.id, { hidden: !track.hidden })} className="grid h-6 w-6 place-items-center rounded-openfmv-tool text-openfmv-muted transition hover:bg-white/[0.07] hover:text-white" title={track.hidden ? t('timeline.toolbar.showTrack') : t('timeline.toolbar.hideTrack')} aria-label={track.hidden ? t('timeline.toolbar.showTrack') : t('timeline.toolbar.hideTrack')}>
                           <VisibilityIcon size={14} />
                         </button>
                       )}
-                      <button type="button" onClick={() => updateTrack(track.id, { locked: !track.locked })} className="grid h-6 w-6 place-items-center rounded-[6px] text-openfmv-muted transition hover:bg-white/[0.07] hover:text-white" title={track.locked ? t('timeline.toolbar.unlockTrack') : t('timeline.toolbar.lockTrack')} aria-label={track.locked ? t('timeline.toolbar.unlockTrack') : t('timeline.toolbar.lockTrack')}>
+                      <button type="button" onClick={() => updateTrack(track.id, { locked: !track.locked })} className="grid h-6 w-6 place-items-center rounded-openfmv-tool text-openfmv-muted transition hover:bg-white/[0.07] hover:text-white" title={track.locked ? t('timeline.toolbar.unlockTrack') : t('timeline.toolbar.lockTrack')} aria-label={track.locked ? t('timeline.toolbar.unlockTrack') : t('timeline.toolbar.lockTrack')}>
                         <LockIcon size={14} className={track.locked ? 'text-amber-200' : ''} />
                       </button>
                       <Icon size={16} />
@@ -4027,7 +4027,7 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
                     onPointerDown={handleTimelineMarqueePointerDown}
                   >
                     {track.type === 'media' && track.clips.length === 0 && (
-                      <button type="button" onClick={() => handleRequestMediaClip(track.id)} disabled={track.locked} className="absolute left-3 inline-flex h-7 items-center gap-2 rounded-[7px] border border-dashed border-white/15 px-2 text-xs text-openfmv-muted hover:border-white/30 hover:text-white disabled:pointer-events-none disabled:opacity-40" style={{ top: emptyButtonTop }}>
+                      <button type="button" onClick={() => handleRequestMediaClip(track.id)} disabled={track.locked} className="absolute left-3 inline-flex h-7 items-center gap-2 rounded-openfmv-tool border border-dashed border-white/15 px-2 text-xs text-openfmv-muted hover:border-white/30 hover:text-white disabled:pointer-events-none disabled:opacity-40" style={{ top: emptyButtonTop }}>
                         <Plus size={13} />
                         {t('timeline.addMedia')}
                       </button>
@@ -4146,7 +4146,7 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
               {marqueeRect && (
                 <div
                   aria-hidden="true"
-                  className="pointer-events-none absolute z-40 rounded-[4px] border border-sky-300/80 bg-sky-400/14 shadow-[0_0_0_1px_rgba(2,132,199,0.22)]"
+                  className="pointer-events-none absolute z-40 rounded-openfmv-tool border border-sky-300/80 bg-sky-400/14 shadow-[0_0_0_1px_rgba(2,132,199,0.22)]"
                   style={{
                     left: marqueeRect.left,
                     top: marqueeRect.top,
@@ -4164,7 +4164,7 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
       {timelineContextMenu && (
         <div
           data-node-timeline-context-menu
-          className="fixed z-50 w-[220px] overflow-hidden rounded-[8px] border border-white/10 bg-[#1b1b1b] p-1.5 text-sm text-openfmv-sub shadow-[0_20px_70px_rgba(0,0,0,0.45)]"
+          className="fixed z-50 w-[220px] overflow-hidden rounded-openfmv-tool border border-white/10 bg-[#1b1b1b] p-1.5 text-sm text-openfmv-sub shadow-[0_20px_70px_rgba(0,0,0,0.45)]"
           style={{ left: timelineContextMenu.x, top: timelineContextMenu.y }}
         >
           {timelineContextMenu.kind === 'keyframe' ? (
@@ -4389,7 +4389,7 @@ function TimelineClipExpandedKeyframeLanes({
         <div
           key={lane.property}
           data-node-timeline-keyframe-lane={lane.property}
-          className="absolute left-0 rounded-[6px] border border-sky-300/12 bg-sky-400/[0.045]"
+          className="absolute left-0 rounded-openfmv-tool border border-sky-300/12 bg-sky-400/[0.045]"
           style={{
             top: index * TIMELINE_KEYFRAME_LANE_HEIGHT_PX,
             width,
@@ -4444,7 +4444,7 @@ function ContextMenuButton({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className={`flex h-8 w-full items-center gap-2 rounded-[7px] px-2 text-left transition hover:bg-white/[0.07] hover:text-white disabled:pointer-events-none disabled:opacity-35 ${danger ? 'text-red-200 hover:bg-red-500/12' : ''}`}
+      className={`flex h-openfmv-tool w-full items-center gap-2 rounded-openfmv-tool px-2 text-left transition hover:bg-white/[0.07] hover:text-white disabled:pointer-events-none disabled:opacity-35 ${danger ? 'text-red-200 hover:bg-red-500/12' : ''}`}
     >
       <Icon size={14} />
       <span className="min-w-0 truncate">{label}</span>
@@ -4647,7 +4647,7 @@ function AudioClipVolumeLine({
         onLostPointerCapture={handleLostPointerCapture}
       />
       {isDragging && (
-        <span className="pointer-events-none absolute right-1 top-1 rounded-[5px] bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white shadow-[0_8px_24px_rgba(0,0,0,0.38)]">
+        <span className="pointer-events-none absolute right-1 top-1 rounded-openfmv-tool bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white shadow-[0_8px_24px_rgba(0,0,0,0.38)]">
           {volumeLabel}
         </span>
       )}
@@ -4708,7 +4708,7 @@ function KeyframedNumberField({
           onClick={toggleKeyframe}
           disabled={isToggleDisabled}
           aria-pressed={Boolean(activeKeyframe)}
-          className={`grid h-5 w-5 place-items-center rounded-[5px] transition hover:bg-white/[0.08] disabled:opacity-35 ${activeKeyframe ? 'text-sky-300' : hasAnimatedKeyframes ? 'text-sky-200/70' : 'text-openfmv-muted'}`}
+          className={`grid h-5 w-5 place-items-center rounded-openfmv-tool transition hover:bg-white/[0.08] disabled:opacity-35 ${activeKeyframe ? 'text-sky-300' : hasAnimatedKeyframes ? 'text-sky-200/70' : 'text-openfmv-muted'}`}
           title={label}
           aria-label={label}
         >
@@ -4744,7 +4744,7 @@ function VideoClipSizeInspector({
     <div className="space-y-4">
       <label className="block">
         <span className="mb-2 block text-xs font-semibold text-openfmv-muted">{t('fields.fit')}</span>
-        <select value={clip.fit || 'contain'} onChange={(event) => onUpdate((item) => ({ ...item, fit: event.target.value === 'cover' ? 'cover' : 'contain' }))} className="openfmv-dark-select h-10 w-full rounded-[8px] border border-white/12 bg-white/[0.075] px-3 text-sm text-white outline-none focus:border-white/30">
+        <select value={clip.fit || 'contain'} onChange={(event) => onUpdate((item) => ({ ...item, fit: event.target.value === 'cover' ? 'cover' : 'contain' }))} className="openfmv-dark-select h-openfmv-control w-full rounded-openfmv-tool border border-white/12 bg-white/[0.075] px-3 text-sm text-white outline-none focus:border-white/30">
           <option value="contain">{t('fields.fitContain')}</option>
           <option value="cover">{t('fields.fitCover')}</option>
         </select>
@@ -4789,24 +4789,24 @@ function MediaClipInspector({
     <div className="space-y-4">
       <label className="block">
         <span className="mb-2 block text-xs font-semibold text-openfmv-muted">{t('fields.name')}</span>
-        <input value={clip.name || ''} onChange={(event) => onUpdate((item) => ({ ...item, name: event.target.value }))} className="h-10 w-full rounded-[8px] border border-white/12 bg-white/[0.075] px-3 text-sm text-white outline-none focus:border-white/30" />
+        <input value={clip.name || ''} onChange={(event) => onUpdate((item) => ({ ...item, name: event.target.value }))} className="h-openfmv-control w-full rounded-openfmv-tool border border-white/12 bg-white/[0.075] px-3 text-sm text-white outline-none focus:border-white/30" />
       </label>
-      <label className="flex h-10 items-center justify-between rounded-[8px] border border-white/10 bg-white/[0.055] px-3 text-sm text-openfmv-sub">
+      <label className="flex h-openfmv-control items-center justify-between rounded-openfmv-tool border border-white/10 bg-white/[0.055] px-3 text-sm text-openfmv-sub">
         {t('fields.enabled')}
         <input type="checkbox" checked={clip.enabled !== false} onChange={(event) => onUpdate((item) => ({ ...item, enabled: event.target.checked }))} className="h-4 w-4 accent-sky-500" />
       </label>
-      <label className="flex h-10 items-center justify-between rounded-[8px] border border-white/10 bg-white/[0.055] px-3 text-sm text-openfmv-sub">
+      <label className="flex h-openfmv-control items-center justify-between rounded-openfmv-tool border border-white/10 bg-white/[0.055] px-3 text-sm text-openfmv-sub">
         {t('fields.hidden')}
         <input type="checkbox" checked={clip.hidden === true} onChange={(event) => onUpdate((item) => ({ ...item, hidden: event.target.checked }))} className="h-4 w-4 accent-sky-500" />
       </label>
       {canTimelineClipHaveAudio(clip) && (
-        <label className="flex h-10 items-center justify-between rounded-[8px] border border-white/10 bg-white/[0.055] px-3 text-sm text-openfmv-sub">
+        <label className="flex h-openfmv-control items-center justify-between rounded-openfmv-tool border border-white/10 bg-white/[0.055] px-3 text-sm text-openfmv-sub">
           {t('fields.muted')}
           <input type="checkbox" checked={clip.muted === true} onChange={(event) => onUpdate((item) => ({ ...item, muted: event.target.checked }))} className="h-4 w-4 accent-fuchsia-500" />
         </label>
       )}
       {canTimelineClipHaveAudio(clip) && (
-        <label className="flex h-10 items-center justify-between rounded-[8px] border border-white/10 bg-white/[0.055] px-3 text-sm text-openfmv-sub">
+        <label className="flex h-openfmv-control items-center justify-between rounded-openfmv-tool border border-white/10 bg-white/[0.055] px-3 text-sm text-openfmv-sub">
           {t('fields.preservePitch')}
           <input type="checkbox" checked={clip.preservePitch !== false} onChange={(event) => onUpdate((item) => ({ ...item, preservePitch: event.target.checked }))} className="h-4 w-4 accent-fuchsia-500" />
         </label>
@@ -4828,7 +4828,7 @@ function MediaClipInspector({
         <>
           <label className="block">
             <span className="mb-2 block text-xs font-semibold text-openfmv-muted">{t('fields.fit')}</span>
-            <select value={clip.fit || 'contain'} onChange={(event) => onUpdate((item) => ({ ...item, fit: event.target.value === 'cover' ? 'cover' : 'contain' }))} className="openfmv-dark-select h-10 w-full rounded-[8px] border border-white/12 bg-white/[0.075] px-3 text-sm text-white outline-none focus:border-white/30">
+            <select value={clip.fit || 'contain'} onChange={(event) => onUpdate((item) => ({ ...item, fit: event.target.value === 'cover' ? 'cover' : 'contain' }))} className="openfmv-dark-select h-openfmv-control w-full rounded-openfmv-tool border border-white/12 bg-white/[0.075] px-3 text-sm text-white outline-none focus:border-white/30">
               <option value="contain">{t('fields.fitContain')}</option>
               <option value="cover">{t('fields.fitCover')}</option>
             </select>
@@ -4840,16 +4840,16 @@ function MediaClipInspector({
           </div>
         </>
       )}
-      <div className="rounded-[8px] border border-white/10 bg-white/[0.035] p-3">
+      <div className="rounded-openfmv-tool border border-white/10 bg-white/[0.035] p-3">
         <div className="mb-2 flex items-center justify-between gap-2">
           <div className="text-xs font-semibold text-white">{t('fields.keyframes')}</div>
           <div className="text-[10px] font-mono text-openfmv-muted">{t('fields.keyframeCount', { count: clip.keyframes?.length ?? 0 })}</div>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <button type="button" onClick={() => onAddKeyframes([{ property: 'opacity', value: getTimelineClipOpacity(clip) }])} className="h-8 rounded-[7px] border border-white/10 bg-white/[0.06] px-2 text-xs font-semibold text-openfmv-sub transition hover:bg-white/[0.10] hover:text-white">
+          <button type="button" onClick={() => onAddKeyframes([{ property: 'opacity', value: getTimelineClipOpacity(clip) }])} className="h-openfmv-tool rounded-openfmv-tool border border-white/10 bg-white/[0.06] px-2 text-xs font-semibold text-openfmv-sub transition hover:bg-white/[0.10] hover:text-white">
             {t('fields.addOpacityKeyframe')}
           </button>
-          <button type="button" onClick={() => onAddKeyframes([{ property: 'rotation', value: getTimelineClipRotation(clip) }])} className="h-8 rounded-[7px] border border-white/10 bg-white/[0.06] px-2 text-xs font-semibold text-openfmv-sub transition hover:bg-white/[0.10] hover:text-white">
+          <button type="button" onClick={() => onAddKeyframes([{ property: 'rotation', value: getTimelineClipRotation(clip) }])} className="h-openfmv-tool rounded-openfmv-tool border border-white/10 bg-white/[0.06] px-2 text-xs font-semibold text-openfmv-sub transition hover:bg-white/[0.10] hover:text-white">
             {t('fields.addRotationKeyframe')}
           </button>
           {isVisualMediaClip(clip) && (
@@ -4861,12 +4861,12 @@ function MediaClipInspector({
                 { property: 'width', value: rect.width },
                 { property: 'height', value: rect.height },
               ]);
-            }} className="h-8 rounded-[7px] border border-white/10 bg-white/[0.06] px-2 text-xs font-semibold text-openfmv-sub transition hover:bg-white/[0.10] hover:text-white">
+            }} className="h-openfmv-tool rounded-openfmv-tool border border-white/10 bg-white/[0.06] px-2 text-xs font-semibold text-openfmv-sub transition hover:bg-white/[0.10] hover:text-white">
               {t('fields.addPositionKeyframe')}
             </button>
           )}
           {clip.type === 'audio' && (
-            <button type="button" onClick={() => onAddKeyframes([{ property: 'volume', value: clip.volume ?? 1 }])} className="h-8 rounded-[7px] border border-white/10 bg-white/[0.06] px-2 text-xs font-semibold text-openfmv-sub transition hover:bg-white/[0.10] hover:text-white">
+            <button type="button" onClick={() => onAddKeyframes([{ property: 'volume', value: clip.volume ?? 1 }])} className="h-openfmv-tool rounded-openfmv-tool border border-white/10 bg-white/[0.06] px-2 text-xs font-semibold text-openfmv-sub transition hover:bg-white/[0.10] hover:text-white">
               {t('fields.addVolumeKeyframe')}
             </button>
           )}
@@ -4874,9 +4874,9 @@ function MediaClipInspector({
       </div>
       <label className="block">
         <span className="mb-2 block text-xs font-semibold text-openfmv-muted">{t('fields.source')}</span>
-        <input value={clip.src} onChange={(event) => onUpdate((item) => ({ ...item, src: event.target.value }))} className="h-10 w-full rounded-[8px] border border-white/12 bg-white/[0.075] px-3 text-sm text-white outline-none focus:border-white/30" />
+        <input value={clip.src} onChange={(event) => onUpdate((item) => ({ ...item, src: event.target.value }))} className="h-openfmv-control w-full rounded-openfmv-tool border border-white/12 bg-white/[0.075] px-3 text-sm text-white outline-none focus:border-white/30" />
       </label>
-      <button type="button" onClick={onDelete} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-[8px] border border-red-400/20 bg-red-500/8 px-3 text-sm font-semibold text-red-200 transition hover:bg-red-500/14">
+      <button type="button" onClick={onDelete} className="inline-flex h-openfmv-control w-full items-center justify-center gap-2 rounded-openfmv-tool border border-red-400/20 bg-red-500/8 px-3 text-sm font-semibold text-red-200 transition hover:bg-red-500/14">
         <Trash2 size={15} />
         {t('actions.deleteClip')}
       </button>
@@ -4938,7 +4938,7 @@ function QteRuleActionSelect({
         }}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
-        className={`flex h-8 w-full items-center justify-between gap-2 rounded-[7px] border border-white/10 bg-[#171717] px-2.5 text-left text-[11px] text-white outline-none transition hover:border-white/18 hover:bg-[#1d1d1d] ${isOpen ? 'border-white/20 bg-[#1d1d1d]' : ''}`}
+        className={`flex h-openfmv-tool w-full items-center justify-between gap-2 rounded-openfmv-tool border border-white/10 bg-[#171717] px-2.5 text-left text-[11px] text-white outline-none transition hover:border-white/18 hover:bg-[#1d1d1d] ${isOpen ? 'border-white/20 bg-[#1d1d1d]' : ''}`}
       >
         <span className="flex min-w-0 items-center gap-2">
           {SelectedIcon && <SelectedIcon size={13} className="shrink-0 text-openfmv-muted" />}
@@ -4948,7 +4948,7 @@ function QteRuleActionSelect({
       </button>
 
       {isOpen && (
-        <div role="listbox" className="absolute left-0 right-0 top-full z-50 mt-1 max-h-48 overflow-y-auto rounded-[8px] border border-white/10 bg-[#171717] p-1 shadow-[0_18px_44px_rgba(0,0,0,0.38)]">
+        <div role="listbox" className="absolute left-0 right-0 top-full z-50 mt-1 max-h-48 overflow-y-auto rounded-openfmv-tool border border-white/10 bg-[#171717] p-1 shadow-[0_18px_44px_rgba(0,0,0,0.38)]">
           {options.map((option) => {
             const selected = option.value === normalizedValue;
             const OptionIcon = option.icon;
@@ -4962,9 +4962,9 @@ function QteRuleActionSelect({
                   onChange(option.value);
                   setIsOpen(false);
                 }}
-                className={`grid min-h-8 w-full grid-cols-[24px_minmax(0,1fr)] items-center gap-2 rounded-[7px] px-2 py-1.5 text-left text-[11px] transition ${selected ? 'bg-white/[0.12] text-white' : 'text-openfmv-sub hover:bg-[#1d1d1d] hover:text-white'}`}
+                className={`grid min-h-openfmv-tool w-full grid-cols-[24px_minmax(0,1fr)] items-center gap-2 rounded-openfmv-tool px-2 py-1.5 text-left text-[11px] transition ${selected ? 'bg-white/[0.12] text-white' : 'text-openfmv-sub hover:bg-[#1d1d1d] hover:text-white'}`}
               >
-                <span className="grid h-5 w-5 shrink-0 place-items-center rounded-[5px] bg-white/[0.055] text-openfmv-muted">
+                <span className="grid h-5 w-5 shrink-0 place-items-center rounded-openfmv-tool bg-white/[0.055] text-openfmv-muted">
                   <OptionIcon size={13} />
                 </span>
                 <span className="min-w-0 truncate">{option.label}</span>
@@ -4988,7 +4988,7 @@ function InspectorFieldRow({
 }) {
   return (
     <div className="grid grid-cols-[28px_minmax(0,1fr)] items-center gap-2 py-1.5">
-      <div className="grid h-7 w-7 place-items-center rounded-[6px] text-openfmv-muted" title={label} aria-label={label}>
+      <div className="grid h-7 w-7 place-items-center rounded-openfmv-tool text-openfmv-muted" title={label} aria-label={label}>
         {Icon && <Icon size={14} />}
         <span className="sr-only">{label}</span>
       </div>
@@ -5015,7 +5015,7 @@ function InspectorTextInput({
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
-      className="h-8 w-full rounded-[7px] border border-white/10 bg-[#171717] px-2.5 text-xs text-white outline-none placeholder:text-openfmv-muted transition hover:border-white/18 hover:bg-[#1d1d1d] focus:border-white/20 focus:bg-[#1d1d1d]"
+      className="h-openfmv-tool w-full rounded-openfmv-tool border border-white/10 bg-[#171717] px-2.5 text-xs text-white outline-none placeholder:text-openfmv-muted transition hover:border-white/18 hover:bg-[#1d1d1d] focus:border-white/20 focus:bg-[#1d1d1d]"
     />
   );
 }
@@ -5040,7 +5040,7 @@ function InspectorSegmentedControl({
       : 'bg-white/[0.16] text-white';
 
   return (
-    <div className="grid h-8 rounded-[7px] border border-white/10 bg-[#171717] p-0.5 transition hover:border-white/18 hover:bg-[#1d1d1d]" style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}>
+    <div className="grid h-openfmv-tool rounded-openfmv-tool border border-white/10 bg-[#171717] p-0.5 transition hover:border-white/18 hover:bg-[#1d1d1d]" style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}>
       {options.map((option) => {
         const Icon = option.icon;
         const selected = value === option.value;
@@ -5052,7 +5052,7 @@ function InspectorSegmentedControl({
             aria-pressed={selected}
             title={option.label}
             aria-label={option.label}
-            className={`flex min-w-0 items-center justify-center gap-1 rounded-[6px] ${compact ? 'px-0' : 'px-1.5'} text-xs font-semibold transition ${selected ? activeClass : 'text-openfmv-muted hover:bg-white/[0.06] hover:text-white'}`}
+            className={`flex min-w-0 items-center justify-center gap-1 rounded-openfmv-tool ${compact ? 'px-0' : 'px-1.5'} text-xs font-semibold transition ${selected ? activeClass : 'text-openfmv-muted hover:bg-white/[0.06] hover:text-white'}`}
           >
             {Icon && <Icon size={13} className="shrink-0" />}
             {!compact && <span className="truncate">{option.label}</span>}
@@ -5075,9 +5075,9 @@ function InspectorSwitch({
       type="button"
       aria-pressed={checked}
       onClick={() => onChange(!checked)}
-      className={`relative h-5 w-10 rounded-full transition ${checked ? 'bg-cyan-400' : 'bg-white/18'}`}
+      className={`relative h-5 w-10 rounded-openfmv-pill transition ${checked ? 'bg-cyan-400' : 'bg-white/18'}`}
     >
-      <span className={`absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full bg-white shadow transition ${checked ? 'left-[21px]' : 'left-1'}`} />
+      <span className={`absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-openfmv-pill bg-white shadow transition ${checked ? 'left-[21px]' : 'left-1'}`} />
     </button>
   );
 }
@@ -5098,11 +5098,11 @@ function InspectorSwitchRow({
   const Icon = icon;
   return (
     <div className="grid grid-cols-[28px_minmax(0,1fr)] items-center gap-2 py-1.5">
-      <div className="grid h-7 w-7 place-items-center rounded-[6px] text-openfmv-muted" title={label} aria-label={label}>
+      <div className="grid h-7 w-7 place-items-center rounded-openfmv-tool text-openfmv-muted" title={label} aria-label={label}>
         <Icon size={14} />
         <span className="sr-only">{label}</span>
       </div>
-      <div className="flex h-8 items-center justify-between gap-2 rounded-[7px] border border-white/10 bg-[#171717] px-2.5 transition hover:border-white/18 hover:bg-[#1d1d1d]">
+      <div className="flex h-openfmv-tool items-center justify-between gap-2 rounded-openfmv-tool border border-white/10 bg-[#171717] px-2.5 transition hover:border-white/18 hover:bg-[#1d1d1d]">
         <span className={`truncate text-xs font-semibold ${checked ? 'text-white' : 'text-openfmv-muted'}`}>{shortLabel}</span>
         <InspectorSwitch checked={checked} onChange={onChange} />
       </div>
@@ -5155,7 +5155,7 @@ function InspectorKeyCapture({
         onChange(getQteKeyLabelFromEvent(event));
         setIsCapturing(false);
       }}
-      className={`flex h-8 w-full items-center rounded-[7px] border px-2.5 text-left text-xs font-semibold text-white outline-none transition hover:border-white/18 hover:bg-[#1d1d1d] ${isCapturing ? 'border-cyan-300/70 bg-cyan-400/10' : 'border-white/10 bg-[#171717] focus:border-cyan-300/65 focus:bg-cyan-400/10'}`}
+      className={`flex h-openfmv-tool w-full items-center rounded-openfmv-tool border px-2.5 text-left text-xs font-semibold text-white outline-none transition hover:border-white/18 hover:bg-[#1d1d1d] ${isCapturing ? 'border-cyan-300/70 bg-cyan-400/10' : 'border-white/10 bg-[#171717] focus:border-cyan-300/65 focus:bg-cyan-400/10'}`}
     >
       <span className="min-w-0 truncate">{label}</span>
     </button>
@@ -5174,7 +5174,7 @@ function InspectorClickCountStepper({
   const count = clampQteClickCount(value);
 
   return (
-    <div className="grid h-8 w-full grid-cols-[32px_minmax(0,1fr)_32px] overflow-hidden rounded-[7px] border border-white/10 bg-[#171717] text-xs font-semibold text-white transition hover:border-white/18 hover:bg-[#1d1d1d]">
+    <div className="grid h-openfmv-tool w-full grid-cols-[32px_minmax(0,1fr)_32px] overflow-hidden rounded-openfmv-tool border border-white/10 bg-[#171717] text-xs font-semibold text-white transition hover:border-white/18 hover:bg-[#1d1d1d]">
       <button
         type="button"
         aria-label={`${ariaLabel} -`}
@@ -5396,7 +5396,7 @@ function NumberField({
         value={Number.isFinite(value) ? value : 0}
         disabled={disabled}
         onChange={(event) => onChange(Number(event.target.value))}
-        className="h-10 w-full rounded-[8px] border border-white/12 bg-white/[0.075] px-2 font-mono text-xs text-white outline-none focus:border-white/30 disabled:opacity-45"
+        className="h-openfmv-control w-full rounded-openfmv-tool border border-white/12 bg-white/[0.075] px-2 font-mono text-xs text-white outline-none focus:border-white/30 disabled:opacity-45"
       />
     </div>
   );

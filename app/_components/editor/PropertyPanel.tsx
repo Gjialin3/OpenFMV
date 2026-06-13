@@ -77,18 +77,18 @@ export default function PropertyPanel() {
   const timeLimit = data.type === 'interaction' || data.type === 'start' ? data.timeLimit || '' : '';
 
   return (
-    <aside className="absolute right-4 top-24 z-40 flex max-h-[calc(100%-7rem)] w-[360px] flex-col overflow-hidden rounded-[30px] border border-white/15 bg-white/[0.10] shadow-[0_24px_90px_rgba(0,0,0,0.44)] backdrop-blur-3xl">
-      <div className="flex items-center justify-between border-b border-white/15 px-5 py-4">
+    <aside className="absolute right-4 top-24 z-40 flex max-h-[calc(100%-7rem)] w-[360px] flex-col overflow-hidden rounded-openfmv-panel border border-white/15 bg-white/[0.10] shadow-[0_24px_90px_rgba(0,0,0,0.44)] backdrop-blur-3xl">
+      <div className="flex items-center justify-between border-b border-white/15 px-4 py-3">
         <div className="min-w-0">
           <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-openfmv-muted">{selectedNode.type}</div>
           <div className="mt-1 truncate text-base font-semibold text-white">{getNodeTitle(selectedNode, t)}</div>
         </div>
-        <Button onClick={() => setSelectedNodeId(null)} variant="icon" size="compactIcon" className="rounded-full">
+        <Button onClick={() => setSelectedNodeId(null)} variant="icon" size="compactIcon">
           <X size={16} />
         </Button>
       </div>
 
-      <div className="flex-1 space-y-5 overflow-y-auto p-5">
+      <div className="flex-1 space-y-4 overflow-y-auto p-4">
         <section className="space-y-3">
           <SectionTitle>{t('basicInfo')}</SectionTitle>
           <Label className="block">
@@ -96,7 +96,7 @@ export default function PropertyPanel() {
             <Input
               value={(data.type === 'start' || data.type === 'end' ? data.label : data.type === 'story' || data.type === 'interaction' ? data.title : '') || ''}
               onChange={(event) => handleChange(selectedNode.type === 'start' || selectedNode.type === 'end' ? 'label' : 'title', event.target.value)}
-              className="nodrag h-12 rounded-[22px] border-white/15 bg-white/[0.055] px-4 text-white"
+              className="nodrag border-white/15 bg-white/[0.055] px-4 text-white"
             />
           </Label>
 
@@ -106,7 +106,7 @@ export default function PropertyPanel() {
               <Textarea
                 value={storyText}
                 onChange={(event) => handleChange('fullText', event.target.value)}
-                className="nodrag nowheel min-h-32 resize-none rounded-[22px] border-white/15 bg-white/[0.055] px-4 py-3 text-white"
+                className="nodrag nowheel min-h-32 resize-none border-white/15 bg-white/[0.055] px-4 py-3 text-white"
               />
             </Label>
           )}
@@ -117,13 +117,13 @@ export default function PropertyPanel() {
             <SectionTitle>{t('interaction')}</SectionTitle>
             <Label className="block">
               <span className="mb-1.5 block text-xs font-medium text-openfmv-sub">{t('promptText')}</span>
-              <Textarea value={promptText} onChange={(event) => handleChange('prompt', event.target.value)} className="nodrag nowheel min-h-24 resize-none rounded-[22px] border-white/15 bg-white/[0.055] px-4 py-3 text-white" />
+              <Textarea value={promptText} onChange={(event) => handleChange('prompt', event.target.value)} className="nodrag nowheel min-h-24 resize-none border-white/15 bg-white/[0.055] px-4 py-3 text-white" />
             </Label>
 
             <Label className="block">
               <span className="mb-1.5 block text-xs font-medium text-openfmv-sub">{t('interactionMode')}</span>
               <Select value={interactionMode} onValueChange={(value) => handleChange('interactionMode', value as InteractionMode)}>
-                <SelectTrigger className="nodrag h-12 rounded-[22px] border-white/15 bg-white/[0.055] px-4 text-white">
+                <SelectTrigger className="nodrag h-openfmv-control rounded-openfmv-control border-white/15 bg-white/[0.055] px-4 text-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="border-white/15 bg-openfmv-node text-openfmv-text">
@@ -137,7 +137,7 @@ export default function PropertyPanel() {
             {interactionMode === 'slider' && (
               <Label className="block">
                 <span className="mb-1.5 block text-xs font-medium text-openfmv-sub">{t('sliderLabel')}</span>
-                <Input value={sliderLabel} onChange={(event) => handleChange('sliderConfig', { ...(data.type === 'interaction' || data.type === 'start' ? data.sliderConfig : {}), label: event.target.value })} className="nodrag h-12 rounded-[22px] border-white/15 bg-white/[0.055] px-4 text-white" />
+                <Input value={sliderLabel} onChange={(event) => handleChange('sliderConfig', { ...(data.type === 'interaction' || data.type === 'start' ? data.sliderConfig : {}), label: event.target.value })} className="nodrag border-white/15 bg-white/[0.055] px-4 text-white" />
               </Label>
             )}
 
@@ -146,21 +146,21 @@ export default function PropertyPanel() {
                 <Clock size={12} />
                 {t('countdownSeconds')}
               </span>
-              <Input type="number" min={0} value={timeLimit} onChange={(event) => handleChange('timeLimit', Number(event.target.value) || 0)} className="nodrag nowheel h-12 rounded-[22px] border-white/15 bg-white/[0.055] px-4 text-white" />
+              <Input type="number" min={0} value={timeLimit} onChange={(event) => handleChange('timeLimit', Number(event.target.value) || 0)} className="nodrag nowheel border-white/15 bg-white/[0.055] px-4 text-white" />
             </Label>
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-openfmv-sub">{t('interactionOptions')}</span>
-                <Button onClick={handleAddRule} variant="outline" size="sm" className="rounded-full border-white/15 bg-transparent text-openfmv-sub hover:border-openfmv-accent hover:bg-white/[0.08] hover:text-white">
+                <Button onClick={handleAddRule} variant="outline" size="sm" className="border-white/15 bg-transparent text-openfmv-sub hover:border-openfmv-accent hover:bg-white/[0.08] hover:text-white">
                   <Plus size={12} />
                   {t('add')}
                 </Button>
               </div>
               {rules.map((rule) => (
                 <div key={rule.id} className="flex items-center gap-2">
-                  <Input value={rule.condition || rule.keyword} onChange={(event) => handleUpdateRule(rule.id, event.target.value)} className="nodrag h-11 min-w-0 flex-1 rounded-[22px] border-white/15 bg-white/[0.055] px-4 text-xs text-white" />
-                  <Button onClick={() => handleRemoveRule(rule.id)} variant="icon" size="icon" className="rounded-full hover:bg-red-500/10 hover:text-red-300">
+                  <Input value={rule.condition || rule.keyword} onChange={(event) => handleUpdateRule(rule.id, event.target.value)} className="nodrag min-w-0 flex-1 border-white/15 bg-white/[0.055] px-4 text-xs text-white" />
+                  <Button onClick={() => handleRemoveRule(rule.id)} variant="icon" size="compactIcon" className="hover:bg-red-500/10 hover:text-red-300">
                     <Trash2 size={14} />
                   </Button>
                 </div>
@@ -170,8 +170,8 @@ export default function PropertyPanel() {
         )}
       </div>
 
-      <div className="border-t border-white/15 p-5">
-        <Button onClick={handleDelete} variant="outline" className="w-full rounded-[22px] border-red-400/30 bg-red-500/5 px-3 py-3 text-sm font-semibold text-red-300 hover:bg-red-500/10 hover:text-red-200">
+      <div className="border-t border-white/15 p-4">
+        <Button onClick={handleDelete} variant="outline" className="w-full border-red-400/30 bg-red-500/5 px-3 text-sm font-semibold text-red-300 hover:bg-red-500/10 hover:text-red-200">
           <Trash2 size={14} />
           {t('deleteNode')}
         </Button>

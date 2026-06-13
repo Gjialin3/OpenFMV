@@ -199,44 +199,44 @@ export default function TopBar() {
     <Header position="absolute" className="h-14 border-b border-white/[0.06] bg-black/24 px-3 shadow-[0_16px_44px_rgba(0,0,0,0.24)]">
       <div className="grid w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
         <div className="pointer-events-auto flex min-w-0 items-center">
-          <div className="flex h-9 min-w-0 items-center gap-2 rounded-full border border-white/10 bg-white/[0.075] px-2.5 shadow-[0_10px_28px_rgba(0,0,0,0.18)] backdrop-blur-2xl">
-            <div className="h-6 w-6 shrink-0 rounded-full bg-[radial-gradient(circle_at_30%_24%,#fff7ad,transparent_31%),radial-gradient(circle_at_66%_25%,#7dd3fc,transparent_34%),radial-gradient(circle_at_42%_70%,#c084fc,transparent_38%),linear-gradient(135deg,#f97316,#14b8a6)] shadow-[0_0_16px_rgba(125,211,252,0.18)]" />
+          <div className="flex h-openfmv-control min-w-0 items-center gap-2 rounded-openfmv-pill border border-white/10 bg-white/[0.075] px-3 shadow-[0_10px_28px_rgba(0,0,0,0.18)] backdrop-blur-2xl">
+            <div className="h-6 w-6 shrink-0 rounded-openfmv-pill bg-[radial-gradient(circle_at_30%_24%,#fff7ad,transparent_31%),radial-gradient(circle_at_66%_25%,#7dd3fc,transparent_34%),radial-gradient(circle_at_42%_70%,#c084fc,transparent_38%),linear-gradient(135deg,#f97316,#14b8a6)] shadow-[0_0_16px_rgba(125,211,252,0.18)]" />
             <Input type="text" value={title} onChange={(event) => setTitle(event.target.value)} className="h-auto w-32 min-w-0 border-0 bg-transparent px-0 py-0 text-sm font-semibold tracking-normal text-white shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 md:w-56" />
             <div className="h-5 w-px shrink-0 bg-white/10" />
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-black/20" title={lastSaved ? t('lastSaved', { time: lastSaved.toLocaleTimeString() }) : t('autoSaveEnabled')} suppressHydrationWarning>
+            <div className="flex h-openfmv-tool w-openfmv-tool shrink-0 items-center justify-center rounded-openfmv-tool bg-black/20" title={lastSaved ? t('lastSaved', { time: lastSaved.toLocaleTimeString() }) : t('autoSaveEnabled')} suppressHydrationWarning>
               <SaveStatusIcon size={14} className={`${saveStatus.className} ${saveStatus.spin ? 'animate-spin' : ''}`} />
             </div>
           </div>
         </div>
 
-        <nav className="pointer-events-auto flex h-9 items-center gap-1 rounded-full border border-white/10 bg-white/[0.075] p-1 shadow-[0_10px_28px_rgba(0,0,0,0.18)] backdrop-blur-2xl">
-          <Link href={blueprintHref} onClick={flushProjectSession} className={`inline-flex h-7 min-w-[94px] items-center justify-center gap-1.5 rounded-full px-3 text-xs font-bold transition ${isNodeMode ? 'text-openfmv-sub hover:bg-white/[0.08] hover:text-white' : 'bg-white/[0.18] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]'}`} title={t('blueprintMode')}>
+        <nav className="pointer-events-auto flex h-openfmv-control items-center gap-1 rounded-openfmv-pill border border-white/10 bg-white/[0.075] p-1 shadow-[0_10px_28px_rgba(0,0,0,0.18)] backdrop-blur-2xl">
+          <Link href={blueprintHref} onClick={flushProjectSession} className={`inline-flex h-openfmv-tool min-w-[94px] items-center justify-center gap-1.5 rounded-openfmv-pill px-3 text-xs font-bold transition ${isNodeMode ? 'text-openfmv-sub hover:bg-white/[0.08] hover:text-white' : 'bg-white/[0.18] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]'}`} title={t('blueprintMode')}>
             <GitBranch size={13} />
             <span className="hidden sm:inline">{t('blueprintMode')}</span>
           </Link>
-          <Link href={nodesHref} onClick={flushProjectSession} className={`inline-flex h-7 min-w-[88px] items-center justify-center gap-1.5 rounded-full px-3 text-xs font-bold transition ${isNodeMode ? 'bg-white/[0.18] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]' : 'text-openfmv-sub hover:bg-white/[0.08] hover:text-white'}`} title={t('nodeMode')}>
+          <Link href={nodesHref} onClick={flushProjectSession} className={`inline-flex h-openfmv-tool min-w-[88px] items-center justify-center gap-1.5 rounded-openfmv-pill px-3 text-xs font-bold transition ${isNodeMode ? 'bg-white/[0.18] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]' : 'text-openfmv-sub hover:bg-white/[0.08] hover:text-white'}`} title={t('nodeMode')}>
             <Film size={13} />
             <span className="hidden sm:inline">{t('nodeMode')}</span>
           </Link>
         </nav>
 
         <div className="pointer-events-auto flex min-w-0 items-center justify-end">
-          <div className="flex h-9 items-center gap-1 rounded-full border border-white/10 bg-white/[0.075] p-1 shadow-[0_10px_28px_rgba(0,0,0,0.18)] backdrop-blur-2xl">
+          <div className="flex h-openfmv-control items-center gap-1 rounded-openfmv-pill border border-white/10 bg-white/[0.075] p-1 shadow-[0_10px_28px_rgba(0,0,0,0.18)] backdrop-blur-2xl">
             <div className="relative" ref={settingsRef}>
-              <Button onClick={() => setIsSettingsOpen((value) => !value)} variant="icon" size="icon" className={`h-7 w-7 rounded-full border-0 bg-transparent shadow-none ${isSettingsOpen ? 'text-openfmv-accent' : 'text-openfmv-sub'}`} title={t('settings')}>
+              <Button onClick={() => setIsSettingsOpen((value) => !value)} variant="icon" size="compactIcon" className={`border-0 bg-transparent shadow-none ${isSettingsOpen ? 'text-openfmv-accent' : 'text-openfmv-sub'}`} title={t('settings')}>
                 <Settings2 size={15} />
               </Button>
 
               {isSettingsOpen && (
-                <div className="absolute right-0 top-full z-50 mt-3 w-72 overflow-hidden rounded-[18px] border border-white/15 bg-[#15171c]/95 p-1.5 shadow-[0_24px_80px_rgba(0,0,0,0.56)] ring-1 ring-black/40 backdrop-blur-xl">
+                <div className="absolute right-0 top-full z-50 mt-3 w-72 overflow-hidden rounded-openfmv-panel border border-white/15 bg-[#15171c]/95 p-1.5 shadow-[0_24px_80px_rgba(0,0,0,0.56)] ring-1 ring-black/40 backdrop-blur-xl">
                   <div className="px-3 py-3">
-                    <button type="button" role="switch" aria-checked={autoSaveEnabled} onClick={() => setAutoSaveEnabled(!autoSaveEnabled)} className="flex h-9 w-full items-center justify-between gap-3 rounded-[12px] border border-white/15 bg-white/[0.075] px-3 text-left transition hover:border-white/25 hover:bg-white/[0.10]" title={autoSaveEnabled ? t('pauseAutoSave') : t('enableAutoSave')}>
+                    <button type="button" role="switch" aria-checked={autoSaveEnabled} onClick={() => setAutoSaveEnabled(!autoSaveEnabled)} className="flex h-openfmv-editor w-full items-center justify-between gap-3 rounded-openfmv-control border border-white/15 bg-white/[0.075] px-3 text-left transition hover:border-white/25 hover:bg-white/[0.10]" title={autoSaveEnabled ? t('pauseAutoSave') : t('enableAutoSave')}>
                       <span className="flex min-w-0 items-center gap-2 text-sm font-semibold text-openfmv-text">
                         <span className="truncate">{t('autoSave')}</span>
                         <SaveStatusIcon size={13} className={`shrink-0 ${saveStatus.className} ${saveStatus.spin ? 'animate-spin' : ''}`} />
                       </span>
-                      <span aria-hidden="true" className={`flex h-6 w-11 shrink-0 items-center rounded-full border p-0.5 transition ${autoSaveEnabled ? 'border-emerald-300/40 bg-emerald-400/25' : 'border-white/15 bg-white/[0.08]'}`}>
-                        <span className={`h-5 w-5 rounded-full bg-white shadow-[0_3px_10px_rgba(0,0,0,0.35)] transition-transform ${autoSaveEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                      <span aria-hidden="true" className={`flex h-6 w-11 shrink-0 items-center rounded-openfmv-pill border p-0.5 transition ${autoSaveEnabled ? 'border-emerald-300/40 bg-emerald-400/25' : 'border-white/15 bg-white/[0.08]'}`}>
+                        <span className={`h-5 w-5 rounded-openfmv-pill bg-white shadow-[0_3px_10px_rgba(0,0,0,0.35)] transition-transform ${autoSaveEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
                       </span>
                     </button>
                   </div>
@@ -244,7 +244,7 @@ export default function TopBar() {
                   <div className="border-t border-white/[0.08] px-3 py-3">
                     <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-openfmv-muted">{t('edgeStyle')}</div>
                     <Select value={edgeCurveStyle} onValueChange={(value) => setEdgeCurveStyle(value as 'smoothstep' | 'bezier' | 'straight')}>
-                      <SelectTrigger className="nodrag h-9 rounded-[12px] border-white/15 bg-white/[0.075] text-sm text-openfmv-text">
+                      <SelectTrigger className="nodrag h-openfmv-editor rounded-openfmv-control border-white/15 bg-white/[0.075] text-sm text-openfmv-text">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="border-white/15 bg-openfmv-node text-openfmv-text">
@@ -258,7 +258,7 @@ export default function TopBar() {
               )}
             </div>
 
-            <Button onClick={handlePlay} size="pill" className="h-7 rounded-full bg-white/[0.16] px-3 text-xs font-bold text-white shadow-none hover:bg-white/[0.22]">
+            <Button onClick={handlePlay} size="pill" className="h-openfmv-tool bg-white/[0.16] px-3 text-xs font-bold text-white shadow-none hover:bg-white/[0.22]">
               <Play size={13} fill="currentColor" />
               <span className="hidden sm:inline">{t('preview')}</span>
             </Button>
@@ -271,7 +271,7 @@ export default function TopBar() {
                 size="pill"
                 aria-haspopup="menu"
                 aria-expanded={isExportMenuOpen}
-                className="h-7 rounded-full border-0 bg-transparent px-2.5 text-xs font-bold text-openfmv-sub shadow-none hover:bg-white/[0.10] hover:text-white"
+                className="h-openfmv-tool rounded-openfmv-control border-0 bg-transparent px-2.5 text-xs font-bold text-openfmv-sub shadow-none hover:bg-white/[0.10] hover:text-white"
               >
                 {isExporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
                 <span className="hidden sm:inline">{t('export')}</span>
@@ -279,13 +279,13 @@ export default function TopBar() {
               </Button>
 
               {isExportMenuOpen && (
-                <div role="menu" className="absolute right-0 top-full z-50 mt-3 w-64 overflow-hidden rounded-[14px] border border-white/15 bg-[#15171c]/95 p-1.5 shadow-[0_24px_80px_rgba(0,0,0,0.56)] ring-1 ring-black/40 backdrop-blur-xl">
-                  <button type="button" role="menuitem" onClick={() => void handleExport()} className="flex h-10 w-full items-center gap-2.5 rounded-[10px] px-2.5 text-left text-sm font-semibold text-openfmv-text transition hover:bg-white/[0.075] hover:text-white">
+                <div role="menu" className="absolute right-0 top-full z-50 mt-3 w-64 overflow-hidden rounded-openfmv-panel border border-white/15 bg-[#15171c]/95 p-1.5 shadow-[0_24px_80px_rgba(0,0,0,0.56)] ring-1 ring-black/40 backdrop-blur-xl">
+                  <button type="button" role="menuitem" onClick={() => void handleExport()} className="flex h-openfmv-control w-full items-center gap-2.5 rounded-openfmv-control px-2.5 text-left text-sm font-semibold text-openfmv-text transition hover:bg-white/[0.075] hover:text-white">
                     <Globe2 size={15} />
                     <span className="min-w-0 flex-1 truncate">{t('exportWebPackage')}</span>
                   </button>
                   <div className="my-1 h-px bg-white/[0.08]" />
-                  <button type="button" role="menuitem" disabled className="flex h-10 w-full cursor-not-allowed items-center gap-2.5 rounded-[10px] px-2.5 text-left text-sm font-semibold text-openfmv-muted opacity-55">
+                  <button type="button" role="menuitem" disabled className="flex h-openfmv-control w-full cursor-not-allowed items-center gap-2.5 rounded-openfmv-control px-2.5 text-left text-sm font-semibold text-openfmv-muted opacity-55">
                     <MonitorDown size={15} />
                     <span className="min-w-0 flex-1 truncate">{t('exportExecutablePackage')}</span>
                     <span className="shrink-0 rounded bg-white/[0.06] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-normal text-openfmv-muted">{t('exportDisabled')}</span>
@@ -295,7 +295,7 @@ export default function TopBar() {
             </div>
           </div>
           {exportStatus && (
-            <div className="absolute right-4 top-[58px] z-50 max-w-[360px] truncate rounded-[12px] border border-emerald-300/20 bg-black/72 px-3 py-2 text-xs font-medium text-emerald-100 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-2xl" title={exportStatus}>
+            <div className="absolute right-4 top-[58px] z-50 max-w-[360px] truncate rounded-openfmv-control border border-emerald-300/20 bg-black/72 px-3 py-2 text-xs font-medium text-emerald-100 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-2xl" title={exportStatus}>
               {exportStatus}
             </div>
           )}

@@ -359,7 +359,7 @@ export default function LocalProjectsClient() {
           {sidebarItems.map((item) => {
             const Icon = item.icon;
             const isActive = item.action === activeView;
-            const className = `flex h-[56px] w-full items-center gap-4 rounded-[10px] px-5 text-left text-base font-semibold transition ${isActive ? 'bg-[linear-gradient(135deg,rgba(255,255,255,0.12),rgba(255,255,255,0.07)_48%,rgba(255,255,255,0.035))] text-white' : 'text-white hover:bg-white/[0.045]'}`;
+            const className = `flex h-openfmv-action w-full items-center gap-3 rounded-openfmv-control px-4 text-left text-sm font-semibold transition ${isActive ? 'bg-[linear-gradient(135deg,rgba(255,255,255,0.12),rgba(255,255,255,0.07)_48%,rgba(255,255,255,0.035))] text-white' : 'text-white hover:bg-white/[0.045]'}`;
             return (
               <button
                 key={item.labelKey}
@@ -382,7 +382,7 @@ export default function LocalProjectsClient() {
           <section className="mx-auto max-w-[1330px]">
             {activeView === 'assets' ? (
               <>
-                <section className="flex min-h-[180px] items-end justify-between gap-5 rounded-[9px] bg-[radial-gradient(circle_at_20%_105%,rgba(255,255,255,0.08),transparent_34%),radial-gradient(circle_at_74%_0%,rgba(255,255,255,0.06),transparent_40%),linear-gradient(135deg,rgba(255,255,255,0.055),rgba(255,255,255,0.025)_45%,rgba(0,0,0,0.18))] p-8 shadow-[0_24px_90px_rgba(0,0,0,0.22)]">
+                <section className="flex min-h-[180px] items-end justify-between gap-5 rounded-openfmv-panel bg-[radial-gradient(circle_at_20%_105%,rgba(255,255,255,0.08),transparent_34%),radial-gradient(circle_at_74%_0%,rgba(255,255,255,0.06),transparent_40%),linear-gradient(135deg,rgba(255,255,255,0.055),rgba(255,255,255,0.025)_45%,rgba(0,0,0,0.18))] p-openfmv-workspace shadow-[0_24px_90px_rgba(0,0,0,0.22)]">
                   <div>
                     <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-openfmv-muted">
                       <PackageOpen size={15} className="text-white/45" />
@@ -391,7 +391,7 @@ export default function LocalProjectsClient() {
                     <h1 className="mt-3 text-[32px] font-bold text-white">{t('assetLibraryTitle')}</h1>
                     <div className="mt-2 text-sm text-openfmv-muted">{t('assetLibrarySummary', { assets: filteredAssets.length, projects: projectTotal })}</div>
                   </div>
-                  <button type="button" onClick={() => assetFileInputRef.current?.click()} disabled={!selectedProject || isImportingAssets} className="inline-flex h-11 items-center gap-2 rounded-[12px] border border-white/10 bg-white/[0.08] px-5 text-sm font-semibold text-white transition hover:bg-white/[0.12] disabled:cursor-not-allowed disabled:opacity-45">
+                  <button type="button" onClick={() => assetFileInputRef.current?.click()} disabled={!selectedProject || isImportingAssets} className="inline-flex h-openfmv-action items-center gap-2 rounded-openfmv-control border border-white/10 bg-white/[0.08] px-5 text-sm font-semibold text-white transition hover:bg-white/[0.12] disabled:cursor-not-allowed disabled:opacity-45">
                     <Upload size={17} />
                     {isImportingAssets ? assetsT('importing') : assetsT('importAsset')}
                   </button>
@@ -401,13 +401,13 @@ export default function LocalProjectsClient() {
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex flex-wrap gap-2">
                       {assetFilters.map((item) => (
-                        <button key={item} type="button" onClick={() => setAssetFilter(item)} className={`h-10 rounded-[12px] px-4 text-sm font-semibold transition ${assetFilter === item ? 'bg-white/[0.12] text-white' : 'bg-white/[0.045] text-openfmv-sub hover:bg-white/[0.07] hover:text-white'}`}>
+                        <button key={item} type="button" onClick={() => setAssetFilter(item)} className={`h-openfmv-control rounded-openfmv-control px-4 text-sm font-semibold transition ${assetFilter === item ? 'bg-white/[0.12] text-white' : 'bg-white/[0.045] text-openfmv-sub hover:bg-white/[0.07] hover:text-white'}`}>
                           {assetsT(`filter.${item}`)}
                         </button>
                       ))}
                     </div>
                     <div className="flex min-w-0 items-center gap-2">
-                      <select value={selectedProjectId} onChange={(event) => setSelectedProjectId(event.target.value)} className="h-10 w-[190px] rounded-[12px] border border-white/10 bg-white/[0.055] px-3 text-sm text-white outline-none">
+                      <select value={selectedProjectId} onChange={(event) => setSelectedProjectId(event.target.value)} className="h-openfmv-control w-[190px] rounded-openfmv-control border border-white/10 bg-white/[0.055] px-3 text-sm text-white outline-none">
                         {projects.length === 0 ? (
                           <option value="">{assetsT('noProjects')}</option>
                         ) : projects.map((project) => (
@@ -416,20 +416,20 @@ export default function LocalProjectsClient() {
                       </select>
                       <div className="relative min-w-0 md:w-[360px]">
                         <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-openfmv-muted" />
-                        <input value={assetQuery} onChange={(event) => setAssetQuery(event.target.value)} placeholder={t('searchAssetsOrProjects')} className="h-10 w-full rounded-[12px] border border-white/10 bg-white/[0.055] pl-10 pr-3 text-sm text-white outline-none placeholder:text-openfmv-muted" />
+                        <input value={assetQuery} onChange={(event) => setAssetQuery(event.target.value)} placeholder={t('searchAssetsOrProjects')} className="h-openfmv-control w-full rounded-openfmv-control border border-white/10 bg-white/[0.055] pl-10 pr-3 text-sm text-white outline-none placeholder:text-openfmv-muted" />
                       </div>
                     </div>
                   </div>
 
                   {filteredAssets.length === 0 ? (
-                    <div className="mt-6 grid min-h-[360px] place-items-center rounded-[16px] bg-white/[0.035]">
+                    <div className="mt-6 grid min-h-[360px] place-items-center rounded-openfmv-panel bg-white/[0.035]">
                       <div className="max-w-sm text-center">
-                        <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-[16px] border border-white/12 bg-white/[0.08] text-openfmv-muted">
+                        <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-openfmv-card border border-white/12 bg-white/[0.08] text-openfmv-muted">
                           <ImageIcon size={28} />
                         </div>
                         <div className="text-lg font-semibold text-white">{assetsT('noAssetsYet')}</div>
                         <p className="mt-2 text-sm leading-7 text-openfmv-muted">{t('assetEmptyDescription')}</p>
-                        <button type="button" onClick={() => assetFileInputRef.current?.click()} disabled={!selectedProject} className="mt-5 inline-flex h-10 items-center gap-2 rounded-[12px] border border-white/10 bg-white/[0.08] px-5 text-sm font-semibold text-white transition hover:bg-white/[0.12] disabled:opacity-45">
+                        <button type="button" onClick={() => assetFileInputRef.current?.click()} disabled={!selectedProject} className="mt-5 inline-flex h-openfmv-control items-center gap-2 rounded-openfmv-control border border-white/10 bg-white/[0.08] px-5 text-sm font-semibold text-white transition hover:bg-white/[0.12] disabled:opacity-45">
                           <Upload size={16} />
                           {assetsT('importAsset')}
                         </button>
@@ -442,14 +442,14 @@ export default function LocalProjectsClient() {
                         const src = resolveMediaSrc(asset.path);
                         return (
                           <article key={`${project.id}-${asset.id}`} className="group relative min-w-0">
-                            <Link href={getAssetStudioHref(locale, project.id, asset.id)} className="relative grid aspect-[4/3] place-items-center overflow-hidden rounded-[12px] border border-white/10 bg-white/[0.055] transition group-hover:border-white/25">
+                            <Link href={getAssetStudioHref(locale, project.id, asset.id)} className="relative grid aspect-[4/3] place-items-center overflow-hidden rounded-openfmv-card border border-white/10 bg-white/[0.055] transition group-hover:border-white/25">
                               {asset.type === 'image' ? (
                                 <img src={src} alt={asset.name} className="h-full w-full object-cover transition group-hover:scale-105" />
                               ) : asset.type === 'video' ? (
                                 <video src={src} className="h-full w-full object-cover transition group-hover:scale-105" muted />
                               ) : asset.type === 'text' ? (
                                 <div className="h-full w-full p-4">
-                                  <div className="mb-3 grid h-9 w-9 place-items-center rounded-[12px] border border-white/10 bg-white/[0.08] text-white/75">
+                                  <div className="mb-3 grid h-openfmv-editor w-openfmv-editor place-items-center rounded-openfmv-control border border-white/10 bg-white/[0.08] text-white/75">
                                     <Icon size={20} />
                                   </div>
                                   <p className="line-clamp-4 text-sm leading-6 text-openfmv-sub">{getTextPreview(asset) || assetsT('noTextPreview')}</p>
@@ -461,7 +461,7 @@ export default function LocalProjectsClient() {
                             <button
                               type="button"
                               onClick={() => void handleDeleteAsset(project, asset)}
-                              className="absolute right-2 top-2 z-20 flex h-8 w-8 items-center justify-center rounded-[10px] border border-white/10 bg-black/55 text-white/75 shadow-[0_12px_28px_rgba(0,0,0,0.28)] backdrop-blur-xl transition hover:border-red-400/45 hover:bg-red-500/15 hover:text-red-300"
+                              className="absolute right-2 top-2 z-20 flex h-openfmv-tool w-openfmv-tool items-center justify-center rounded-openfmv-tool border border-white/10 bg-black/55 text-white/75 shadow-[0_12px_28px_rgba(0,0,0,0.28)] backdrop-blur-xl transition hover:border-red-400/45 hover:bg-red-500/15 hover:text-red-300"
                               title={assetsT('removeAsset')}
                             >
                               <Trash2 size={14} />
@@ -485,11 +485,11 @@ export default function LocalProjectsClient() {
               </>) : (
               <>
             <BorderGlow className="w-full" edgeSensitivity={24} glowColor="190 86 72" backgroundColor="#1a1a1a" borderRadius={9} glowRadius={34} glowIntensity={0.55} coneSpread={20} colors={['#67e8f9', '#f0abfc', '#93c5fd']} fillOpacity={0.18}>
-              <button onClick={() => void handleCreate()} className="group relative flex h-[180px] w-full items-center justify-center overflow-hidden rounded-[9px] bg-[#141414] text-white transition">
+              <button onClick={() => void handleCreate()} className="group relative flex h-[180px] w-full items-center justify-center overflow-hidden rounded-openfmv-card bg-[#141414] text-white transition">
                 <img src="/start-creating-background.png" alt="" aria-hidden="true" draggable={false} className="absolute inset-0 h-full w-full scale-[1.035] object-cover opacity-80 transition duration-300 group-hover:scale-[1.05] group-hover:opacity-95" />
                 <span className="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,0.62),rgba(0,0,0,0.22)_50%,rgba(0,0,0,0.58)),radial-gradient(circle_at_50%_50%,rgba(0,0,0,0.12),rgba(0,0,0,0.52))] transition group-hover:opacity-80" />
                 <span className="relative flex items-center gap-4 text-[28px] font-semibold">
-                  <span className="grid h-8 w-8 place-items-center rounded-[8px] bg-white/85 text-[#1b1b1b] shadow-[0_0_22px_rgba(103,232,249,0.22),0_8px_24px_rgba(0,0,0,0.22)]">
+                  <span className="grid h-openfmv-tool w-openfmv-tool place-items-center rounded-openfmv-tool bg-white/85 text-[#1b1b1b] shadow-[0_0_22px_rgba(103,232,249,0.22),0_8px_24px_rgba(0,0,0,0.22)]">
                     <Plus size={22} />
                   </span>
                   {t('startCreating')}
@@ -502,7 +502,7 @@ export default function LocalProjectsClient() {
               <div className="mt-5 grid grid-cols-[repeat(auto-fit,minmax(min(100%,190px),1fr))] gap-5">
                 {upgradeCards.map((card) => (
                   <BorderGlow key={card.key} className="group h-[150px] overflow-hidden" edgeSensitivity={24} glowColor="190 82 74" backgroundColor="#1b1b1b" borderRadius={9} glowRadius={24} glowIntensity={0.42} coneSpread={20} colors={['#67e8f9', '#f0abfc', '#93c5fd']} fillOpacity={0.12}>
-                    <div className="relative h-full overflow-hidden rounded-[9px] bg-[#171717]">
+                    <div className="relative h-full overflow-hidden rounded-openfmv-card bg-[#171717]">
                       <img src={card.image} alt="" aria-hidden="true" draggable={false} className="absolute inset-0 h-full w-full scale-[1.085] object-cover opacity-85 transition duration-300 group-hover:scale-[1.105]" />
                       <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,0.52),rgba(0,0,0,0.10)_58%),linear-gradient(180deg,rgba(0,0,0,0.64),rgba(0,0,0,0.20)_54%,rgba(0,0,0,0.38))]" />
                       <div className="absolute inset-x-0 top-0 bg-gradient-to-b from-[#171717]/94 via-[#171717]/58 to-transparent p-5">
@@ -522,47 +522,47 @@ export default function LocalProjectsClient() {
                 </div>
                 {projects.length > 0 && isProjectSelectionMode ? (
                   <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                    <div className="mr-1 rounded-full border border-sky-300/20 bg-sky-400/10 px-3 py-2 text-sm font-semibold text-sky-100">
+                    <div className="mr-1 rounded-openfmv-pill border border-sky-300/20 bg-sky-400/10 px-3 py-2 text-sm font-semibold text-sky-100">
                       {t('selectedProjects', { count: selectedProjectIds.length })}
                     </div>
-                    <button type="button" onClick={toggleAllFilteredProjects} className="inline-flex h-10 items-center gap-2 rounded-[12px] border border-white/10 bg-white/[0.06] px-4 text-sm font-semibold text-openfmv-sub transition hover:border-white/25 hover:text-white">
+                    <button type="button" onClick={toggleAllFilteredProjects} className="inline-flex h-openfmv-control items-center gap-2 rounded-openfmv-control border border-white/10 bg-white/[0.06] px-4 text-sm font-semibold text-openfmv-sub transition hover:border-white/25 hover:text-white">
                       {allFilteredProjectsSelected ? <CheckSquare2 size={16} /> : <Square size={16} />}
                       {allFilteredProjectsSelected ? t('clearVisibleSelection') : t('selectAllProjects')}
                     </button>
-                    <button type="button" onClick={handleExportSelectedProjects} disabled={selectedProjectIds.length === 0} className="inline-flex h-10 items-center gap-2 rounded-[12px] border border-white/10 bg-white/[0.06] px-4 text-sm font-semibold text-openfmv-sub transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-45">
+                    <button type="button" onClick={handleExportSelectedProjects} disabled={selectedProjectIds.length === 0} className="inline-flex h-openfmv-control items-center gap-2 rounded-openfmv-control border border-white/10 bg-white/[0.06] px-4 text-sm font-semibold text-openfmv-sub transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-45">
                       <Download size={16} />
                       {t('exportSelectedProjects')}
                     </button>
-                    <button type="button" onClick={handleDeleteSelectedProjects} disabled={selectedProjectIds.length === 0} className="inline-flex h-10 items-center gap-2 rounded-[12px] border border-red-400/20 bg-red-500/10 px-4 text-sm font-semibold text-red-200 transition hover:border-red-300/45 hover:bg-red-500/16 disabled:cursor-not-allowed disabled:opacity-45">
+                    <button type="button" onClick={handleDeleteSelectedProjects} disabled={selectedProjectIds.length === 0} className="inline-flex h-openfmv-control items-center gap-2 rounded-openfmv-control border border-red-400/20 bg-red-500/10 px-4 text-sm font-semibold text-red-200 transition hover:border-red-300/45 hover:bg-red-500/16 disabled:cursor-not-allowed disabled:opacity-45">
                       <Trash2 size={16} />
                       {t('deleteSelectedProjects')}
                     </button>
-                    <button type="button" onClick={clearProjectSelection} className="inline-flex h-10 items-center gap-2 rounded-[12px] border border-white/10 bg-white/[0.06] px-4 text-sm font-semibold text-openfmv-sub transition hover:border-white/25 hover:text-white">
+                    <button type="button" onClick={clearProjectSelection} className="inline-flex h-openfmv-control items-center gap-2 rounded-openfmv-control border border-white/10 bg-white/[0.06] px-4 text-sm font-semibold text-openfmv-sub transition hover:border-white/25 hover:text-white">
                       <X size={16} />
                       {t('cancelSelection')}
                     </button>
                   </div>
                 ) : projects.length > 0 && (
                   <div className="flex w-full flex-wrap items-center gap-3 lg:w-auto lg:justify-end">
-                    <button type="button" onClick={() => setIsProjectSelectionMode(true)} className="inline-flex h-10 items-center gap-2 rounded-[12px] border border-white/10 bg-white/[0.06] px-4 text-sm font-semibold text-openfmv-sub transition hover:border-white/25 hover:text-white">
+                    <button type="button" onClick={() => setIsProjectSelectionMode(true)} className="inline-flex h-openfmv-control items-center gap-2 rounded-openfmv-control border border-white/10 bg-white/[0.06] px-4 text-sm font-semibold text-openfmv-sub transition hover:border-white/25 hover:text-white">
                       <CheckSquare2 size={16} />
                       {t('selectProjects')}
                     </button>
-                    <div className="hidden overflow-hidden rounded-[12px] border border-white/10 bg-white/[0.06] lg:flex">
-                      <input value={title} onChange={(event) => setTitle(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void handleCreate(); }} placeholder={t('projectName')} className="h-10 w-52 bg-transparent px-4 text-sm text-white outline-none placeholder:text-openfmv-muted" />
+                    <div className="hidden overflow-hidden rounded-openfmv-control border border-white/10 bg-white/[0.06] lg:flex">
+                      <input value={title} onChange={(event) => setTitle(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void handleCreate(); }} placeholder={t('projectName')} className="h-openfmv-control w-52 bg-transparent px-4 text-sm text-white outline-none placeholder:text-openfmv-muted" />
                       <button onClick={() => void handleCreate()} className="px-4 text-sm font-semibold text-white transition hover:bg-white/[0.08]">{t('create')}</button>
                     </div>
-                    <div className="hidden items-center gap-1 rounded-[12px] border border-white/10 bg-white/[0.05] p-1 xl:flex">
-                      <button onClick={() => searchInputRef.current?.focus()} className="flex h-8 w-8 items-center justify-center rounded-[10px] text-openfmv-muted transition hover:bg-white/[0.08] hover:text-white" title={t('search')}>
+                    <div className="hidden items-center gap-1 rounded-openfmv-control border border-white/10 bg-white/[0.05] p-1 xl:flex">
+                      <button onClick={() => searchInputRef.current?.focus()} className="flex h-openfmv-tool w-openfmv-tool items-center justify-center rounded-openfmv-tool text-openfmv-muted transition hover:bg-white/[0.08] hover:text-white" title={t('search')}>
                         <Search size={16} />
                       </button>
-                      <button onClick={() => setViewMode('grid')} className={`flex h-8 w-8 items-center justify-center rounded-[10px] transition ${viewMode === 'grid' ? 'bg-white/[0.12] text-white' : 'text-openfmv-muted hover:bg-white/[0.08] hover:text-white'}`} title={assetsT('gridView')}>
+                      <button onClick={() => setViewMode('grid')} className={`flex h-openfmv-tool w-openfmv-tool items-center justify-center rounded-openfmv-tool transition ${viewMode === 'grid' ? 'bg-white/[0.12] text-white' : 'text-openfmv-muted hover:bg-white/[0.08] hover:text-white'}`} title={assetsT('gridView')}>
                         <Grid2X2 size={16} />
                       </button>
-                      <button onClick={() => setViewMode('list')} className={`flex h-8 w-8 items-center justify-center rounded-[10px] transition ${viewMode === 'list' ? 'bg-white/[0.12] text-white' : 'text-openfmv-muted hover:bg-white/[0.08] hover:text-white'}`} title={assetsT('listView')}>
+                      <button onClick={() => setViewMode('list')} className={`flex h-openfmv-tool w-openfmv-tool items-center justify-center rounded-openfmv-tool transition ${viewMode === 'list' ? 'bg-white/[0.12] text-white' : 'text-openfmv-muted hover:bg-white/[0.08] hover:text-white'}`} title={assetsT('listView')}>
                         <List size={16} />
                       </button>
-                      <button onClick={() => setSortMode(sortMode === 'recent' ? 'oldest' : 'recent')} className="flex h-8 w-8 items-center justify-center rounded-[10px] text-openfmv-muted transition hover:bg-white/[0.08] hover:text-white" title={sortMode === 'recent' ? t('recentFirst') : t('oldestFirst')}>
+                      <button onClick={() => setSortMode(sortMode === 'recent' ? 'oldest' : 'recent')} className="flex h-openfmv-tool w-openfmv-tool items-center justify-center rounded-openfmv-tool text-openfmv-muted transition hover:bg-white/[0.08] hover:text-white" title={sortMode === 'recent' ? t('recentFirst') : t('oldestFirst')}>
                         <Clock3 size={16} />
                       </button>
                     </div>
@@ -571,19 +571,19 @@ export default function LocalProjectsClient() {
               </div>
 
               {filteredProjects.length === 0 ? (
-                <div className="grid min-h-[280px] place-items-center rounded-[18px] bg-white/[0.035] px-6 py-10 backdrop-blur-3xl">
+                <div className="grid min-h-[280px] place-items-center rounded-openfmv-panel bg-white/[0.035] px-6 py-10 backdrop-blur-3xl">
                   <div className="max-w-xl text-center">
-                    <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-[18px] border border-white/12 bg-white/[0.08] text-openfmv-muted">
+                    <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-openfmv-panel border border-white/12 bg-white/[0.08] text-openfmv-muted">
                       <Layout size={32} />
                     </div>
                     <div className="text-xl font-semibold text-white">{t('noDrafts')}</div>
                     <p className="mt-3 text-sm leading-7 text-openfmv-muted">{t('noDraftsDescription')}</p>
                     <div className="mt-6 flex justify-center gap-3">
-                      <button onClick={() => void handleCreate()} className="inline-flex h-10 items-center gap-2 rounded-[12px] border border-white/10 bg-white/[0.08] px-5 text-sm font-semibold text-white transition hover:bg-white/[0.12]">
+                      <button onClick={() => void handleCreate()} className="inline-flex h-openfmv-control items-center gap-2 rounded-openfmv-control border border-white/10 bg-white/[0.08] px-5 text-sm font-semibold text-white transition hover:bg-white/[0.12]">
                         <Plus size={16} />
                         {t('newStory')}
                       </button>
-                      <button onClick={() => void handleOpenProject()} className="inline-flex h-10 items-center gap-2 rounded-[12px] border border-white/10 bg-white/[0.06] px-5 text-sm font-semibold text-openfmv-sub transition hover:border-white/25 hover:text-white">
+                      <button onClick={() => void handleOpenProject()} className="inline-flex h-openfmv-control items-center gap-2 rounded-openfmv-control border border-white/10 bg-white/[0.06] px-5 text-sm font-semibold text-openfmv-sub transition hover:border-white/25 hover:text-white">
                         <FileJson size={15} />
                         {t('importProject')}
                       </button>
@@ -608,7 +608,7 @@ export default function LocalProjectsClient() {
                           className="block"
                         >
                           <BorderGlow className={`aspect-square overflow-hidden transition group-hover:-translate-y-1 ${isSelected ? 'ring-2 ring-sky-300/80 ring-offset-2 ring-offset-[#181818]' : ''}`} edgeSensitivity={24} glowColor="198 80 76" backgroundColor="#1f1f1f" borderRadius={14} glowRadius={22} glowIntensity={0.34} coneSpread={20} colors={['#67e8f9', '#a5b4fc', '#f0abfc']} fillOpacity={0.1}>
-                            <div className="relative h-full overflow-hidden rounded-[14px] bg-[radial-gradient(circle_at_30%_16%,rgba(125,211,252,0.10),transparent_32%),linear-gradient(135deg,rgba(255,255,255,0.10),rgba(255,255,255,0.035))]">
+                            <div className="relative h-full overflow-hidden rounded-openfmv-card bg-[radial-gradient(circle_at_30%_16%,rgba(125,211,252,0.10),transparent_32%),linear-gradient(135deg,rgba(255,255,255,0.10),rgba(255,255,255,0.035))]">
                               {cover ? (
                                 <img src={cover} alt={project.title} className="absolute inset-0 h-full w-full object-cover opacity-90 transition group-hover:scale-105" />
                               ) : (
@@ -621,25 +621,25 @@ export default function LocalProjectsClient() {
                             </div>
                           </BorderGlow>
                         </Link>
-                        <button type="button" onClick={() => toggleProjectSelection(project.id)} aria-pressed={isSelected} className={`absolute left-3 top-3 z-30 flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-black/55 text-white shadow-[0_14px_34px_rgba(0,0,0,0.34)] backdrop-blur-3xl transition hover:border-sky-200/60 hover:text-sky-100 ${isProjectSelectionMode || isSelected ? 'opacity-100' : 'pointer-events-none opacity-0'}`} title={isSelected ? t('deselectProject') : t('selectProject')}>
+                        <button type="button" onClick={() => toggleProjectSelection(project.id)} aria-pressed={isSelected} className={`absolute left-3 top-3 z-30 flex h-openfmv-editor w-openfmv-editor items-center justify-center rounded-openfmv-control border border-white/15 bg-black/55 text-white shadow-[0_14px_34px_rgba(0,0,0,0.34)] backdrop-blur-3xl transition hover:border-sky-200/60 hover:text-sky-100 ${isProjectSelectionMode || isSelected ? 'opacity-100' : 'pointer-events-none opacity-0'}`} title={isSelected ? t('deselectProject') : t('selectProject')}>
                           {isSelected ? <CheckSquare2 size={17} className="text-sky-200" /> : <Square size={17} />}
                         </button>
                         {!isProjectSelectionMode && (
                           <>
-                            <Link href={getEditorHref(locale, project.id)} className="absolute left-1/2 top-[90px] z-20 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/45 text-white opacity-0 shadow-[0_16px_42px_rgba(0,0,0,0.36)] backdrop-blur-3xl transition hover:scale-105 hover:bg-white/15 group-hover:opacity-100" title={t('openBlueprint')}>
+                            <Link href={getEditorHref(locale, project.id)} className="absolute left-1/2 top-[90px] z-20 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-openfmv-pill border border-white/20 bg-black/45 text-white opacity-0 shadow-[0_16px_42px_rgba(0,0,0,0.36)] backdrop-blur-3xl transition hover:scale-105 hover:bg-white/15 group-hover:opacity-100" title={t('openBlueprint')}>
                               <Play size={22} fill="currentColor" className="ml-0.5" />
                             </Link>
                             <div className="absolute left-7 right-7 top-1 z-20 flex items-center justify-between opacity-0 transition group-hover:opacity-100">
-                              <button onClick={() => void handleRename(project)} className="flex h-8 w-8 items-center justify-center rounded-full bg-black/35 text-openfmv-sub backdrop-blur-3xl hover:text-white" title={t('rename')}>
+                              <button onClick={() => void handleRename(project)} className="flex h-openfmv-tool w-openfmv-tool items-center justify-center rounded-openfmv-tool bg-black/35 text-openfmv-sub backdrop-blur-3xl hover:text-white" title={t('rename')}>
                                 <Edit3 size={14} />
                               </button>
-                              <button onClick={() => void handleDuplicate(project)} className="flex h-8 w-8 items-center justify-center rounded-full bg-black/35 text-openfmv-sub backdrop-blur-3xl hover:text-white" title={t('duplicate')}>
+                              <button onClick={() => void handleDuplicate(project)} className="flex h-openfmv-tool w-openfmv-tool items-center justify-center rounded-openfmv-tool bg-black/35 text-openfmv-sub backdrop-blur-3xl hover:text-white" title={t('duplicate')}>
                                 <Copy size={14} />
                               </button>
-                              <button onClick={() => exportProjectJson(project)} className="flex h-8 w-8 items-center justify-center rounded-full bg-black/35 text-openfmv-sub backdrop-blur-3xl hover:text-white" title={t('exportBackup')}>
+                              <button onClick={() => exportProjectJson(project)} className="flex h-openfmv-tool w-openfmv-tool items-center justify-center rounded-openfmv-tool bg-black/35 text-openfmv-sub backdrop-blur-3xl hover:text-white" title={t('exportBackup')}>
                                 <Download size={14} />
                               </button>
-                              <button onClick={() => handleDelete(project.id, project.title)} className="flex h-8 w-8 items-center justify-center rounded-full bg-black/35 text-openfmv-sub backdrop-blur-3xl hover:text-red-300" title={t('deleteProject')}>
+                              <button onClick={() => handleDelete(project.id, project.title)} className="flex h-openfmv-tool w-openfmv-tool items-center justify-center rounded-openfmv-tool bg-black/35 text-openfmv-sub backdrop-blur-3xl hover:text-red-300" title={t('deleteProject')}>
                                 <Trash2 size={14} />
                               </button>
                             </div>
@@ -658,7 +658,7 @@ export default function LocalProjectsClient() {
                   })}
                 </div>
               ) : (
-                <div className="overflow-hidden rounded-[22px] bg-white/[0.045] backdrop-blur-3xl">
+                <div className="overflow-hidden rounded-openfmv-panel bg-white/[0.045] backdrop-blur-3xl">
                   {filteredProjects.map((project) => {
                     const stats = getProjectStats(project);
                     const cover = getProjectCover(project);
@@ -666,7 +666,7 @@ export default function LocalProjectsClient() {
                     return (
                       <article key={project.id} className={`group flex items-center gap-4 p-4 transition ${isSelected ? 'bg-sky-400/10' : ''}`}>
                         {(isProjectSelectionMode || isSelected) && (
-                          <button type="button" onClick={() => toggleProjectSelection(project.id)} aria-pressed={isSelected} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/[0.055] text-openfmv-sub transition hover:border-sky-200/55 hover:text-sky-100" title={isSelected ? t('deselectProject') : t('selectProject')}>
+                          <button type="button" onClick={() => toggleProjectSelection(project.id)} aria-pressed={isSelected} className="flex h-openfmv-editor w-openfmv-editor shrink-0 items-center justify-center rounded-openfmv-control border border-white/12 bg-white/[0.055] text-openfmv-sub transition hover:border-sky-200/55 hover:text-sky-100" title={isSelected ? t('deselectProject') : t('selectProject')}>
                             {isSelected ? <CheckSquare2 size={17} className="text-sky-200" /> : <Square size={17} />}
                           </button>
                         )}
@@ -677,9 +677,9 @@ export default function LocalProjectsClient() {
                             event.preventDefault();
                             toggleProjectSelection(project.id);
                           }}
-                          className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-[18px] border bg-[radial-gradient(circle_at_30%_16%,rgba(255,255,255,0.11),transparent_32%),linear-gradient(135deg,rgba(255,255,255,0.10),rgba(255,255,255,0.035))] text-white/75 transition group-hover:border-white/25 ${isSelected ? 'border-sky-300/65' : 'border-white/10'}`}
+                          className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-openfmv-card border bg-[radial-gradient(circle_at_30%_16%,rgba(255,255,255,0.11),transparent_32%),linear-gradient(135deg,rgba(255,255,255,0.10),rgba(255,255,255,0.035))] text-white/75 transition group-hover:border-white/25 ${isSelected ? 'border-sky-300/65' : 'border-white/10'}`}
                         >
-                          {cover ? <img src={cover} alt={project.title} className="h-full w-full rounded-[18px] object-cover" /> : <Layout size={24} />}
+                          {cover ? <img src={cover} alt={project.title} className="h-full w-full rounded-openfmv-card object-cover" /> : <Layout size={24} />}
                         </Link>
                         <div className="min-w-0 flex-1">
                           <Link
@@ -701,28 +701,28 @@ export default function LocalProjectsClient() {
                           </div>
                         </div>
                         {!isProjectSelectionMode && <div className="flex shrink-0 items-center gap-2">
-                          <Link href={getEditorHref(locale, project.id)} className="inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-4 text-sm font-semibold text-openfmv-sub transition hover:border-white/25 hover:text-white">
+                          <Link href={getEditorHref(locale, project.id)} className="inline-flex h-openfmv-editor items-center gap-2 rounded-openfmv-control border border-white/10 bg-white/[0.06] px-4 text-sm font-semibold text-openfmv-sub transition hover:border-white/25 hover:text-white">
                             <Layout size={14} />
                             {t('openBlueprint')}
                           </Link>
-                          <Link href={getNodesHref(locale, project.id)} className="inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-4 text-sm font-semibold text-openfmv-sub transition hover:border-white/25 hover:text-white">
+                          <Link href={getNodesHref(locale, project.id)} className="inline-flex h-openfmv-editor items-center gap-2 rounded-openfmv-control border border-white/10 bg-white/[0.06] px-4 text-sm font-semibold text-openfmv-sub transition hover:border-white/25 hover:text-white">
                             <Film size={14} />
                             {t('openNodeTimeline')}
                           </Link>
-                          <Link href={getPlayHref(locale, project.id)} className="inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-4 text-sm font-semibold text-openfmv-sub transition hover:border-white/25 hover:text-white">
+                          <Link href={getPlayHref(locale, project.id)} className="inline-flex h-openfmv-editor items-center gap-2 rounded-openfmv-control border border-white/10 bg-white/[0.06] px-4 text-sm font-semibold text-openfmv-sub transition hover:border-white/25 hover:text-white">
                             <Play size={14} />
                             {t('preview')}
                           </Link>
-                          <button onClick={() => void handleRename(project)} className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-openfmv-sub transition hover:border-white/25 hover:text-white" title={t('rename')}>
+                          <button onClick={() => void handleRename(project)} className="flex h-openfmv-editor w-openfmv-editor items-center justify-center rounded-openfmv-control border border-white/10 bg-white/[0.06] text-openfmv-sub transition hover:border-white/25 hover:text-white" title={t('rename')}>
                             <Edit3 size={14} />
                           </button>
-                          <button onClick={() => void handleDuplicate(project)} className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-openfmv-sub transition hover:border-white/25 hover:text-white" title={t('duplicate')}>
+                          <button onClick={() => void handleDuplicate(project)} className="flex h-openfmv-editor w-openfmv-editor items-center justify-center rounded-openfmv-control border border-white/10 bg-white/[0.06] text-openfmv-sub transition hover:border-white/25 hover:text-white" title={t('duplicate')}>
                             <Copy size={14} />
                           </button>
-                          <button onClick={() => exportProjectJson(project)} className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-openfmv-sub transition hover:border-white/25 hover:text-white" title={t('exportBackup')}>
+                          <button onClick={() => exportProjectJson(project)} className="flex h-openfmv-editor w-openfmv-editor items-center justify-center rounded-openfmv-control border border-white/10 bg-white/[0.06] text-openfmv-sub transition hover:border-white/25 hover:text-white" title={t('exportBackup')}>
                             <Download size={14} />
                           </button>
-                          <button onClick={() => handleDelete(project.id, project.title)} className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-openfmv-sub transition hover:border-red-400/45 hover:text-red-300" title={t('deleteProject')}>
+                          <button onClick={() => handleDelete(project.id, project.title)} className="flex h-openfmv-editor w-openfmv-editor items-center justify-center rounded-openfmv-control border border-white/10 bg-white/[0.06] text-openfmv-sub transition hover:border-red-400/45 hover:text-red-300" title={t('deleteProject')}>
                             <Trash2 size={14} />
                           </button>
                         </div>}
