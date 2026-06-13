@@ -34,6 +34,8 @@ const getResultClassName = (result?: OpenFMVConnectionTestResult) => {
   return result.ok ? 'text-emerald-300' : 'text-red-300';
 };
 
+const formatModelLabel = (model: string) => model === 'default' ? 'default (CLI config)' : model;
+
 export default function OpenFMVAiSettingsCenter({ onClose }: OpenFMVAiSettingsCenterProps) {
   const locale = useLocale();
   const pathname = usePathname();
@@ -296,6 +298,7 @@ function AgentCard({ agent, active, configuring, selection, testing, result, onC
   const t = useTranslations('settings');
   const selectedModel = selection?.model || agent.models[0] || '';
   const selectedReasoning = selection?.reasoningEffort || agent.reasoningOptions?.[0] || '';
+  const modelOptions = selectedModel && !agent.models.includes(selectedModel) ? [...agent.models, selectedModel] : agent.models;
 
   return (
     <article className={`rounded-[12px] border p-3 transition ${active || configuring ? 'border-cyan-300/35 bg-cyan-300/[0.06]' : 'border-white/10 bg-white/[0.035]'}`}>
@@ -325,7 +328,7 @@ function AgentCard({ agent, active, configuring, selection, testing, result, onC
           <label className="block">
             <span className="mb-1.5 block text-xs font-semibold text-openfmv-muted">{t('model')}</span>
             <select value={selectedModel} onChange={(event) => onSelectionChange({ model: event.target.value })} className="h-10 w-full rounded-[10px] border border-white/10 bg-[#202020] px-3 text-sm text-white outline-none">
-              {agent.models.map((model) => <option key={model} value={model}>{model}</option>)}
+              {modelOptions.map((model) => <option key={model} value={model}>{formatModelLabel(model)}</option>)}
             </select>
           </label>
 

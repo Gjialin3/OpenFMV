@@ -5,7 +5,7 @@ import { homedir } from 'node:os';
 import path from 'node:path';
 
 import { OpenFMVAgentId, OpenFMVAgentInfo, OpenFMVConnectionTestResult } from '../_types';
-import { openfmvAgentDefinitions } from './aiSettings';
+import { type OpenFMVAgentDefinition, openfmvAgentDefinitions } from './aiSettings';
 
 interface CommandInvocation {
   command: string;
@@ -31,6 +31,51 @@ export interface OpenFMVAgentDebugInfo {
 
 const versionArgsByAgent = new Map<OpenFMVAgentId, string[]>(openfmvAgentDefinitions.map((agent) => [agent.id, ['--version']]));
 const testArgsByAgent = new Map<OpenFMVAgentId, string[]>(openfmvAgentDefinitions.map((agent) => [agent.id, ['--version']]));
+const DEFAULT_CLI_MODEL = 'default';
+
+const parseCodexDebugModels = (output: string) => {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(String(output || ''));
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== 'object') return null;
+  const rawModels = Array.isArray((parsed as { models?: unknown }).models) ? (parsed as { models: unknown[] }).models : [];
+  const models = [DEFAULT_CLI_MODEL];
+  const seen = new Set(models);
+  for (const rawModel of rawModels) {
+    if (!rawModel || typeof rawModel !== 'object') continue;
+    const entry = rawModel as { slug?: unknown; id?: unknown; visibility?: unknown };
+    if (entry.visibility === 'hidden') continue;
+    const id = typeof entry.slug === 'string' && entry.slug.trim()
+      ? entry.slug.trim()
+      : typeof entry.id === 'string' && entry.id.trim()
+        ? entry.id.trim()
+        : '';
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    models.push(id);
+  }
+  return models.length > 1 ? models : null;
+};
+
+const parseLineSeparatedModels = (output: string) => {
+  const models = [DEFAULT_CLI_MODEL];
+  const seen = new Set(models);
+  for (const line of String(output || '').split(/\r?\n/)) {
+    const id = line.trim();
+    if (!id || id.startsWith('#') || seen.has(id)) continue;
+    seen.add(id);
+    models.push(id);
+  }
+  return models.length > 1 ? models : null;
+};
+
+const listModelCommandsByAgent = new Map<OpenFMVAgentId, { args: string[]; parse: (output: string) => string[] | null; timeoutMs: number }>([
+  ['codex', { args: ['debug', 'models'], parse: parseCodexDebugModels, timeoutMs: 5000 }],
+  ['opencode', { args: ['models'], parse: parseLineSeparatedModels, timeoutMs: 8000 }],
+]);
 
 const unique = (values: string[]) => {
   const seen = new Set<string>();
@@ -139,6 +184,14 @@ const runCommand = (command: string, args: string[], timeoutMs = 3000) => new Pr
   });
 });
 
+const listAgentModels = async (agent: OpenFMVAgentDefinition, executable: string) => {
+  const command = listModelCommandsByAgent.get(agent.id);
+  if (!command) return agent.models;
+  const result = await runCommand(executable, command.args, command.timeoutMs);
+  if (!result.ok && !result.output) return agent.models;
+  return command.parse(result.output) || agent.models;
+};
+
 export const inspectOpenFMVAiAgents = async (): Promise<OpenFMVAgentDebugInfo[]> => {
   const pathEntries = getAgentPathEntries();
   return Promise.all(openfmvAgentDefinitions.map(async (agent) => {
@@ -184,18 +237,21 @@ export const inspectOpenFMVAiAgents = async (): Promise<OpenFMVAgentDebugInfo[]>
 
 export const detectOpenFMVAiAgentsOnServer = async (): Promise<OpenFMVAgentInfo[]> => {
   const inspected = await inspectOpenFMVAiAgents();
-  return inspected.map((agent) => {
+  return Promise.all(inspected.map(async (agent) => {
     const definition = openfmvAgentDefinitions.find((item) => item.id === agent.id);
+    const models = definition && agent.resolvedPath && agent.available
+      ? await listAgentModels(definition, agent.resolvedPath)
+      : definition?.models || [];
     return {
       id: agent.id,
       name: agent.name,
       bin: agent.bin,
       version: agent.version,
       available: agent.available,
-      models: definition?.models || [],
+      models,
       reasoningOptions: definition?.reasoningOptions,
     };
-  });
+  }));
 };
 
 export const testOpenFMVAiAgentOnServer = async (agentId: OpenFMVAgentId): Promise<OpenFMVConnectionTestResult> => {

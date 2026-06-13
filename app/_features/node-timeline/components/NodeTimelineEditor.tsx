@@ -1241,7 +1241,7 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
     timelineContextMenu.time < getClipEndTime(contextMenuClipRef.clip) - MIN_TIMELINE_CLIP_DURATION
   );
   const blueprintHref = getLocalizedPath(locale, `/editor${projectId ? `?id=${encodeURIComponent(projectId)}` : ''}`);
-  const timelineWidth = Math.max(960, timeline.duration * zoom + 160);
+  const timelineWidth = Math.max(1, timeline.duration * zoom + 160);
   const ticks = useMemo(() => getTimelineRulerTicks({ duration: timeline.duration, zoom }), [timeline.duration, zoom]);
   const zoomSliderPosition = timelineZoomToSlider(zoom);
   const getExpandedKeyframeLaneCountForTrack = useCallback((track: TimelineTrack) => (
@@ -3961,7 +3961,7 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
             <div
               ref={timelineContentRef}
               data-node-timeline-canvas
-              className="relative min-h-full"
+              className="relative min-h-full min-w-full"
               style={{ width: timelineWidth }}
               onDragOver={handleTimelineCanvasDragOver}
               onDrop={handleTimelineCanvasDrop}
@@ -3969,7 +3969,11 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
               <div data-node-timeline-ruler onPointerDown={handleTimelineScrubPointerDown} className="sticky top-0 z-20 h-9 cursor-crosshair border-b border-white/10 bg-[#0b1018]">
                 {ticks.map((tick) => (
                   <div key={`${tick.time}-${tick.label || 'tick'}`} className={`absolute top-0 ${tick.label ? 'h-full border-l border-white/10' : 'h-2 border-l border-white/12'}`} style={{ left: tick.time * zoom }}>
-                    {tick.label && <span className="absolute left-2 top-2 font-mono text-[10px] text-openfmv-muted">{tick.label}</span>}
+                    {tick.label && (
+                      <span className="absolute left-1.5 top-1.5 rounded-[3px] bg-[#0b1018] px-1 font-mono text-[10px] leading-4 text-openfmv-sub shadow-[0_0_0_1px_rgba(255,255,255,0.04)]">
+                        {tick.label}
+                      </span>
+                    )}
                   </div>
                 ))}
                 {timeline.bookmarks.map((bookmark) => (

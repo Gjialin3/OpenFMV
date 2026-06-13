@@ -101,9 +101,18 @@ export interface OpenFMVConnectionTestResult {
   message: string;
 }
 
+export interface OpenFMVChatAttachment {
+  name: string;
+  type: string;
+  size: number;
+  content?: string;
+  truncated?: boolean;
+}
+
 export interface OpenFMVChatMessage {
   role: 'user' | 'assistant';
   content: string;
+  attachments?: OpenFMVChatAttachment[];
 }
 
 export interface OpenFMVChatRequest {

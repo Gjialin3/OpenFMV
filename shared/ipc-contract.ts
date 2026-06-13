@@ -7,6 +7,7 @@ import type {
   OpenFMVAiConfig,
   OpenFMVAsset,
   OpenFMVByokProviderConfig,
+  OpenFMVChatAttachment,
   OpenFMVChatRequest,
   OpenFMVChatResponse,
   OpenFMVConnectionTestResult,
@@ -114,10 +115,19 @@ const connectionTestResultSchema: z.ZodType<OpenFMVConnectionTestResult> = z.obj
   message: z.string(),
 });
 
+const chatAttachmentSchema: z.ZodType<OpenFMVChatAttachment> = z.object({
+  name: z.string(),
+  type: z.string(),
+  size: z.number(),
+  content: z.string().optional(),
+  truncated: z.boolean().optional(),
+});
+
 const chatRequestSchema: z.ZodType<OpenFMVChatRequest> = z.object({
   messages: z.array(z.object({
     role: enumFrom(['user', 'assistant']),
     content: z.string(),
+    attachments: z.array(chatAttachmentSchema).optional(),
   })),
 });
 

@@ -163,7 +163,7 @@ export default function AppWindowFrame({ children }: { children: React.ReactNode
             onPointerMoveCapture={moveChatResize}
             onPointerUp={stopChatDrag}
             onPointerCancel={stopChatDrag}
-            className={chatFloating ? 'absolute z-[130] h-[760px] max-h-[calc(100dvh-4.5rem)] w-[420px] max-w-[calc(100vw-1rem)] overflow-hidden rounded-[18px] border border-white/10 bg-[#111] shadow-[0_28px_110px_rgba(0,0,0,0.42)]' : 'absolute right-1 top-[3.75rem] z-[130] h-[calc(100dvh-4rem)] w-[420px] max-w-[calc(100vw-1rem)] overflow-hidden rounded-l-[18px] border border-white/10 bg-[#111] shadow-[0_28px_110px_rgba(0,0,0,0.42)]'}
+            className={chatFloating ? 'absolute z-[130] h-[760px] max-h-[calc(100dvh-4.5rem)] w-[420px] max-w-[calc(100vw-1rem)] overflow-hidden rounded-[12px] border border-white/10 bg-[#111113] shadow-[0_24px_80px_rgba(0,0,0,0.42)]' : 'absolute right-0 top-[3.5rem] z-[130] h-[calc(100dvh-3.5rem)] w-[430px] max-w-[calc(100vw-1rem)] overflow-hidden border-l border-white/10 bg-[#111113] shadow-none'}
             style={chatFloating ? { left: chatPosition.x, top: chatPosition.y, width: chatSize.width, height: chatSize.height } : undefined}
           >
             <InteractionDesignView variant="panel" floating={chatFloating} onToggleFloating={toggleChatFloating} onClose={closeChat} />
@@ -188,7 +188,7 @@ export default function AppWindowFrame({ children }: { children: React.ReactNode
             onPointerMoveCapture={moveChatResize}
             onPointerUp={stopChatDrag}
             onPointerCancel={stopChatDrag}
-            className={chatFloating ? 'absolute z-[130] h-[760px] max-h-[calc(100%-1rem)] w-[420px] max-w-[calc(100vw-1rem)] overflow-hidden rounded-[18px] border border-white/10 bg-[#111] shadow-[0_28px_110px_rgba(0,0,0,0.42)]' : 'absolute right-1 top-2 z-[130] h-[calc(100%-0.5rem)] w-[420px] max-w-[calc(100vw-1rem)] overflow-hidden rounded-l-[18px] border border-white/10 bg-[#111] shadow-[0_28px_110px_rgba(0,0,0,0.42)]'}
+            className={chatFloating ? 'absolute z-[130] h-[760px] max-h-[calc(100%-1rem)] w-[420px] max-w-[calc(100vw-1rem)] overflow-hidden rounded-[12px] border border-white/10 bg-[#111113] shadow-[0_24px_80px_rgba(0,0,0,0.42)]' : 'absolute right-0 top-0 z-[130] h-full w-[430px] max-w-[calc(100vw-1rem)] overflow-hidden border-l border-white/10 bg-[#111113] shadow-none'}
             style={chatFloating ? { left: chatPosition.x, top: chatPosition.y, width: chatSize.width, height: chatSize.height } : undefined}
           >
             <InteractionDesignView variant="panel" floating={chatFloating} onToggleFloating={toggleChatFloating} onClose={closeChat} />

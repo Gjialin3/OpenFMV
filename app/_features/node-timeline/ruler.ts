@@ -30,16 +30,17 @@ export const formatTimelineRulerLabel = (timeInSeconds: number) => {
 
 const getFrameTickConfig = (zoom: number) => {
   if (zoom >= 180) return { labelFrameInterval: 10, tickFrameInterval: 5 };
-  if (zoom >= 120) return { labelFrameInterval: 15, tickFrameInterval: 5 };
-  if (zoom >= 48) return { labelFrameInterval: 30, tickFrameInterval: 5 };
-  if (zoom >= 30) return { labelFrameInterval: 30, tickFrameInterval: 10 };
+  if (zoom >= 120) return { labelFrameInterval: 30, tickFrameInterval: 5 };
+  if (zoom >= 72) return { labelFrameInterval: 60, tickFrameInterval: 15 };
+  if (zoom >= 48) return { labelFrameInterval: 90, tickFrameInterval: 30 };
+  if (zoom >= 30) return { labelFrameInterval: 120, tickFrameInterval: 30 };
   return null;
 };
 
 const getSecondTickInterval = (zoom: number) => {
-  if (zoom >= 24) return 1;
-  if (zoom >= 12) return 2;
-  return 5;
+  if (zoom >= 24) return 4;
+  if (zoom >= 12) return 5;
+  return 10;
 };
 
 export const getTimelineRulerTicks = ({

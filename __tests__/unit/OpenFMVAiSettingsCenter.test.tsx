@@ -66,11 +66,11 @@ describe('OpenFMVAiSettingsCenter', () => {
         return savedConfig;
       }),
       detectAiAgents: vi.fn(async (): Promise<OpenFMVAgentInfo[]> => [
-        { id: 'codex', name: 'Codex CLI', bin: 'codex', version: '', available: false, models: ['gpt-5-codex'], reasoningOptions: ['minimal', 'low', 'medium', 'high'] },
-        { id: 'claude', name: 'Claude Code', bin: 'claude', version: '1.2.3', available: true, models: ['claude-sonnet-4.5'] },
+        { id: 'codex', name: 'Codex CLI', bin: 'codex', version: '', available: false, models: ['default', 'gpt-5-codex'], reasoningOptions: ['default', 'minimal', 'low', 'medium', 'high'] },
+        { id: 'claude', name: 'Claude Code', bin: 'claude', version: '1.2.3', available: true, models: ['default', 'claude-sonnet-4.5'] },
       ]),
       testAiAgent: vi.fn(async () => ({ ok: true, message: 'CLI available' })),
-      sendChatMessage: vi.fn(async () => ({ ok: true, content: '', agentId: 'codex' as const, model: 'codex-default' })),
+      sendChatMessage: vi.fn(async () => ({ ok: true, content: '', agentId: 'codex' as const, model: 'default' })),
       testByokProvider: vi.fn(async () => ({ ok: true, message: 'HTTP 200' })),
       testMediaProvider: vi.fn(async () => ({ ok: true, message: 'HTTP 200' })),
     };

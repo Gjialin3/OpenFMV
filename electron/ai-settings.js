@@ -4,6 +4,8 @@ const fsSync = require('fs');
 const os = require('os');
 const path = require('path');
 const {
+  DEFAULT_CLI_MODEL,
+  DEFAULT_REASONING_EFFORT,
   agentDefinitions: sharedAgentDefinitions,
   byokProviderDefinitions,
   mediaProviderDefinitions,
@@ -16,14 +18,51 @@ const mediaIds = new Set(mediaProviderDefinitions.map((item) => item.id));
 
 const isRecord = (value) => typeof value === 'object' && value !== null;
 const textValue = (value) => typeof value === 'string' ? value : '';
+const isSpecificCliModel = (model) => Boolean(model && model !== DEFAULT_CLI_MODEL);
+const isSpecificReasoningEffort = (reasoningEffort) => Boolean(reasoningEffort && reasoningEffort !== DEFAULT_REASONING_EFFORT);
+const MAX_CHAT_ATTACHMENTS = 12;
+const MAX_CHAT_ATTACHMENT_CONTENT_CHARS = 12000;
+
+function parseCodexDebugModels(output) {
+  let parsed;
+  try {
+    parsed = JSON.parse(String(output || ''));
+  } catch {
+    return null;
+  }
+  const rawModels = isRecord(parsed) && Array.isArray(parsed.models) ? parsed.models : [];
+  const models = [DEFAULT_CLI_MODEL];
+  const seen = new Set(models);
+  for (const rawModel of rawModels) {
+    if (!isRecord(rawModel)) continue;
+    if (rawModel.visibility === 'hidden') continue;
+    const id = textValue(rawModel.slug).trim() || textValue(rawModel.id).trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    models.push(id);
+  }
+  return models.length > 1 ? models : null;
+}
+
+function parseLineSeparatedModels(output) {
+  const models = [DEFAULT_CLI_MODEL];
+  const seen = new Set(models);
+  for (const line of String(output || '').split(/\r?\n/)) {
+    const id = line.trim();
+    if (!id || id.startsWith('#') || seen.has(id)) continue;
+    seen.add(id);
+    models.push(id);
+  }
+  return models.length > 1 ? models : null;
+}
 
 const agentRuntimeById = {
-  codex: { versionArgs: ['--version'], testArgs: ['--version'], stdinPrompt: true, useOutputLastMessage: true, chatArgs: ({ model, reasoningEffort, outputPath }) => ['exec', ...(model && model !== 'codex-default' ? ['--model', model] : []), '--sandbox', 'read-only', '-c', 'approval_policy="never"', '--ephemeral', ...(reasoningEffort ? ['-c', `model_reasoning_effort="${reasoningEffort}"`] : []), ...(outputPath ? ['--output-last-message', outputPath] : []), '-'] },
-  claude: { versionArgs: ['--version'], testArgs: ['--version'], chatArgs: ({ model, prompt }) => ['-p', prompt, '--model', model] },
-  gemini: { versionArgs: ['--version'], testArgs: ['--version'], chatArgs: ({ model, prompt }) => ['-m', model, '-p', prompt] },
-  kimi: { versionArgs: ['--version'], testArgs: ['--version'], chatArgs: ({ model, prompt }) => ['--quiet', '--model', model, '--prompt', prompt] },
-  qwen: { versionArgs: ['--version'], testArgs: ['--version'], chatArgs: ({ model, prompt }) => ['-m', model, '-p', prompt] },
-  opencode: { versionArgs: ['--version'], testArgs: ['--version'], chatArgs: ({ prompt }) => ['run', prompt] },
+  codex: { versionArgs: ['--version'], testArgs: ['--version'], stdinPrompt: true, useOutputLastMessage: true, listModels: { args: ['debug', 'models'], parse: parseCodexDebugModels, timeoutMs: 5000 }, chatArgs: ({ model, reasoningEffort, outputPath }) => ['exec', ...(isSpecificCliModel(model) ? ['--model', model] : []), '--sandbox', 'read-only', '--skip-git-repo-check', '-c', 'approval_policy="never"', '--ephemeral', ...(isSpecificReasoningEffort(reasoningEffort) ? ['-c', `model_reasoning_effort="${reasoningEffort}"`] : []), ...(outputPath ? ['--output-last-message', outputPath] : []), '-'] },
+  claude: { versionArgs: ['--version'], testArgs: ['--version'], chatArgs: ({ model, prompt }) => ['-p', prompt, ...(isSpecificCliModel(model) ? ['--model', model] : [])] },
+  gemini: { versionArgs: ['--version'], testArgs: ['--version'], chatArgs: ({ model, prompt }) => [...(isSpecificCliModel(model) ? ['-m', model] : []), '-p', prompt] },
+  kimi: { versionArgs: ['--version'], testArgs: ['--version'], chatArgs: ({ model, prompt }) => ['--quiet', ...(isSpecificCliModel(model) ? ['--model', model] : []), '--prompt', prompt] },
+  qwen: { versionArgs: ['--version'], testArgs: ['--version'], chatArgs: ({ model, prompt }) => [...(isSpecificCliModel(model) ? ['-m', model] : []), '-p', prompt] },
+  opencode: { versionArgs: ['--version'], testArgs: ['--version'], listModels: { args: ['models'], parse: parseLineSeparatedModels, timeoutMs: 8000 }, chatArgs: ({ model, prompt }) => ['run', ...(isSpecificCliModel(model) ? ['-m', model] : []), prompt] },
 };
 
 const agentDefinitions = sharedAgentDefinitions.map((agent) => ({
@@ -155,11 +194,56 @@ const runCommand = (command, args, timeoutMs = 3000, input = '') => {
   });
 };
 
+const listAgentModels = async (agent, executable) => {
+  if (!agent.listModels) return agent.fallbackModels;
+  const result = await runCommand(executable, agent.listModels.args, agent.listModels.timeoutMs || 5000);
+  if (!result.ok && !result.output) return agent.fallbackModels;
+  const parsed = agent.listModels.parse(result.output);
+  return parsed && parsed.length ? parsed : agent.fallbackModels;
+};
+
+const normalizeChatAttachments = (attachments) => {
+  if (!Array.isArray(attachments)) return [];
+  return attachments
+    .filter((attachment) => isRecord(attachment) && textValue(attachment.name).trim())
+    .slice(0, MAX_CHAT_ATTACHMENTS)
+    .map((attachment) => {
+      const rawContent = textValue(attachment.content);
+      const content = rawContent.slice(0, MAX_CHAT_ATTACHMENT_CONTENT_CHARS);
+      return {
+        name: textValue(attachment.name).trim(),
+        type: textValue(attachment.type).trim(),
+        size: Number.isFinite(attachment.size) ? Math.max(0, Number(attachment.size)) : 0,
+        content,
+        truncated: Boolean(attachment.truncated) || rawContent.length > MAX_CHAT_ATTACHMENT_CONTENT_CHARS,
+      };
+    });
+};
+
 const normalizeChatMessages = (messages) => {
   if (!Array.isArray(messages)) return [];
   return messages
     .filter((message) => isRecord(message) && ['user', 'assistant'].includes(message.role) && textValue(message.content).trim())
-    .map((message) => ({ role: message.role, content: textValue(message.content).trim() }));
+    .map((message) => ({
+      role: message.role,
+      content: textValue(message.content).trim(),
+      attachments: normalizeChatAttachments(message.attachments),
+    }));
+};
+
+const formatChatAttachmentContext = (attachments) => {
+  if (!Array.isArray(attachments) || !attachments.length) return '';
+  const summary = attachments
+    .map((attachment) => {
+      const mode = attachment.content ? `text excerpt included${attachment.truncated ? ', truncated' : ''}` : 'metadata only';
+      return `- ${attachment.name} (${attachment.type || 'file'}, ${attachment.size} bytes, ${mode})`;
+    })
+    .join('\n');
+  const excerpts = attachments
+    .filter((attachment) => attachment.content)
+    .map((attachment) => `\n\n<attachment name="${attachment.name}">\n${attachment.content}${attachment.truncated ? '\n[truncated]' : ''}\n</attachment>`)
+    .join('');
+  return `\n\nAttachments:\n${summary}${excerpts}`;
 };
 
 const buildChatPrompt = (messages) => {
@@ -168,7 +252,9 @@ const buildChatPrompt = (messages) => {
 };
 
 const buildSafeChatPrompt = (messages) => {
-  const conversation = messages.map((message) => `${message.role === 'user' ? 'User' : 'AI'}: ${message.content}`).join('\n\n');
+  const conversation = messages
+    .map((message) => `${message.role === 'user' ? 'User' : 'AI'}: ${message.content}${formatChatAttachmentContext(message.attachments)}`)
+    .join('\n\n');
   return `You are the OpenFMV chat assistant. Reply directly like a normal chat assistant. Do not edit files or run commands.\n\n${conversation}\n\nAI:`;
 };
 
@@ -245,13 +331,14 @@ const detectAiAgents = async () => {
       };
     }
     const versionResult = await runCommand(executable, agent.versionArgs, 3000);
+    const models = await listAgentModels(agent, executable);
     return {
       id: agent.id,
       name: agent.name,
       bin: agent.bin,
       version: versionResult.output.split(/\r?\n/)[0] || 'installed',
       available: true,
-      models: agent.fallbackModels,
+      models,
       reasoningOptions: agent.reasoningOptions,
     };
   }));
