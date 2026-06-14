@@ -166,6 +166,9 @@ export type TimelineKeyframeProperty = 'opacity' | 'rotation' | 'x' | 'y' | 'wid
 export type TimelineKeyframeInterpolation = 'linear' | 'hold';
 export type ButtonMode = 'normal' | 'qte';
 export type ButtonQteInput = 'click' | 'space';
+export type ButtonStylePreset = 'solid' | 'outline' | 'glass' | 'ghost';
+export type ButtonStyleShape = 'rounded' | 'pill' | 'square';
+export type ButtonStyleShadow = 'none' | 'soft' | 'strong';
 
 export interface TimelineClipKeyframe {
   id: string;
@@ -231,6 +234,18 @@ export interface ButtonQteConfig {
   showCountdown?: boolean;
 }
 
+export interface ButtonStyleConfig {
+  preset?: ButtonStylePreset;
+  shape?: ButtonStyleShape;
+  fillColor?: string;
+  textColor?: string;
+  borderColor?: string;
+  fillOpacity?: number;
+  borderOpacity?: number;
+  borderWidth?: number;
+  shadow?: ButtonStyleShadow;
+}
+
 export interface ButtonChoiceClip extends BaseTimelineClip {
   type: 'button';
   mode?: ButtonMode;
@@ -240,6 +255,7 @@ export interface ButtonChoiceClip extends BaseTimelineClip {
   pauseOnShow: boolean;
   timeoutAction?: TimelineAction;
   qte?: ButtonQteConfig;
+  style?: ButtonStyleConfig;
 }
 
 export type TimelineInteractionClip = ButtonChoiceClip;

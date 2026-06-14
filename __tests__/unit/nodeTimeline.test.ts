@@ -149,6 +149,68 @@ describe('NodeTimeline v2', () => {
     });
   });
 
+  it('normalizes button style fields without requiring legacy clips to define style', () => {
+    const timeline = ensureNodeTimeline({
+      version: 2,
+      duration: 8,
+      bookmarks: [],
+      tracks: [
+        {
+          id: 'interaction-track',
+          type: 'interaction',
+          name: 'Interaction',
+          clips: [
+            {
+              id: 'styled-button',
+              type: 'button',
+              startTime: 0,
+              duration: 2,
+              enabled: true,
+              label: 'Styled',
+              rect: { x: 0.1, y: 0.2, width: 0.3, height: 0.1 },
+              action: { type: 'continue' },
+              style: {
+                preset: 'glass',
+                shape: 'pill',
+                fillColor: '22c55e',
+                textColor: '#fff',
+                borderColor: 'not-a-color',
+                fillOpacity: 2,
+                borderOpacity: -1,
+                borderWidth: 9,
+                shadow: 'strong',
+              },
+            },
+            {
+              id: 'old-button',
+              type: 'button',
+              startTime: 2,
+              duration: 2,
+              enabled: true,
+              label: 'Old',
+              rect: { x: 0.2, y: 0.3, width: 0.2, height: 0.1 },
+              action: { type: 'continue' },
+            },
+          ],
+        },
+      ],
+    } as NodeTimeline);
+
+    const [styledButton, oldButton] = getInteractionTimelineClips(timeline);
+    expect(styledButton?.style).toEqual({
+      preset: 'glass',
+      shape: 'pill',
+      fillColor: '#22c55e',
+      textColor: '#ffffff',
+      borderColor: '#fed7aa',
+      fillOpacity: 1,
+      borderOpacity: 0,
+      borderWidth: 4,
+      shadow: 'strong',
+    });
+    expect(oldButton?.style).toBeUndefined();
+  });
+
   it('creates optional-click buttons by default and preserves explicit pause waits', () => {
     const buttonClip = createInteractionClip('button', 1, 8);
     const pauseButtonClip = { ...buttonClip, id: 'pause-button', pauseOnShow: true };

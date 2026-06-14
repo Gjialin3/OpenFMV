@@ -3,6 +3,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { ArrowRight, RotateCcw, X } from 'lucide-react';
+
+import { getButtonClipInlineStyle } from '@/app/_features/node-timeline';
 import { useRuntimeSessionStore } from '@/app/_features/runtime-session/store';
 import { useResolvedMediaSrc } from '../../_hooks/useResolvedMediaSrc';
 import { usePlayerStore } from '../../_store/usePlayerStore';
@@ -210,8 +212,8 @@ const shouldResumeTimelineOnClick = (clip: TimelineInteractionClip) => {
 };
 
 const getTimelineClipClassName = (clip: TimelineInteractionClip) => {
-  const base = 'pointer-events-auto absolute flex min-h-10 min-w-12 items-center justify-center overflow-hidden rounded-[8px] border px-3 text-xs font-bold text-white shadow-[0_18px_52px_rgba(0,0,0,0.38)] backdrop-blur-xl transition hover:scale-[1.02]';
-  return isQteButtonClip(clip) ? `${base} border-cyan-200/90 bg-cyan-500/92` : `${base} border-orange-200/90 bg-orange-500/92`;
+  const base = 'pointer-events-auto absolute flex min-h-10 min-w-12 items-center justify-center overflow-hidden border px-3 text-xs font-bold backdrop-blur-xl transition hover:scale-[1.02]';
+  return isQteButtonClip(clip) ? `${base} select-none` : base;
 };
 
 const isTextEditingTarget = (target: EventTarget | null) => {
@@ -594,6 +596,7 @@ const TimelineRuntimeOverlay = ({
             className={getTimelineClipClassName(clip)}
             data-qte-input={isQte ? qteConfig.input : undefined}
             style={{
+              ...getButtonClipInlineStyle(clip),
               left: `${rect.x * 100}%`,
               top: `${rect.y * 100}%`,
               width: `${rect.width * 100}%`,

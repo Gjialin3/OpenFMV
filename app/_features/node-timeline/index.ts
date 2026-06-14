@@ -1,5 +1,6 @@
 export * from './commands';
 export * from './constants';
+export * from './button-style';
 export * from './edge-scroll';
 export * from './media-assets';
 export * from './placement';

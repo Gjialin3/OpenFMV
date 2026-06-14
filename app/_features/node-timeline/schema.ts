@@ -2,6 +2,7 @@ import {
   NodeTimeline,
   OverlayRect,
   ButtonQteConfig,
+  ButtonStyleConfig,
   TimelineAction,
   TimelineBookmark,
   TimelineClip,
@@ -17,6 +18,7 @@ import {
   TimelineTrackType,
 } from '@/app/_types';
 
+import { normalizeButtonStyleConfig } from './button-style';
 import {
   DEFAULT_INTERACTION_CLIP_DURATION,
   DEFAULT_MEDIA_CLIP_DURATION,
@@ -221,6 +223,10 @@ const normalizeButtonQteConfig = (value: unknown): ButtonQteConfig => {
   };
 };
 
+const normalizeButtonStyle = (value: unknown, mode?: 'normal' | 'qte'): ButtonStyleConfig | undefined => {
+  return normalizeButtonStyleConfig(value, mode);
+};
+
 export const createEmptyTimelineTrack = (
   type: TimelineTrackType,
   id = getDefaultTrackIdForType(type),
@@ -290,6 +296,7 @@ const normalizeInteractionClip = (clip: ClipRecord): TimelineInteractionClip | n
   const action = (clip.action || { type: 'continue' }) as TimelineAction;
   const label = typeof clip.label === 'string' ? clip.label : 'Choice';
   const mode = clip.mode === 'qte' ? 'qte' : undefined;
+  const style = normalizeButtonStyle(clip.style, mode === 'qte' ? 'qte' : 'normal');
 
   return {
     ...base,
@@ -301,6 +308,7 @@ const normalizeInteractionClip = (clip: ClipRecord): TimelineInteractionClip | n
     pauseOnShow: clip.pauseOnShow === true,
     timeoutAction: clip.timeoutAction as TimelineAction | undefined,
     ...(mode === 'qte' ? { qte: normalizeButtonQteConfig(clip.qte) } : {}),
+    ...(style ? { style } : {}),
   };
 };
 

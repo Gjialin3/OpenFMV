@@ -38,6 +38,7 @@ import {
   Minus,
   MousePointerClick,
   Music,
+  Palette,
   Pause,
   Play,
   Plus,
@@ -64,6 +65,8 @@ import {
   ButtonMode,
   ButtonQteConfig,
   ButtonQteInput,
+  ButtonStyleConfig,
+  ButtonStyleShape,
   NodeTimeline,
   OpenFMVAsset,
   OverlayRect,
@@ -88,6 +91,7 @@ import { getLocalizedPath } from '@/app/_utils/localePaths';
 import { addAssetsToLocalProject, canUseNativeAssetPicker, importAssetFromFile, importAssetFromNativePicker, isStorageQuotaError, listLocalProjects, removeAssetFromLocalProject, resolveLocalProjectForEditor } from '@/app/_utils/localProjects';
 import {
   addTimelineTrack,
+  BUTTON_STYLE_SWATCHES,
   buildAudioWaveformPeaks,
   buildPreviewSnapTargets,
   buildTimelineSnapPoints,
@@ -97,6 +101,8 @@ import {
   canTimelineTrackBeHidden,
   canTimelineTrackHaveAudio,
   canToggleTimelineSourceAudio,
+  clampButtonBorderWidth,
+  clampButtonStyleOpacity,
   clampTimelineZoom,
   clampTimelineClipOpacity,
   clampTimelineClipRotation,
@@ -118,6 +124,7 @@ import {
   findTimelineBookmarkAtTime,
   freezeTimelineVideoClipAtTime,
   getAdjacentTimelineEditPoint,
+  getButtonClipInlineStyle,
   getClipEndTime,
   getLinkedTimelineClipIds,
   getTimelineEdgeScroll,
@@ -153,6 +160,9 @@ import {
   pasteTimelineClipKeyframes,
   reorderTimelineTrack,
   removeTimelineClipKeyframes,
+  normalizeButtonHexColor,
+  normalizeButtonStyleConfig,
+  resolveButtonStyleConfig,
   resolveTimelineClipKeyframes,
   resolveTimelineSnap,
   roundTimelineTime,
@@ -904,6 +914,18 @@ const updateInteractionQteConfig = (clip: TimelineInteractionClip, patch: Partia
     mode: 'qte',
     qte: nextQte,
   };
+};
+
+const getInteractionStyleMode = (clip: TimelineInteractionClip): ButtonMode => (
+  isQteButtonClip(clip) ? 'qte' : 'normal'
+);
+
+const updateInteractionStyle = (clip: TimelineInteractionClip, patch: ButtonStyleConfig): TimelineInteractionClip => {
+  const style = normalizeButtonStyleConfig({
+    ...resolveButtonStyleConfig(clip),
+    ...patch,
+  }, getInteractionStyleMode(clip));
+  return style ? { ...clip, style } : clip;
 };
 
 const updateInteractionRect = (clip: TimelineInteractionClip, rect: OverlayRect): TimelineInteractionClip => {
@@ -3744,6 +3766,7 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
                     onClick={() => selectSingleClip(resolvedClip.id)}
                     className={getPreviewClipClassName(resolvedClip, resolvedClip.id === selectedClip?.id, active)}
                     style={{
+                      ...getButtonClipInlineStyle(resolvedClip),
                       left: `${rect.x * 100}%`,
                       top: `${rect.y * 100}%`,
                       width: `${rect.width * 100}%`,
@@ -5032,7 +5055,7 @@ function InspectorSegmentedControl({
   onChange,
 }: {
   value: string;
-  options: Array<{ value: string; label: string; icon?: LucideIcon }>;
+  options: Array<{ value: string; label: string; icon?: LucideIcon; visual?: React.ReactNode }>;
   tone?: 'neutral' | 'accent' | 'cyan';
   compact?: boolean;
   onChange: (value: string) => void;
@@ -5048,6 +5071,7 @@ function InspectorSegmentedControl({
       {options.map((option) => {
         const Icon = option.icon;
         const selected = value === option.value;
+        const visual = option.visual || (Icon ? <Icon size={13} className="shrink-0" /> : null);
         return (
           <button
             key={option.value}
@@ -5058,7 +5082,7 @@ function InspectorSegmentedControl({
             aria-label={option.label}
             className={`flex min-w-0 items-center justify-center gap-1 rounded-openfmv-tool ${compact ? 'px-0' : 'px-1.5'} text-xs font-semibold transition ${selected ? activeClass : 'text-openfmv-muted hover:bg-white/[0.06] hover:text-white'}`}
           >
-            {Icon && <Icon size={13} className="shrink-0" />}
+            {visual}
             {!compact && <span className="truncate">{option.label}</span>}
           </button>
         );
@@ -5109,6 +5133,297 @@ function InspectorSwitchRow({
       <div className="flex h-openfmv-tool items-center justify-between gap-2 rounded-openfmv-tool border border-white/10 bg-[#171717] px-2.5 transition hover:border-white/18 hover:bg-[#1d1d1d]">
         <span className={`truncate text-xs font-semibold ${checked ? 'text-white' : 'text-openfmv-muted'}`}>{shortLabel}</span>
         <InspectorSwitch checked={checked} onChange={onChange} />
+      </div>
+    </div>
+  );
+}
+
+function InspectorRangeField({
+  label,
+  value,
+  min = 0,
+  max = 1,
+  step = 0.05,
+  formatValue = (item) => `${Math.round(item * 100)}%`,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min?: number;
+  max?: number;
+  step?: number;
+  formatValue?: (value: number) => string;
+  onChange: (value: number) => void;
+}) {
+  const safeValue = Math.max(min, Math.min(max, Number.isFinite(value) ? value : min));
+  return (
+    <ButtonStyleOptionRow label={label}>
+      <div className="ml-auto grid h-7 w-[132px] grid-cols-[minmax(0,1fr)_40px] items-center gap-2">
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={safeValue}
+          onChange={(event) => onChange(Number(event.target.value))}
+          className="h-full min-w-0 accent-openfmv-accent"
+          aria-label={label}
+        />
+        <span className="grid h-7 place-items-center rounded-openfmv-tool border border-white/12 bg-[#171717] font-mono text-[10px] text-openfmv-sub transition">
+          {formatValue(safeValue)}
+        </span>
+      </div>
+    </ButtonStyleOptionRow>
+  );
+}
+
+function InspectorInlineNumberField({
+  label,
+  value,
+  step,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  step: number;
+  onChange: (value: number) => void;
+}) {
+  const safeValue = Number.isFinite(value) ? value : 0;
+  return (
+    <ButtonStyleOptionRow label={label}>
+      <div className="ml-auto grid h-7 w-[92px] grid-cols-[22px_minmax(0,1fr)_22px] overflow-hidden rounded-openfmv-tool border border-white/12 bg-[#171717] text-xs text-white transition hover:border-white/24 focus-within:border-white/35">
+        <button
+          type="button"
+          aria-label={`${label} -`}
+          onClick={() => onChange(safeValue - step)}
+          className="grid h-full place-items-center border-r border-white/10 text-openfmv-muted transition hover:bg-white/[0.06] hover:text-white"
+        >
+          <Minus size={11} />
+        </button>
+        <input
+          type="text"
+          inputMode="numeric"
+          aria-label={label}
+          value={safeValue}
+          onChange={(event) => onChange(Number(event.target.value))}
+          className="h-full min-w-0 border-0 bg-transparent px-1 text-center font-mono text-xs text-white outline-none"
+        />
+        <button
+          type="button"
+          aria-label={`${label} +`}
+          onClick={() => onChange(safeValue + step)}
+          className="grid h-full place-items-center border-l border-white/10 text-openfmv-muted transition hover:bg-white/[0.06] hover:text-white"
+        >
+          <Plus size={11} />
+        </button>
+      </div>
+    </ButtonStyleOptionRow>
+  );
+}
+
+function InspectorColorField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const safeValue = normalizeButtonHexColor(value, '#ffffff');
+  const updateColor = (nextValue: string) => onChange(normalizeButtonHexColor(nextValue, safeValue));
+  return (
+    <ButtonStyleOptionRow label={label}>
+      <ColorPickerControl label={label} value={safeValue} onChange={updateColor} />
+    </ButtonStyleOptionRow>
+  );
+}
+
+const COLOR_HEX_INPUT_PATTERN = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i;
+
+function ColorPickerControl({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [draftValue, setDraftValue] = useState(value);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setDraftValue(value);
+  }, [value]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      if (containerRef.current?.contains(event.target as Node)) return;
+      setOpen(false);
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [open]);
+
+  const applyColor = (nextValue: string) => {
+    const normalized = normalizeButtonHexColor(nextValue, value);
+    setDraftValue(normalized);
+    onChange(normalized);
+  };
+
+  const updateDraft = (nextValue: string) => {
+    setDraftValue(nextValue);
+    if (COLOR_HEX_INPUT_PATTERN.test(nextValue.trim())) {
+      onChange(normalizeButtonHexColor(nextValue, value));
+    }
+  };
+
+  const commitDraft = () => {
+    const normalized = normalizeButtonHexColor(draftValue, value);
+    setDraftValue(normalized);
+    onChange(normalized);
+  };
+
+  return (
+    <div ref={containerRef} className="relative w-10 justify-self-end">
+      <button
+        type="button"
+        aria-label={label}
+        aria-expanded={open}
+        title={value}
+        onClick={() => setOpen((current) => !current)}
+        className={`grid h-7 w-10 place-items-center rounded-openfmv-tool border bg-black/25 p-1 transition ${open ? 'border-cyan-300/65 ring-1 ring-cyan-300/35' : 'border-white/10 hover:border-white/35'}`}
+      >
+        <span className="h-full w-full rounded-[3px] border border-white/16" style={{ backgroundColor: value }} />
+      </button>
+
+      {open && (
+        <div
+          className="absolute right-0 top-8 z-40 w-40 rounded-openfmv-tool border border-white/12 bg-[#171717] p-2 shadow-[0_18px_42px_rgba(0,0,0,0.42)]"
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') setOpen(false);
+          }}
+        >
+          <div className="grid grid-cols-4 gap-1.5">
+            {BUTTON_STYLE_SWATCHES.map((color) => {
+              const selected = value === color;
+              return (
+                <button
+                  key={color}
+                  type="button"
+                  aria-label={`${label} ${color}`}
+                  aria-pressed={selected}
+                  onClick={() => applyColor(color)}
+                  className={`grid h-7 place-items-center rounded-openfmv-tool border transition ${selected ? 'border-white ring-1 ring-white/70' : 'border-white/12 hover:border-white/40'}`}
+                  style={{ backgroundColor: color }}
+                >
+                  {selected && <Check size={11} className="text-white drop-shadow" />}
+                </button>
+              );
+            })}
+          </div>
+          <input
+            type="text"
+            spellCheck={false}
+            value={draftValue}
+            onChange={(event) => updateDraft(event.target.value)}
+            onBlur={commitDraft}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                commitDraft();
+                setOpen(false);
+              }
+            }}
+            aria-label={`${label} hex`}
+            className="mt-2 h-7 w-full rounded-openfmv-tool border border-white/12 bg-black/25 px-2 font-mono text-[11px] text-white outline-none transition placeholder:text-openfmv-muted focus:border-cyan-300/60"
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ButtonStyleOptionRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="grid grid-cols-[52px_minmax(0,1fr)] items-center gap-2">
+      <span className="min-w-0 truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-openfmv-muted" title={label}>{label}</span>
+      <div className="min-w-0">{children}</div>
+    </div>
+  );
+}
+
+function ButtonShapeIcon({ shape }: { shape: ButtonStyleShape }) {
+  const radiusClass = shape === 'pill' ? 'rounded-openfmv-pill' : shape === 'square' ? 'rounded-[2px]' : 'rounded-[7px]';
+  return <span className={`block h-4 w-7 border border-current bg-white/10 ${radiusClass}`} />;
+}
+
+function ButtonStyleInspector({
+  t,
+  clip,
+  onUpdate,
+}: {
+  t: NodeTimelineTranslator;
+  clip: TimelineInteractionClip;
+  onUpdate: (update: (clip: TimelineInteractionClip) => TimelineInteractionClip) => void;
+}) {
+  const style = resolveButtonStyleConfig(clip);
+  const previewClip = { ...clip, style };
+  const label = isQteButtonClip(clip) ? getQteDisplayName(clip) : getTimelineClipLabel(clip);
+  const setStyle = (patch: ButtonStyleConfig) => onUpdate((item) => updateInteractionStyle(item, patch));
+
+  return (
+    <div className="space-y-2 rounded-openfmv-tool border border-white/10 bg-white/[0.035] p-2.5">
+      <ButtonStyleOptionRow label={t('fields.buttonStyleShape')}>
+        <InspectorSegmentedControl
+          value={style.shape}
+          compact
+          options={[
+            { label: t('fields.buttonShapeRounded'), value: 'rounded', visual: <ButtonShapeIcon shape="rounded" /> },
+            { label: t('fields.buttonShapePill'), value: 'pill', visual: <ButtonShapeIcon shape="pill" /> },
+            { label: t('fields.buttonShapeSquare'), value: 'square', visual: <ButtonShapeIcon shape="square" /> },
+          ]}
+          onChange={(value) => setStyle({ shape: value as ButtonStyleShape })}
+        />
+      </ButtonStyleOptionRow>
+
+      <div className="grid grid-cols-1 gap-1.5">
+        <InspectorColorField label={t('fields.buttonFillColor')} value={style.fillColor} onChange={(value) => setStyle({ fillColor: value })} />
+        <InspectorColorField label={t('fields.buttonTextColor')} value={style.textColor} onChange={(value) => setStyle({ textColor: value })} />
+        <InspectorColorField label={t('fields.buttonBorderColor')} value={style.borderColor} onChange={(value) => setStyle({ borderColor: value })} />
+      </div>
+
+      <div className="grid grid-cols-1 gap-1.5">
+        <InspectorRangeField
+          label={t('fields.buttonFillOpacity')}
+          value={style.fillOpacity}
+          onChange={(value) => setStyle({ fillOpacity: clampButtonStyleOpacity(value, style.fillOpacity) })}
+        />
+        <InspectorInlineNumberField
+          label={t('fields.buttonBorderWidth')}
+          value={style.borderWidth}
+          step={1}
+          onChange={(value) => setStyle({ borderWidth: clampButtonBorderWidth(value, style.borderWidth) })}
+        />
+      </div>
+
+      <div className="rounded-openfmv-tool border border-white/10 bg-black/25 p-2">
+        <button
+          type="button"
+          tabIndex={-1}
+          className="pointer-events-none flex h-openfmv-control w-full min-w-0 items-center justify-center overflow-hidden px-4 text-xs font-bold"
+          style={getButtonClipInlineStyle(previewClip)}
+        >
+          <span className="truncate">{label}</span>
+        </button>
       </div>
     </div>
   );
@@ -5247,6 +5562,13 @@ function InteractionClipInspector({
   const mode = getButtonMode(clip);
   const isQte = mode === 'qte';
   const qteConfig = getQteConfig(clip);
+  const [styleExpanded, setStyleExpanded] = useState(false);
+  const resolvedStyle = resolveButtonStyleConfig(clip);
+  const styleShapeLabel = {
+    rounded: t('fields.buttonShapeRounded'),
+    pill: t('fields.buttonShapePill'),
+    square: t('fields.buttonShapeSquare'),
+  }[resolvedStyle.shape];
 
   return (
     <div className="space-y-1">
@@ -5302,6 +5624,31 @@ function InteractionClipInspector({
         <InspectorFieldRow label={t('fields.label')} icon={Type}>
           <InspectorTextInput value={clip.label || ''} onChange={(value) => onUpdate((item) => updateInteractionLabel(item, value))} />
         </InspectorFieldRow>
+      )}
+
+      <InspectorDivider />
+
+      <InspectorFieldRow label={t('fields.buttonStyle')} icon={Palette}>
+        <button
+          type="button"
+          onClick={() => setStyleExpanded((expanded) => !expanded)}
+          aria-expanded={styleExpanded}
+          className="flex h-openfmv-tool w-full items-center justify-between gap-2 rounded-openfmv-tool border border-white/10 bg-[#171717] px-2.5 text-left text-xs text-white outline-none transition hover:border-white/18 hover:bg-[#1d1d1d]"
+        >
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="h-4 w-4 shrink-0 rounded-openfmv-tool border border-white/20" style={{ backgroundColor: resolvedStyle.fillColor }} />
+            <span className="min-w-0 truncate">{styleShapeLabel}</span>
+          </span>
+          <ChevronDown size={14} className={`shrink-0 text-openfmv-muted transition ${styleExpanded ? 'rotate-180 text-white' : ''}`} />
+        </button>
+      </InspectorFieldRow>
+
+      {styleExpanded && (
+        <ButtonStyleInspector
+          t={t}
+          clip={clip}
+          onUpdate={onUpdate}
+        />
       )}
 
       <InspectorDivider />

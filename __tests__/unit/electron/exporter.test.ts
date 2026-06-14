@@ -292,6 +292,18 @@ describe('game exporter', () => {
                         pauseOnShow: true,
                         timeoutAction: { type: 'goToNode', nodeId: 'fail' },
                         qte: { input: 'space', prompt: 'Press Space', keyLabel: 'Space', showCountdown: true },
+                        opacity: 0.65,
+                        rotation: 8,
+                        style: {
+                          preset: 'glass',
+                          shape: 'pill',
+                          fillColor: '#22c55e',
+                          textColor: '#111827',
+                          borderColor: '#ffffff',
+                          fillOpacity: 0.4,
+                          borderWidth: 2,
+                          shadow: 'soft',
+                        },
                       },
                     ],
                   },
@@ -335,6 +347,9 @@ describe('game exporter', () => {
     const html = await readFile(join(result.outputDirectory, 'index.html'), 'utf8');
     expect(html).toContain('timelineResolvedQteClipIds');
     expect(html).toContain('timelineClockTimer = setInterval');
+    expect(html).toContain('timelineButtonCssText');
+    expect(html).toContain('"preset": "glass"');
+    expect(html).toContain('"fillOpacity": 0.4');
     expect(html).toContain('data-qte-input');
     expect(html).toContain("document.addEventListener('keydown'");
     expect(html).toContain("action.type === 'pause'");

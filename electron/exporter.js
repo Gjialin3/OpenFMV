@@ -394,6 +394,101 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
       if (!clip) return '';
       return clip.label || clip.name || 'Continue';
     };
+    const clampTimelineButtonOpacity = (value, fallback) => {
+      const numberValue = Number(value);
+      if (!Number.isFinite(numberValue)) return fallback;
+      return Math.max(0, Math.min(1, numberValue));
+    };
+    const clampTimelineButtonBorderWidth = (value, fallback) => {
+      const numberValue = Number(value);
+      if (!Number.isFinite(numberValue)) return fallback;
+      return Math.max(0, Math.min(4, Math.round(numberValue)));
+    };
+    const normalizeTimelineButtonColor = (value, fallback) => {
+      if (typeof value !== 'string') return fallback;
+      const match = value.trim().match(/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i);
+      if (!match) return fallback;
+      const color = match[1];
+      return '#' + (color.length === 3 ? color[0] + color[0] + color[1] + color[1] + color[2] + color[2] : color).toLowerCase();
+    };
+    const timelineButtonPresetDefaults = (preset) => {
+      if (preset === 'outline') return { fillOpacity: 0, borderOpacity: 0.9, borderWidth: 1, shadow: 'soft' };
+      if (preset === 'glass') return { fillOpacity: 0.2, borderOpacity: 0.38, borderWidth: 1, shadow: 'soft' };
+      if (preset === 'ghost') return { fillOpacity: 0, borderOpacity: 0, borderWidth: 0, shadow: 'none' };
+      return { fillOpacity: 0.92, borderOpacity: 0.9, borderWidth: 1, shadow: 'strong' };
+    };
+    const timelineButtonModeDefaults = (clip) => {
+      const isQte = isTimelineQteClip(clip);
+      const preset = 'solid';
+      const presetDefaults = timelineButtonPresetDefaults(preset);
+      return {
+        preset,
+        shape: 'rounded',
+        fillColor: isQte ? '#06b6d4' : '#f97316',
+        textColor: '#ffffff',
+        borderColor: isQte ? '#a5f3fc' : '#fed7aa',
+        fillOpacity: presetDefaults.fillOpacity,
+        borderOpacity: presetDefaults.borderOpacity,
+        borderWidth: presetDefaults.borderWidth,
+        shadow: presetDefaults.shadow,
+      };
+    };
+    const timelineButtonStyleConfig = (clip) => {
+      const source = clip && clip.style && typeof clip.style === 'object' ? clip.style : {};
+      const modeDefaults = timelineButtonModeDefaults(clip);
+      const preset = ['solid', 'outline', 'glass', 'ghost'].includes(source.preset) ? source.preset : modeDefaults.preset;
+      const presetDefaults = timelineButtonPresetDefaults(preset);
+      return {
+        preset,
+        shape: ['rounded', 'pill', 'square'].includes(source.shape) ? source.shape : modeDefaults.shape,
+        fillColor: normalizeTimelineButtonColor(source.fillColor, modeDefaults.fillColor),
+        textColor: normalizeTimelineButtonColor(source.textColor, modeDefaults.textColor),
+        borderColor: normalizeTimelineButtonColor(source.borderColor, modeDefaults.borderColor),
+        fillOpacity: clampTimelineButtonOpacity(source.fillOpacity, presetDefaults.fillOpacity),
+        borderOpacity: clampTimelineButtonOpacity(source.borderOpacity, presetDefaults.borderOpacity),
+        borderWidth: clampTimelineButtonBorderWidth(source.borderWidth, presetDefaults.borderWidth),
+        shadow: ['none', 'soft', 'strong'].includes(source.shadow) ? source.shadow : presetDefaults.shadow,
+      };
+    };
+    const timelineButtonRgba = (hex, opacity) => {
+      const color = normalizeTimelineButtonColor(hex, '#000000').slice(1);
+      const red = parseInt(color.slice(0, 2), 16);
+      const green = parseInt(color.slice(2, 4), 16);
+      const blue = parseInt(color.slice(4, 6), 16);
+      return 'rgba(' + red + ', ' + green + ', ' + blue + ', ' + clampTimelineButtonOpacity(opacity, 1) + ')';
+    };
+    const timelineButtonRadius = (shape) => {
+      if (shape === 'pill') return '999px';
+      if (shape === 'square') return '2px';
+      return '10px';
+    };
+    const timelineButtonShadow = (shadow) => {
+      if (shadow === 'strong') return '0 18px 52px rgba(0, 0, 0, 0.38)';
+      if (shadow === 'soft') return '0 10px 30px rgba(0, 0, 0, 0.24)';
+      return 'none';
+    };
+    const timelineButtonCssText = (clip, rect) => {
+      const style = timelineButtonStyleConfig(clip);
+      const clipOpacity = clampTimelineButtonOpacity(clip && clip.opacity, 1);
+      const rotation = Number(clip && clip.rotation);
+      return [
+        'left:' + (rect.x * 100) + '%',
+        'top:' + (rect.y * 100) + '%',
+        'width:' + (rect.width * 100) + '%',
+        'height:' + (rect.height * 100) + '%',
+        'opacity:' + clipOpacity,
+        Number.isFinite(rotation) && rotation !== 0 ? 'transform:rotate(' + rotation + 'deg)' : '',
+        Number.isFinite(rotation) && rotation !== 0 ? 'transform-origin:center' : '',
+        'background-color:' + timelineButtonRgba(style.fillColor, style.fillOpacity),
+        'border-color:' + timelineButtonRgba(style.borderColor, style.borderWidth > 0 ? style.borderOpacity : 0),
+        'border-style:solid',
+        'border-width:' + style.borderWidth + 'px',
+        'border-radius:' + timelineButtonRadius(style.shape),
+        'box-shadow:' + timelineButtonShadow(style.shadow),
+        'color:' + style.textColor,
+        style.preset === 'glass' ? 'backdrop-filter:blur(18px)' : '',
+      ].filter(Boolean).join(';');
+    };
     const timelineQteDisplayName = (clip) => {
       const rawLabel = clip && (clip.label || clip.name);
       const label = typeof rawLabel === 'string' ? rawLabel.trim() : '';
@@ -503,7 +598,7 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
         const labelHtml = isQte
           ? '<span class="timeline-qte-label">' + (qteCueLabel ? '<span class="timeline-qte-cue">' + escapeHtml(qteCueLabel) + '</span>' : '') + '<span class="timeline-qte-name">' + escapeHtml(timelineQteDisplayName(clip)) + '</span>' + (qte.showCountdown ? '<span class="timeline-qte-countdown"><span style="width:' + (qteRemainingRatio * 100) + '%"></span></span>' : '') + '</span>'
           : '<span class="timeline-label">' + escapeHtml(label) + '</span>';
-        return '<button class="timeline-clip ' + escapeHtml(clip.type) + (isQte ? ' qte' : '') + '" data-timeline-clip="' + escapeHtml(clip.id) + '"' + (isQte ? ' data-qte-input="' + escapeHtml(qte.input) + '"' : '') + ' style="left:' + (rect.x * 100) + '%;top:' + (rect.y * 100) + '%;width:' + (rect.width * 100) + '%;height:' + (rect.height * 100) + '%">' + labelHtml + '</button>';
+        return '<button class="timeline-clip ' + escapeHtml(clip.type) + (isQte ? ' qte' : '') + '" data-timeline-clip="' + escapeHtml(clip.id) + '"' + (isQte ? ' data-qte-input="' + escapeHtml(qte.input) + '"' : '') + ' style="' + timelineButtonCssText(clip, rect) + '">' + labelHtml + '</button>';
       }).join('') + '</div>';
     };
 
