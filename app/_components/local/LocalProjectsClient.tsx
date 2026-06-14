@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { CheckSquare2, Clock3, Copy, Download, Edit3, FileJson, FileText, Film, Grid2X2, Image as ImageIcon, Layout, Library, List, PackageOpen, Play, Plus, Search, Square, Trash2, Upload, X } from 'lucide-react';
 import BorderGlow from '@/app/_components/ui/BorderGlow';
+import LocalAboutPanel from '@/app/_components/local/LocalAboutPanel';
 import { AppNode, OpenFMVAsset, OpenFMVProject } from '@/app/_types';
 import { createAndSaveLocalProject, deleteLocalProject, exportProjectJson, importAssetFromFile, listLocalProjects, openLocalProject, registerLocalProject, saveLocalProject } from '@/app/_utils/localProjects';
 import { getLocalizedPath } from '@/app/_utils/localePaths';
@@ -166,7 +167,6 @@ export default function LocalProjectsClient() {
       return nextIds.length === ids.length ? ids : nextIds;
     });
   }, [projects]);
-
 
   const filteredProjects = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -375,6 +375,7 @@ export default function LocalProjectsClient() {
             );
           })}
         </nav>
+        <LocalAboutPanel />
       </aside>
 
       <section className="relative z-10 flex min-w-0 flex-1 flex-col">

@@ -41,6 +41,22 @@ const getTextPreview = (asset: OpenFMVAsset) => {
   return content.replace(/\s+/g, ' ').trim().slice(0, 100);
 };
 
+const formatAssetDuration = (asset: OpenFMVAsset) => {
+  const duration = Number(asset.metadata?.duration);
+  if (!Number.isFinite(duration) || duration <= 0) return '';
+  if (duration < 60) return `${Math.round(duration)}s`;
+  const minutes = Math.floor(duration / 60);
+  const seconds = Math.round(duration % 60).toString().padStart(2, '0');
+  return `${minutes}:${seconds}`;
+};
+
+const formatAssetSize = (value: unknown) => {
+  if (typeof value !== 'number' || Number.isNaN(value)) return '';
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${(value / 1024 / 1024).toFixed(1)} MB`;
+};
+
 const toPickerAsset = (asset: OpenFMVAsset): PickerAsset => ({
   id: asset.id,
   type: asset.type,
@@ -232,24 +248,42 @@ export default function AssetPicker({ isOpen, onClose, onSelect, allowAudio = fa
             </div>
           ) : (
             <div className="space-y-2">
-              {filteredAssets.map(({ asset, projectId, projectTitle }) => (
-                <Button
-                  key={`${projectId}-${asset.id}`}
-                  type="button"
-                  onClick={() => selectAsset(asset)}
-                  variant="glass"
-                  className="group h-auto w-full justify-start gap-3 rounded-[16px] border-white/8 bg-white/[0.045] p-2 text-left hover:border-white/18 hover:bg-white/[0.08]"
-                >
-                  <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-[13px] bg-white/[0.08] text-openfmv-sub">
-                    <AssetPreview asset={asset} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-semibold text-white">{asset.name}</div>
-                    <div className="mt-1 truncate text-xs text-openfmv-muted">{asset.type === 'text' ? getTextPreview(asset) || t('textAsset') : t('assetTypeLabel', { type: t(`type.${asset.type}`) })} / {projectTitle}</div>
-                  </div>
-                  <div className="rounded-full border border-white/10 px-2 py-1 text-[10px] font-semibold uppercase text-openfmv-muted">{t(`type.${asset.type}`)}</div>
-                </Button>
-              ))}
+              {filteredAssets.map(({ asset, projectId, projectTitle }) => {
+                const typeLabel = t(`type.${asset.type}`);
+                const detailItems = asset.type === 'text'
+                  ? [getTextPreview(asset) || t('textAsset')]
+                  : [typeLabel, formatAssetDuration(asset), formatAssetSize(asset.metadata?.size)].filter(Boolean);
+
+                return (
+                  <button
+                    key={`${projectId}-${asset.id}`}
+                    type="button"
+                    onClick={() => selectAsset(asset)}
+                    className="group grid w-full grid-cols-[64px_minmax(0,1fr)_30px] items-center gap-3 rounded-[16px] border border-white/10 bg-white/[0.045] p-2.5 text-left outline-none transition hover:border-white/22 hover:bg-white/[0.075] focus-visible:border-openfmv-accent/70 focus-visible:ring-2 focus-visible:ring-openfmv-accent/20"
+                  >
+                    <div className="relative grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-[13px] border border-white/10 bg-black/[0.32] text-openfmv-sub">
+                      <AssetPreview asset={asset} />
+                      <span className="absolute bottom-1 left-1 rounded-[7px] border border-white/10 bg-black/[0.62] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-white/86">
+                        {typeLabel}
+                      </span>
+                    </div>
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold leading-5 text-white">{asset.name}</div>
+                      <div className="mt-1 truncate text-xs leading-4 text-openfmv-sub">{projectTitle}</div>
+                      {detailItems.length > 0 && (
+                        <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] leading-4 text-openfmv-muted">
+                          {detailItems.map((item) => (
+                            <span key={item} className="min-w-0 truncate first:max-w-[160px]">{item}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <span className="grid h-8 w-8 place-items-center rounded-openfmv-tool border border-white/10 bg-white/[0.05] text-openfmv-muted transition group-hover:border-openfmv-accent/60 group-hover:bg-openfmv-accent/12 group-hover:text-white">
+                      <Plus size={15} />
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
