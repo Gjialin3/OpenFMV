@@ -29,8 +29,15 @@ const resolveConfiguredPort = () => {
 let serverPort = resolveConfiguredPort();
 let nextProcess = null;
 
+const escapeHtml = (value) => String(value)
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
 const createStatusHtml = (title, message) => {
-  return `<!doctype html><html><head><meta charset="utf-8" /></head><body style="margin:0;background:#09090b;color:white;font-family:Arial,'Microsoft YaHei',sans-serif;display:grid;place-items:center;height:100vh"><main style="max-width:620px;line-height:1.7;padding:32px"><p style="color:#f97316;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase">OpenFMV</p><h1 style="margin:0 0 12px;font-size:32px">${title}</h1><p style="color:#cbd5e1;font-size:15px">${message}</p></main></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8" /></head><body style="margin:0;background:#09090b;color:white;font-family:Arial,'Microsoft YaHei',sans-serif;display:grid;place-items:center;height:100vh"><main style="max-width:620px;line-height:1.7;padding:32px"><p style="color:#f97316;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase">OpenFMV</p><h1 style="margin:0 0 12px;font-size:32px">${escapeHtml(title)}</h1><p style="color:#cbd5e1;font-size:15px">${escapeHtml(message)}</p></main></body></html>`;
 };
 
 const loadStatusPage = async (win, title, message) => {
@@ -264,6 +271,7 @@ const createWindow = async () => {
     titleBarStyle: 'hidden',
     autoHideMenuBar: true,
     backgroundColor: '#09090b',
+    show: false,
     icon: appIconPath,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -275,8 +283,6 @@ const createWindow = async () => {
   win.setMenu(null);
   win.removeMenu();
   win.setMenuBarVisibility(false);
-
-  await loadStatusPage(win, 'Starting local editor', 'Starting the local interface service. First launch or dependency compilation can take a few seconds.');
 
   if (!process.env.ELECTRON_START_URL) {
     serverPort = await findAvailablePort(serverPort);
@@ -291,10 +297,12 @@ const createWindow = async () => {
   const isReady = await waitForUrl(defaultStartUrl, 30000);
   if (!isReady) {
     await loadStatusPage(win, 'Unable to start local interface', `The local interface service did not respond. Confirm port ${serverPort} is available. Log: ${getLogPath()}`);
+    win.show();
     return;
   }
 
   await win.loadURL(defaultStartUrl);
+  win.show();
 };
 
 registerIpcHandler(ipcMain, 'selectDirectory', async () => {
