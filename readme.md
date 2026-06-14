@@ -12,106 +12,167 @@
   English · <a href="./README.zh-CN.md">简体中文</a> · <a href="./README.ja.md">日本語</a> · <a href="./README.ko.md">한국어</a>
 </p>
 
-OpenFMV is a local-first visual nonlinear storytelling editor for building interactive videos, branching narratives, interactive short dramas, and standalone desktop story experiences.
+OpenFMV is an AI Native interactive content editor for building interactive videos, branching narratives, interactive short dramas, and local playable story experiences.
 
-The current project is a Next.js 16 + Electron desktop app. Project files, imported assets, timeline media, and exported content are stored locally, with no account system, database, or cloud storage dependency.
+It combines a visual story blueprint, the node-level FlowTimeline editor, local asset management, interactive preview, export tooling, and an AI-assisted creation layer inside a local-first Next.js + Electron desktop app. Projects, imported media, timeline data, and generated packages stay on your machine. There is no account system, hosted database, or cloud storage dependency.
 
-![OpenFMV editor overview](./public/readme/openfmv-editor-overview.png)
+![OpenFMV editor overview](./public/readme/openfmv-editor-overview.jpg)
 
-## Editing Model
+## Product Highlights
 
-OpenFMV has two focused editing surfaces:
+<table>
+  <tr>
+    <td width="25%">
+      <img src="./public/feature-node-storytelling.png" alt="Visual node storytelling" />
+      <strong>Visual story blueprint</strong><br />
+      Design nonlinear story structure with nodes, branches, outputs, and clear scene relationships.
+    </td>
+    <td width="25%">
+      <img src="./public/feature-interactive-preview.png" alt="Interactive preview" />
+      <strong>Interactive preview</strong><br />
+      Test scene playback, timing, button choices, and branch behavior before export.
+    </td>
+    <td width="25%">
+      <img src="./public/feature-asset-management.png" alt="Local asset management" />
+      <strong>Local asset library</strong><br />
+      Import video, image, audio, and text assets into local project folders.
+    </td>
+    <td width="25%">
+      <img src="./public/feature-local-export.png" alt="Local export" />
+      <strong>Local export</strong><br />
+      Package playable interactive content while keeping media references local.
+    </td>
+  </tr>
+</table>
 
-- **Editor**: the story graph canvas. It owns scene nodes, story flow, output handles, edges, graph labels, and branching structure.
-- **Nodes**: the node-level multi-track editor. It owns each scene's media timeline, interaction timeline, clip timing, preview layout, and interaction actions.
+## What You Can Build
 
-Media and interactions are stored in each node's `NodeTimeline v2` data. The graph editor reads timeline interaction outputs so branches can be connected visually from the Editor page while the detailed clip work stays in Nodes.
+- Interactive videos and branching narrative prototypes
+- Interactive short drama scenes with choice-driven playback
+- Local playable story packages for demos, reviews, and experiments
+- AI-assisted narrative workflows that still keep project data local
 
-## Features
+## Creative Workflow
 
-- Visual story graph for organizing nonlinear narratives with start, scene, and ending nodes.
-- Node-level timeline editor with media tracks and interaction tracks.
-- Local asset library for videos, images, audio, and text assets shared across projects.
-- Interactive clips such as buttons, hotspots, pause gates, timed branches, and variable actions.
-- Editor nodes that show video covers, media counts, interaction counts, and output routes.
-- Synchronized branch routing between timeline interaction actions and graph edges.
-- Fixed-ratio preview stage so media and interaction positions stay consistent while editing and previewing.
-- Instant playback preview for validating branching and timeline interactions.
-- Project import/export as local OpenFMV JSON.
-- Desktop game export with bundled runtime, graph data, timeline data, and local assets.
-- Local AI assistance through desktop-configured CLI agents or model services.
+1. Create or open a local project from the project workspace.
+2. Import source media into the local asset library.
+3. Build story structure in the `/editor` blueprint graph.
+4. Edit each scene in `/nodes` with FlowTimeline media and interaction tracks.
+5. Preview interactive playback and branch behavior.
+6. Export a local playable package when the story is ready to share or test.
 
-## Screenshots
-
-### Branching Playback Preview
-
-![OpenFMV branching playback preview](./public/readme/openfmv-play-preview.png)
+## Product Tour
 
 ### Local Project Workspace
 
-![OpenFMV local project workspace](./public/readme/openfmv-projects.png)
+Start from local drafts, project templates, and recent work. OpenFMV is designed around local project files rather than hosted workspaces.
+
+![OpenFMV project workspace](./public/readme/openfmv-projects.jpg)
+
+### Story Blueprint Editor
+
+The editor is the high-level story map. It is responsible for story flow, node relationships, branch outputs, node prompts, and scene metadata.
+
+![OpenFMV story blueprint](./public/readme/openfmv-editor-overview.jpg)
+
+### Interactive Playback Preview
+
+Preview how a viewer moves through the story. This is where button choices, scene transitions, and interactive playback can be checked in context.
+
+![OpenFMV playback preview](./public/readme/openfmv-play-preview.jpg)
+
+### AI Native Configuration
+
+OpenFMV is built to work with local AI terminals and model services. The AI layer is intended to assist writing, ideation, and editing workflows while leaving project storage local.
+
+![OpenFMV AI configuration](./public/readme/openfmv-aiconfig-preview.jpg)
+
+### Visual Story Presets
+
+Preset content can provide a quick starting point for interactive story experiments and visual direction.
+
+![OpenFMV default story preset](./public/readme/default-story-preset.png)
+
+## Core Capabilities
+
+- **Blueprint graph editing:** Build nonlinear story flow with nodes, handles, edges, and branch outputs.
+- **FlowTimeline scene editing:** Edit each node as an independent timeline with media and interaction tracks.
+- **Interaction clips:** Add buttons, hotspots, pause gates, timed branches, and variable actions through timeline clips.
+- **Local media workflow:** Copy imported files into local project asset folders and preserve those references through export.
+- **AI-assisted creation:** Configure local AI engines and use assistant workflows without introducing user accounts or cloud sync.
+- **Desktop-first experience:** Run as a packaged Electron app backed by a local Next.js standalone service.
+
+## Current Boundaries
+
+OpenFMV is intentionally local-first. The current product does not include login, multi-user collaboration, cloud sync, cloud databases, hosted media libraries, or one-click publishing to third-party platforms.
+
+AI features are assistive. The project does not yet provide fully automated end-to-end generation of scripts, storyboards, visual assets, and interaction logic.
+
+Export focuses on local playable packages and desktop app distribution workflows. Full Windows EXE story packaging is not part of the current product scope.
 
 ## Tech Stack
 
-- Next.js 16 App Router
-- TypeScript
-- React 19
-- React Flow
-- Zustand
-- Tailwind CSS
-- Electron
-- Vitest
+- **Framework:** Next.js 16 App Router, React, TypeScript
+- **Desktop shell:** Electron
+- **Graph editing:** React Flow
+- **State:** Zustand and local browser storage
+- **Styling:** Tailwind CSS with `openfmv-*` design tokens
+- **Persistence:** Local OpenFMV project JSON files plus copied local assets
+- **Runtime:** Shared graph runtime used by preview and export
 
 ## Quickstart
 
 ### Requirements
 
-- Node.js 20 or later
+- Node.js 20 or newer
 - npm
-- Windows is the primary supported desktop environment; web development mode can run on other systems.
+- Windows is the primary desktop packaging target today
 
-### Install Dependencies
+### Install
 
 ```bash
 npm install
 ```
 
-### Start the Web Development Server
+### Start the web app
 
 ```bash
 npm run dev
 ```
 
-Default URL:
+Then open `http://localhost:3000`.
 
-```text
-http://localhost:3000
-```
-
-### Start the Desktop App
+### Start the desktop app in development
 
 ```bash
 npm run desktop:dev
 ```
 
-To run the built standalone version:
+### Build the Next.js app
 
 ```bash
 npm run build
-npm run desktop:standalone
 ```
+
+### Build a packaged desktop app
+
+```bash
+npm run package:desktop
+```
+
+The packaged desktop app starts a local Next.js standalone service in the background and opens the main interface after the service is ready. If the local service cannot be reached, OpenFMV shows a diagnostic error page with the runtime log path.
 
 ## Common Commands
 
 ```bash
-npm run dev                 # Start the Next.js development server
-npm run desktop             # Start the Electron desktop app
-npm run desktop:dev         # Start desktop development mode
-npm run desktop:standalone  # Start standalone desktop mode
-npm run build               # Build the app
-npm run package:desktop     # Package the desktop app
-npm run lint                # Run lint
-npm run test:run            # Run tests
+npm run dev
+npm run desktop
+npm run desktop:dev
+npm run desktop:standalone
+npm run build
+npm run package:desktop
+npm run lint
+npm run test:run
 ```
 
 Run a single test file:
@@ -131,121 +192,75 @@ npx vitest path/to/test.test.ts -t "test name"
 ```text
 app/
   _components/          React components
+    editor/             Blueprint editor UI
+    local/              Desktop/local project UI
     nodes/              React Flow node components
-    editor/             Editor UI
-    player/             Player components
-    local/              Local desktop UI
-    ui/                 Shared UI components
+    player/             Player and preview UI
+    ui/                 Shared UI primitives
   _features/
-    node-timeline/      NodeTimeline v2 schema, commands, snapping, playback, and UI
+    node-timeline/      NodeTimeline v2 schema, UI, commands, snapping, playback
   _hooks/               React hooks
   _store/               Zustand stores
   _types/               Shared TypeScript types
-  _utils/               Runtime, persistence, timeline, and local project utilities
+  _utils/               Runtime and graph utilities
   api/                  Local Next.js API routes
-  editor/               Editor page
-  play/[id]/            Player page
-  projects/             Project management page
+  editor/               Blueprint editor route
+  nodes/                Node-level timeline editor route
+  play/[id]/            Player route
+  projects/             Project workspace route
 electron/
-  main.js               Electron main process and IPC
-  preload.js            Preload API
-  exporter.js           Desktop experience exporter
+  main.js               Electron main process and local service bootstrap
+  preload.js            Electron preload bridge
+  exporter.js           Local playable package exporter
+public/
+  readme/               README screenshots
 shared/
   runtimeCore.mjs       Shared runtime used by player and exporter
-scripts/                Build and packaging scripts
-__tests__/              Unit tests
+messages/
+  *.json                next-intl locale files
+__tests__/
+  unit/                 Vitest unit tests
 ```
 
 ## Project Files
 
-OpenFMV projects are saved as JSON. Core fields include:
+OpenFMV stores projects as local project files and local copied assets. Imported media should live in project asset folders and should be referenced from `node.data.timeline` rather than legacy node-level media fields.
+
+The node timeline model is the primary media and interaction model:
+
+- Media tracks contain video, image, and audio clips.
+- Interaction tracks contain button, hotspot, pause gate, text, branch, and variable clips.
+- Runtime preview and export compile from the timeline model.
+
+## Export and Packaging
+
+OpenFMV export rewrites timeline clip media paths into a local playable package. Timeline clip `src` and `poster` values are copied and rewritten during export.
+
+Desktop packaging uses Electron Builder. Generated executables, installers, and unpacked app folders are written to `dist/` and ignored by git.
+
+Desktop icons are generated from `public/logo.png` before packaging:
 
 ```text
-schemaVersion
-id
-title
-graphData
-assets
-metadata
-createdAt
-updatedAt
+build/icons/icon.ico
+build/icons/icon.png
 ```
-
-Imported assets are copied into the local project or app data directory. When exporting a project or desktop experience, related timeline `src` and `poster` assets are copied into the output directory so the result can run without relying on the original asset paths.
-
-In the installed Electron app on Windows, OpenFMV keeps its local workspace under:
-
-```text
-%APPDATA%\openfmv-client
-```
-
-Native file imports are first copied into:
-
-```text
-%APPDATA%\openfmv-client\assets
-```
-
-When a project is saved, project-owned copies are written under:
-
-```text
-%APPDATA%\openfmv-client\projects\<project-title>\assets
-%APPDATA%\openfmv-client\projects\<project-title>\project.openfmv.json
-```
-
-Project asset folders are grouped by media type, for example `assets\videos`, `assets\images`, and `assets\files`. Original source files are copied, not moved.
-
-## Desktop Export
-
-Use:
-
-```bash
-npm run package:desktop
-```
-
-After the build completes, desktop distribution files are output to `dist/`:
-
-```text
-dist\OpenFMV-win32-x64\OpenFMV.exe
-dist\OpenFMV-win32-x64.zip
-dist\installers\OpenFMV-Setup-<version>.exe
-```
-
-The installer version comes from `package.json`; for example, version `0.0.1` produces `OpenFMV-Setup-0.0.1.exe`.
-
-The Windows installer copies the app to:
-
-```text
-%LOCALAPPDATA%\OpenFMV\app
-```
-
-It also creates Start Menu and desktop shortcuts named `OpenFMV`. After installation, launch OpenFMV from the shortcut instead of re-running the setup executable.
-
-Interactive stories exported from the app include the runtime, project graph data, node timelines, and asset resources, making them suitable for distribution to players or testers.
 
 ## Development Notes
 
-- The project follows a local-first design and does not include login, user sync, hosted backends, databases, or cloud storage.
-- Story flow belongs in `/editor`; node-level media and interactions belong in `/nodes`.
-- Media clips and interaction clips should be stored in `node.data.timeline`.
-- Shared type definitions live in `app/_types/index.ts`.
-- Styling uses Tailwind CSS, with custom colors centralized in `app/globals.css`.
-- React Flow node components should be wrapped with `React.memo`.
+- Keep timeline behavior in `app/_features/node-timeline/`.
+- Keep shared runtime behavior in `shared/runtimeCore.mjs`.
+- Keep player UI in `app/_components/player/`.
+- Keep local desktop UI in `app/_components/local/`.
+- Do not add hosted backend, user accounts, cloud storage, or sync features unless the product scope changes explicitly.
 
 ## Contributing
 
-Issues and pull requests are welcome. Before submitting, run:
-
-```bash
-npm run lint
-npm run test:run
-```
-
-If your change affects desktop export, timeline playback, or graph routing, also manually verify editing, saving, previewing, and export paths.
+OpenFMV is still moving quickly. Keep changes focused, local-first, and aligned with the timeline-based architecture.
 
 ## Acknowledgements
 
-Thanks to [OpenCut](https://github.com/OpenCut-app/OpenCut) for inspiration around open video editing workflows and interaction design.
+OpenFMV is built with Next.js, Electron, React Flow, Zustand, Tailwind CSS, and the broader open-source JavaScript ecosystem.
 
 ## License
 
-This project is open source under the MIT License. You may freely use, copy, modify, merge, publish, distribute, sublicense, and sell copies of this project, including for commercial use, provided that the original copyright notice and license text are retained in all copies or substantial portions.
+MIT

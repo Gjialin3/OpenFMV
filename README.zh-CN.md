@@ -5,62 +5,120 @@
 </p>
 
 <p align="center">
-  <mark><strong>该项目正在快速迭代，敬请期待</strong></mark>
+  <mark><strong>该项目正在快速迭代，敬请期待。</strong></mark>
 </p>
 
 <p align="center">
   <a href="./readme.md">English</a> · 简体中文 · <a href="./README.ja.md">日本語</a> · <a href="./README.ko.md">한국어</a>
 </p>
 
-OpenFMV 是一个本地优先的可视化非线性叙事编辑器，用于制作互动视频、分支叙事、互动短剧，以及可独立运行的桌面故事体验。
+OpenFMV 是一个 AI Native 互动内容编辑器，用于制作互动视频、分支叙事、互动短剧，以及可在本地播放的故事体验。
 
-当前项目是 Next.js 16 + Electron 桌面应用。项目文件、导入素材、时间线媒体和导出内容都保存在本地，不依赖账号系统、数据库或云端存储。
+它在一个本地优先的 Next.js + Electron 桌面应用中，结合了可视化故事蓝图、节点级 FlowTimeline 编辑器、本地素材管理、互动预览、导出工具和 AI 辅助创作层。项目、导入媒体、时间线数据和生成包都会保存在你的设备上，不依赖账号系统、托管数据库或云端存储。
 
-![OpenFMV 编辑器总览](./public/readme/openfmv-editor-overview.png)
+![OpenFMV 编辑器总览](./public/readme/openfmv-editor-overview.jpg)
 
-## 编辑模型
+## 产品亮点
 
-OpenFMV 目前有两个核心编辑界面：
+<table>
+  <tr>
+    <td width="25%">
+      <img src="./public/feature-node-storytelling.png" alt="可视化节点叙事" />
+      <strong>可视化故事蓝图</strong><br />
+      用节点、分支、出口和清晰的场景关系设计非线性故事结构。
+    </td>
+    <td width="25%">
+      <img src="./public/feature-interactive-preview.png" alt="互动预览" />
+      <strong>互动预览</strong><br />
+      在导出前测试场景播放、时间点、按钮选择和分支行为。
+    </td>
+    <td width="25%">
+      <img src="./public/feature-asset-management.png" alt="本地素材管理" />
+      <strong>本地素材库</strong><br />
+      将视频、图片、音频和文本素材导入本地项目文件夹。
+    </td>
+    <td width="25%">
+      <img src="./public/feature-local-export.png" alt="本地导出" />
+      <strong>本地导出</strong><br />
+      打包可播放的互动内容，同时保持媒体引用本地化。
+    </td>
+  </tr>
+</table>
 
-- **Editor**：故事蓝图画布。负责场景节点、故事流、输出出口、连线、图结构标签和分支结构。
-- **Nodes**：单个节点的多轨时间线编辑器。负责每个场景内的媒体轨道、交互轨道、片段时间、预览布局和交互动作。
+## 适合制作什么
 
-媒体和交互都存储在节点的 `NodeTimeline v2` 数据里。Editor 会读取时间线里的交互输出，让用户可以在蓝图画布上直接连接分支；具体的媒体剪辑和交互细节则保留在 Nodes 页面中处理。
+- 互动视频和分支叙事原型
+- 基于选择驱动播放的互动短剧场景
+- 用于演示、评审和实验的本地可播放故事包
+- 仍然保持项目数据本地化的 AI 辅助叙事工作流
 
-## 功能特性
+## 创作流程
 
-- 可视化故事图：用开始、场景和结尾节点组织非线性叙事。
-- 节点级时间线：支持媒体轨道和交互轨道。
-- 本地素材库：支持视频、图片、音频和文本素材，并可在项目间复用。
-- 交互片段：支持按钮、热点、暂停门、定时分支和变量动作。
-- Editor 节点卡片：展示视频封面、媒体数量、交互数量和输出路径。
-- 分支同步：时间线交互动作与蓝图连线保持同步。
-- 固定比例预览舞台：剪辑时和预览时，媒体与按钮的相对位置保持一致。
-- 即时播放预览：快速验证分支逻辑和时间线交互。
-- 项目导入导出：使用本地 OpenFMV JSON 文件保存项目。
-- 桌面体验导出：导出包含运行时、图数据、时间线数据和本地素材的桌面应用。
-- 本地 AI 辅助：桌面端可调用本地 CLI Agent 或自行配置的模型服务。
+1. 在项目工作区创建或打开本地项目。
+2. 将源素材导入本地素材库。
+3. 在 `/editor` 故事蓝图中搭建故事结构。
+4. 在 `/nodes` 中使用 FlowTimeline 编辑每个场景的媒体轨和交互轨。
+5. 预览互动播放和分支行为。
+6. 当故事准备好分享或测试时，导出本地可播放包。
 
-## 界面预览
+## 产品预览
 
-### 分支播放预览
+### 本地项目工作区
 
-![OpenFMV 分支播放预览](./public/readme/openfmv-play-preview.png)
+从本地草稿、项目模板和最近项目开始。OpenFMV 围绕本地项目文件设计，而不是托管工作区。
 
-### 本地项目工作台
+![OpenFMV 项目工作区](./public/readme/openfmv-projects.jpg)
 
-![OpenFMV 本地项目工作台](./public/readme/openfmv-projects.png)
+### 故事蓝图编辑器
+
+编辑器是高层级故事地图，负责故事流、节点关系、分支出口、节点提示词和场景元数据。
+
+![OpenFMV 故事蓝图](./public/readme/openfmv-editor-overview.jpg)
+
+### 互动播放预览
+
+预览观众如何在故事中前进。这里可以在上下文中检查按钮选择、场景跳转和互动播放。
+
+![OpenFMV 播放预览](./public/readme/openfmv-play-preview.jpg)
+
+### AI Native 配置
+
+OpenFMV 被设计为可连接本地 AI 终端和模型服务。AI 层用于辅助写作、构思和编辑，同时让项目存储保持在本地。
+
+![OpenFMV AI 配置](./public/readme/openfmv-aiconfig-preview.jpg)
+
+### 视觉故事预设
+
+预设内容可以为互动故事实验和视觉方向提供一个快速起点。
+
+![OpenFMV 默认故事预设](./public/readme/default-story-preset.png)
+
+## 核心能力
+
+- **蓝图图编辑：** 使用节点、句柄、连线和分支出口构建非线性故事流。
+- **FlowTimeline 场景编辑：** 将每个节点作为独立时间线编辑，包含媒体轨和交互轨。
+- **交互片段：** 通过时间线片段添加按钮、热点、暂停门、定时分支和变量动作。
+- **本地媒体工作流：** 将导入文件复制到本地项目素材文件夹，并在导出中保留这些引用。
+- **AI 辅助创作：** 配置本地 AI 引擎并使用助手工作流，不引入用户账号或云同步。
+- **桌面优先体验：** 作为 Electron 打包应用运行，背后由本地 Next.js standalone 服务提供界面。
+
+## 当前边界
+
+OpenFMV 有意保持本地优先。当前产品不包含登录、多用户协作、云同步、云数据库、托管媒体库或一键发布到第三方平台。
+
+AI 功能是辅助型能力。项目目前还不提供脚本、分镜、视觉素材和交互逻辑的全流程自动生成。
+
+导出重点是本地可播放包和桌面应用分发工作流。完整的 Windows EXE 故事打包不属于当前产品范围。
 
 ## 技术栈
 
-- Next.js 16 App Router
-- TypeScript
-- React 19
-- React Flow
-- Zustand
-- Tailwind CSS
-- Electron
-- Vitest
+- **框架：** Next.js 16 App Router、React、TypeScript
+- **桌面外壳：** Electron
+- **图编辑：** React Flow
+- **状态管理：** Zustand 和本地浏览器存储
+- **样式：** Tailwind CSS 与 `openfmv-*` 设计 token
+- **持久化：** 本地 OpenFMV 项目 JSON 文件和复制后的本地素材
+- **运行时：** 预览和导出共用的共享图运行时
 
 ## 快速开始
 
@@ -68,7 +126,7 @@ OpenFMV 目前有两个核心编辑界面：
 
 - Node.js 20 或更高版本
 - npm
-- Windows 是优先支持的桌面环境；Web 开发模式也可以在其他系统上运行。
+- Windows 是当前优先支持的桌面打包目标
 
 ### 安装依赖
 
@@ -76,42 +134,45 @@ OpenFMV 目前有两个核心编辑界面：
 npm install
 ```
 
-### 启动 Web 开发服务
+### 启动 Web 应用
 
 ```bash
 npm run dev
 ```
 
-默认访问地址：
+然后打开 `http://localhost:3000`。
 
-```text
-http://localhost:3000
-```
-
-### 启动桌面端
+### 启动桌面开发模式
 
 ```bash
 npm run desktop:dev
 ```
 
-运行构建后的 standalone 版本：
+### 构建 Next.js 应用
 
 ```bash
 npm run build
-npm run desktop:standalone
 ```
+
+### 打包桌面应用
+
+```bash
+npm run package:desktop
+```
+
+打包后的桌面应用会在后台启动本地 Next.js standalone 服务，并在服务就绪后打开主界面。如果本地服务无法访问，OpenFMV 会显示带有运行日志路径的诊断错误页。
 
 ## 常用命令
 
 ```bash
-npm run dev                 # 启动 Next.js 开发服务
-npm run desktop             # 启动 Electron 桌面端
-npm run desktop:dev         # 启动桌面开发模式
-npm run desktop:standalone  # 启动 standalone 桌面模式
-npm run build               # 构建应用
-npm run package:desktop     # 打包桌面应用
-npm run lint                # 运行 lint
-npm run test:run            # 运行测试
+npm run dev
+npm run desktop
+npm run desktop:dev
+npm run desktop:standalone
+npm run build
+npm run package:desktop
+npm run lint
+npm run test:run
 ```
 
 运行单个测试文件：
@@ -131,82 +192,75 @@ npx vitest path/to/test.test.ts -t "test name"
 ```text
 app/
   _components/          React 组件
+    editor/             蓝图编辑器 UI
+    local/              桌面端/本地项目 UI
     nodes/              React Flow 节点组件
-    editor/             编辑器 UI
-    player/             播放器组件
-    local/              本地桌面端 UI
-    ui/                 通用 UI 组件
+    player/             播放器和预览 UI
+    ui/                 共享 UI 基础组件
   _features/
-    node-timeline/      NodeTimeline v2 schema、命令、吸附、播放和 UI
+    node-timeline/      NodeTimeline v2 schema、UI、命令、吸附、播放
   _hooks/               React hooks
   _store/               Zustand stores
   _types/               共享 TypeScript 类型
-  _utils/               运行时、持久化、时间线和本地项目工具
+  _utils/               运行时和图工具
   api/                  本地 Next.js API routes
-  editor/               Editor 页面
-  play/[id]/            播放页面
-  projects/             项目管理页面
+  editor/               蓝图编辑器路由
+  nodes/                节点级时间线编辑器路由
+  play/[id]/            播放器路由
+  projects/             项目工作区路由
 electron/
-  main.js               Electron 主进程与 IPC
-  preload.js            Preload API
-  exporter.js           桌面体验导出器
+  main.js               Electron 主进程和本地服务启动逻辑
+  preload.js            Electron preload bridge
+  exporter.js           本地可播放包导出器
+public/
+  readme/               README 截图
 shared/
   runtimeCore.mjs       播放器和导出器共用运行时
-scripts/                构建与打包脚本
-__tests__/              单元测试
+messages/
+  *.json                next-intl 语言文件
+__tests__/
+  unit/                 Vitest 单元测试
 ```
 
 ## 项目文件
 
-OpenFMV 项目以 JSON 形式保存，核心字段包括：
+OpenFMV 将项目保存为本地项目文件和复制后的本地素材。导入媒体应存放在项目素材文件夹中，并通过 `node.data.timeline` 引用，而不是旧的节点级媒体字段。
+
+节点时间线模型是主要的媒体与交互模型：
+
+- 媒体轨包含视频、图片和音频片段。
+- 交互轨包含按钮、热点、暂停门、文本、分支和变量片段。
+- 运行时预览和导出都会从时间线模型编译。
+
+## 导出与打包
+
+OpenFMV 导出会将时间线片段中的媒体路径重写到本地可播放包中。时间线片段的 `src` 和 `poster` 会在导出时复制并重写。
+
+桌面打包使用 Electron Builder。生成的可执行文件、安装包和 unpacked 应用目录会写入 `dist/`，并被 git 忽略。
+
+桌面图标会在打包前从 `public/logo.png` 生成：
 
 ```text
-schemaVersion
-id
-title
-graphData
-assets
-metadata
-createdAt
-updatedAt
+build/icons/icon.ico
+build/icons/icon.png
 ```
-
-导入素材会复制到本地项目或应用数据目录。导出项目或桌面体验时，相关时间线 `src` 和 `poster` 素材会复制到输出目录，让导出结果不依赖原始素材路径也能运行。
-
-## 桌面导出
-
-使用：
-
-```bash
-npm run package:desktop
-```
-
-构建完成后，桌面应用会输出到 `dist/`。从应用内导出的互动故事会包含运行时、项目图数据、节点时间线和素材资源，适合分发给玩家或测试者。
 
 ## 开发说明
 
-- 项目遵循本地优先设计，不包含登录、用户同步、托管后端、数据库或云存储。
-- 故事流属于 `/editor`；节点级媒体和交互属于 `/nodes`。
-- 媒体片段和交互片段应存储在 `node.data.timeline`。
-- 共享类型定义位于 `app/_types/index.ts`。
-- 样式使用 Tailwind CSS，自定义颜色集中在 `app/globals.css`。
-- React Flow 节点组件应使用 `React.memo` 包裹。
+- 时间线行为保持在 `app/_features/node-timeline/`。
+- 共享运行时行为保持在 `shared/runtimeCore.mjs`。
+- 播放器 UI 保持在 `app/_components/player/`。
+- 本地桌面 UI 保持在 `app/_components/local/`。
+- 除非产品范围被明确改变，不要添加托管后端、用户账号、云存储或同步功能。
 
 ## 贡献
 
-欢迎提交 issue 和 pull request。提交前请运行：
-
-```bash
-npm run lint
-npm run test:run
-```
-
-如果改动影响桌面导出、时间线播放或图结构路由，也请手动验证编辑、保存、预览和导出路径。
+OpenFMV 仍在快速迭代。请保持改动聚焦、本地优先，并与基于时间线的架构保持一致。
 
 ## 致谢
 
-感谢 [OpenCut](https://github.com/OpenCut-app/OpenCut) 在开放视频编辑工作流和交互设计上带来的启发。
+OpenFMV 基于 Next.js、Electron、React Flow、Zustand、Tailwind CSS 以及更广泛的开源 JavaScript 生态构建。
 
-## License
+## 许可证
 
-This project is open source under the MIT License. You may freely use, copy, modify, merge, publish, distribute, sublicense, and sell copies of this project, including for commercial use, provided that the original copyright notice and license text are retained in all copies or substantial portions.
+MIT
