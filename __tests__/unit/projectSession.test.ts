@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppEdge, AppNode, NodeTimeline, OpenFMVProject } from '@/app/_types';
-import { getTimelineClipOutputHandleId } from '@/app/_utils/timelineOutputEdges';
+import { getNodeOutputs, getTimelineClipOutputHandleId } from '@/app/_utils/timelineOutputEdges';
 import { createProjectSessionStateCreator, ProjectSessionRepository, ProjectSessionState } from '@/app/_features/project-session/store';
 
 const startNode: AppNode = {
@@ -181,6 +181,31 @@ describe('ProjectSession', () => {
     const edges = store.getState().edges;
     expect(edges).toHaveLength(1);
     expect(edges[0]).toMatchObject({ sourceHandle: getTimelineClipOutputHandleId('button-1'), target: 'target-2' });
+  });
+
+  it('labels timeline button outputs as success and fail while preserving stable handles', async () => {
+    const timeline = buttonTimeline();
+    const clip = timeline.tracks[0].clips[0];
+    if (clip.type !== 'button') throw new Error('Expected button clip');
+    timeline.tracks[0].clips[0] = {
+      ...clip,
+      mode: 'qte',
+    };
+    const nodeWithQte = {
+      ...startNode,
+      data: {
+        ...startNode.data,
+        timeline,
+      },
+    } as AppNode;
+
+    const outputs = getNodeOutputs(nodeWithQte);
+
+    expect(outputs.map((output) => ({ id: output.id, label: output.label }))).toEqual([
+      { id: 'node:default', label: 'Default' },
+      { id: getTimelineClipOutputHandleId('button-1'), label: 'Choice success' },
+      { id: getTimelineClipOutputHandleId('button-1', 'timeout'), label: 'Choice fail' },
+    ]);
   });
 
   it('stores timeline output editor connections as edges without mutating button clips', async () => {

@@ -54,14 +54,14 @@ export const getNodeOutputs = (node: AppNode): NodeOutput[] => {
       const label = getButtonLabel(clip);
       outputs.push({
         id: getButtonClickOutputId(clip.id),
-        label,
+        label: `${label} success`,
         kind: 'buttonClick',
         clipId: clip.id,
       });
       if (shouldExposeTimeoutOutput(clip)) {
         outputs.push({
           id: getButtonTimeoutOutputId(clip.id),
-          label: `${label} timeout`,
+          label: `${label} fail`,
           kind: 'buttonTimeout',
           clipId: clip.id,
         });

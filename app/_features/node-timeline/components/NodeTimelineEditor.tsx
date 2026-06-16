@@ -61,6 +61,7 @@ import {
 } from 'lucide-react';
 
 import {
+  AppEdge,
   AppNode,
   ButtonMode,
   ButtonQteConfig,
@@ -90,7 +91,7 @@ import { useEditorStore } from '@/app/_store/useEditorStore';
 import { getAssetSource } from '@/app/_utils/assetIdentity';
 import { getLocalizedPath } from '@/app/_utils/localePaths';
 import { addAssetsToLocalProject, canUseNativeAssetPicker, importAssetFromFile, importAssetFromNativePicker, isStorageQuotaError, listLocalProjects, removeAssetFromLocalProject, resolveLocalProjectForEditor } from '@/app/_utils/localProjects';
-import { getTimelineClipOutputHandleId } from '@/app/_utils/timelineOutputEdges';
+import { getTimelineClipOutputHandleId, removeTimelineOutputEdge } from '@/app/_utils/timelineOutputEdges';
 import {
   addTimelineTrack,
   BUTTON_STYLE_SWATCHES,
@@ -1040,13 +1041,19 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
 
   const {
     nodes,
+    edges,
     currentProjectId,
+    onConnect,
+    setEdges,
     updateNodeTimeline,
     saveProjectSession,
   } = useProjectSessionStore(
     useShallow((state) => ({
       nodes: state.nodes,
+      edges: state.edges,
       currentProjectId: state.projectId,
+      onConnect: state.onConnect,
+      setEdges: state.setEdges,
       updateNodeTimeline: state.updateNodeTimeline,
       saveProjectSession: state.saveNow,
     }))
@@ -2195,6 +2202,28 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
     if (!selectedOrFirstNode) return;
     onRequestMediaClip({ nodeId: selectedOrFirstNode.id, trackId, startTime });
   };
+
+  const updateTimelineOutputTarget = useCallback(
+    (outputId: string, targetNodeId: string | null) => {
+      if (!selectedOrFirstNode) return;
+
+      const existingEdge = edges.find((edge) => edge.source === selectedOrFirstNode.id && edge.sourceHandle === outputId);
+      if (!targetNodeId) {
+        if (!existingEdge) return;
+        setEdges(removeTimelineOutputEdge(edges, selectedOrFirstNode.id, outputId));
+        return;
+      }
+
+      if (existingEdge?.target === targetNodeId) return;
+      onConnect({
+        source: selectedOrFirstNode.id,
+        sourceHandle: outputId,
+        target: targetNodeId,
+        targetHandle: null,
+      });
+    },
+    [edges, onConnect, selectedOrFirstNode, setEdges]
+  );
 
   const insertAssetsIntoTimeline = useCallback(
     (assets: OpenFMVAsset[], options?: { trackId?: string | null; startTime?: number; forceNewTrack?: boolean; newTrackInsertIndex?: number | null }) => {
@@ -3790,6 +3819,10 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
           <InteractionClipInspector
             t={t}
             clip={resolveTimelineClipKeyframes(selectedClip, currentTime)}
+            nodes={nodes}
+            activeNode={selectedOrFirstNode}
+            edges={edges}
+            onOutputTargetChange={updateTimelineOutputTarget}
             onUpdate={(update) => updateClip(selectedClip.id, (clip) => (isInteractionClip(clip) ? update(clip) : clip))}
           />
         ) : null}
@@ -5389,13 +5422,56 @@ function QteOutcomeRow({
   );
 }
 
+function TimelineOutputTargetSelect({
+  t,
+  outputId,
+  nodes,
+  activeNode,
+  edges,
+  onChange,
+}: {
+  t: NodeTimelineTranslator;
+  outputId: string;
+  nodes: AppNode[];
+  activeNode: AppNode;
+  edges: AppEdge[];
+  onChange: (outputId: string, targetNodeId: string | null) => void;
+}) {
+  const targetNodes = nodes.filter((node) => node.id !== activeNode.id);
+  const selectedTargetId = edges.find((edge) => edge.source === activeNode.id && edge.sourceHandle === outputId)?.target ?? '';
+
+  return (
+    <select
+      value={selectedTargetId}
+      onChange={(event) => onChange(outputId, event.target.value || null)}
+      className="openfmv-dark-select h-openfmv-tool w-full rounded-openfmv-tool border border-white/10 bg-[#171717] px-2.5 text-xs font-semibold text-white outline-none transition hover:border-white/18 hover:bg-[#1d1d1d] focus:border-white/24"
+      title={outputId}
+    >
+      <option value="">{t('fields.chooseScene')}</option>
+      {targetNodes.map((node) => (
+        <option key={node.id} value={node.id}>
+          {getNodeTitle(node, t)}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 function InteractionClipInspector({
   t,
   clip,
+  nodes,
+  activeNode,
+  edges,
+  onOutputTargetChange,
   onUpdate,
 }: {
   t: NodeTimelineTranslator;
   clip: TimelineInteractionClip;
+  nodes: AppNode[];
+  activeNode: AppNode;
+  edges: AppEdge[];
+  onOutputTargetChange: (outputId: string, targetNodeId: string | null) => void;
   onUpdate: (update: (clip: TimelineInteractionClip) => TimelineInteractionClip) => void;
 }) {
   const isPauseWait = clip.pauseOnShow === true;
@@ -5511,15 +5587,25 @@ function InteractionClipInspector({
 
       <div className="space-y-2 py-1">
         <QteOutcomeRow label={t('fields.qteSuccessAction')} icon={Check}>
-          <div className="h-openfmv-tool truncate rounded-openfmv-tool border border-white/10 bg-[#171717] px-2.5 py-2 font-mono text-[11px] text-openfmv-sub" title={clickOutputId}>
-            {clickOutputId}
-          </div>
+          <TimelineOutputTargetSelect
+            t={t}
+            outputId={clickOutputId}
+            nodes={nodes}
+            activeNode={activeNode}
+            edges={edges}
+            onChange={onOutputTargetChange}
+          />
         </QteOutcomeRow>
         {isQte && (
           <QteOutcomeRow label={t('fields.qteFailAction')} icon={X}>
-            <div className="h-openfmv-tool truncate rounded-openfmv-tool border border-white/10 bg-[#171717] px-2.5 py-2 font-mono text-[11px] text-openfmv-sub" title={timeoutOutputId}>
-              {timeoutOutputId}
-            </div>
+            <TimelineOutputTargetSelect
+              t={t}
+              outputId={timeoutOutputId}
+              nodes={nodes}
+              activeNode={activeNode}
+              edges={edges}
+              onChange={onOutputTargetChange}
+            />
           </QteOutcomeRow>
         )}
       </div>
