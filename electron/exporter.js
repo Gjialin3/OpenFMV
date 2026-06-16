@@ -308,29 +308,18 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
     .bottom-glow { position: absolute; inset: auto 0 0; height: 50%; background: radial-gradient(circle at 50% 100%, rgba(249,115,22,.15), transparent 45%); }
     .content { position: relative; z-index: 2; min-height: 100%; display: flex; flex-direction: column; justify-content: flex-end; box-sizing: border-box; padding: 32px 20px; }
     .content-inner { width: 100%; max-width: 1024px; margin: 0 auto; }
-    .story-copy { max-width: 768px; margin-bottom: 32px; }
+    .scene-copy { max-width: 768px; margin-bottom: 32px; }
     .node-type { margin-bottom: 12px; color: #f97316; font-size: 12px; font-weight: 700; letter-spacing: .3em; text-transform: uppercase; }
     h1 { margin: 0; font-size: clamp(40px, 6vw, 72px); line-height: 1; font-weight: 650; letter-spacing: -.02em; text-shadow: 0 18px 48px rgba(0,0,0,.6); }
     p { margin: 20px 0 0; color: rgba(255,255,255,.86); font-size: clamp(16px, 2vw, 20px); line-height: 1.8; white-space: pre-wrap; text-shadow: 0 12px 34px rgba(0,0,0,.65); }
-    .controls { width: 100%; max-width: 896px; }
-    .prompt { margin: 0 0 20px; text-align: center; color: white; font-size: clamp(24px, 3vw, 36px); line-height: 1.2; font-weight: 650; text-shadow: 0 14px 40px rgba(0,0,0,.6); }
     .actions { display: grid; gap: 12px; }
-    .actions-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .actions-single { grid-template-columns: minmax(0, 1fr); }
-    .actions-center { justify-items: center; }
     .actions-start { justify-items: start; }
     .action-button { display: flex; min-height: 64px; width: 100%; max-width: 576px; align-items: center; justify-content: space-between; gap: 12px; box-sizing: border-box; border: 1px solid rgba(255,255,255,.15); border-radius: 22px; background: rgba(255,255,255,.1); color: white; padding: 16px 20px; font-size: 18px; text-align: left; box-shadow: 0 18px 60px rgba(0,0,0,.22); backdrop-filter: blur(24px); cursor: pointer; transition: transform .16s ease, border-color .16s ease, background .16s ease; }
     .action-button:hover { transform: translateY(-2px); border-color: rgba(249,115,22,.7); background: rgba(255,255,255,.16); }
     .action-label { min-width: 0; overflow-wrap: anywhere; }
     .action-arrow { flex: none; opacity: .62; transition: transform .16s ease, opacity .16s ease; }
     .action-button:hover .action-arrow { transform: translateX(4px); opacity: 1; }
-    .input-row { display: flex; max-width: 576px; margin: 0 auto; align-items: center; gap: 8px; box-sizing: border-box; border: 1px solid rgba(255,255,255,.15); border-radius: 999px; background: rgba(255,255,255,.12); padding: 8px; box-shadow: 0 18px 60px rgba(0,0,0,.35); backdrop-filter: blur(24px); }
-    .input-row input { min-width: 0; flex: 1; border: 0; background: transparent; color: white; padding: 12px 16px; font-size: 16px; outline: none; }
-    .input-row input::placeholder { color: rgba(255,255,255,.35); }
-    .icon-button { display: grid; width: 44px; height: 44px; flex: none; place-items: center; border: 0; border-radius: 999px; background: #f97316; color: white; font-size: 18px; cursor: pointer; transition: background .16s ease; }
-    .icon-button:hover { background: #fb923c; }
-    .timer { width: 100%; max-width: 320px; margin: 20px auto 0; height: 6px; border-radius: 999px; background: rgba(255,255,255,.1); overflow: hidden; }
-    .timer span { display: block; height: 100%; width: 100%; background: #f97316; transform-origin: left; animation: timer linear forwards; }
     .timeline-overlay { pointer-events: none; position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; }
     .timeline-frame { position: relative; aspect-ratio: 16 / 9; width: 100%; height: 100%; max-width: 100%; max-height: 100%; }
     .timeline-clip { pointer-events: auto; position: absolute; display: flex; min-width: 48px; min-height: 36px; align-items: center; justify-content: center; box-sizing: border-box; border-radius: 12px; padding: 0 12px; color: white; font-size: 14px; font-weight: 750; cursor: pointer; box-shadow: 0 18px 54px rgba(0,0,0,.32); backdrop-filter: blur(14px); transition: transform .16s ease; }
@@ -343,10 +332,8 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
     .timeline-qte-name { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .timeline-qte-countdown { position: absolute; left: 8px; right: 8px; bottom: 4px; display: block; height: 4px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.18); }
     .timeline-qte-countdown span { display: block; height: 100%; border-radius: 999px; background: white; }
-    @keyframes timer { from { transform: scaleX(1); } to { transform: scaleX(0); } }
     @media (max-width: 720px) {
       .content { padding: 28px 20px; }
-      .actions-grid { grid-template-columns: 1fr; }
       .action-button { max-width: none; }
       h1 { font-size: clamp(34px, 12vw, 56px); }
     }
@@ -363,7 +350,6 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
     let playerMessages = playerMessagesByLocale['${locale}'] || playerMessagesByLocale['zh-CN'];
     let runtime = null;
     let snapshot = null;
-    let countdownTimer = null;
     let timelineNodeId = null;
     let timelineShownClipIds = new Set();
     let timelineTimedOutClipIds = new Set();
@@ -382,8 +368,6 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
       snapshot = runtime.dispatch(event);
       render();
     };
-
-    const promptHtml = (prompt) => prompt ? '<h2 class="prompt">' + escapeHtml(prompt) + '</h2>' : '';
 
     const timelineClipRect = (clip) => {
       if (clip && clip.rect) return clip.rect;
@@ -536,11 +520,6 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
         .some((candidate) => normalizeTimelineQteKeyToken(candidate) === expected);
     };
 
-    const timelineClipAction = (clip) => {
-      if (!clip) return { type: 'continue' };
-      return clip.action || { type: 'continue' };
-    };
-
     const isTextEditingTarget = (target) => {
       if (!target || !target.tagName) return false;
       const tagName = target.tagName.toLowerCase();
@@ -558,30 +537,12 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
       if (video) video.pause();
     };
 
-    const resumeTimelineClock = (video) => {
-      timelineClockPaused = false;
-      if (video) video.play();
-    };
-
     const completeTimelineQte = (clip, reason, video) => {
       if (!isTimelineQteClip(clip) || timelineResolvedQteClipIds.has(clip.id)) return false;
       timelineResolvedQteClipIds.add(clip.id);
       timelineQteClickCounts.delete(clip.id);
-      const action = reason === 'timeout' ? clip.timeoutAction : timelineClipAction(clip);
       if (reason === 'timeout') timelineTimedOutClipIds.add(clip.id);
-      if (!action) {
-        if (clip.pauseOnShow) resumeTimelineClock(video);
-        return false;
-      }
-      if (action.type === 'continue') {
-        resumeTimelineClock(video);
-        return false;
-      }
-      if (action.type === 'pause') {
-        pauseTimelineClock(video);
-        return false;
-      }
-      send({ type: reason === 'timeout' ? 'timeline.clip.timeout' : 'timeline.clip.triggered', clipId: clip.id, action });
+      send({ type: reason === 'timeout' ? 'timeline.clip.timeout' : 'timeline.clip.triggered', clipId: clip.id, nodeId: timelineNodeId });
       return true;
     };
 
@@ -615,25 +576,18 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
 
     const wireTimelineOverlay = () => {
       const timeline = effect('timelineOverlay');
-      const mediaEffect = effect('playMedia');
       const overlay = document.getElementById('timelineOverlay');
       const video = appRoot.querySelector('video.media');
       if (!timeline || !overlay || !snapshot.currentNode) return;
 
       resetTimelineSessionIfNeeded(timeline);
 
-      const getTimelineTime = () => {
-        if (video && mediaEffect && mediaEffect.mediaType === 'video') {
-          const playbackRate = Number(mediaEffect.playbackRate) > 0 ? Number(mediaEffect.playbackRate) : 1;
-          return (mediaEffect.timelineStartTime || 0) + Math.max(0, (video.currentTime || 0) - (mediaEffect.sourceStart || 0)) / playbackRate;
-        }
-        return snapshot.timelineTime || 0;
-      };
+      const getTimelineTime = () => snapshot.timelineTime || 0;
 
       const updateRuntimeTimelineTime = (time) => {
         if (!snapshot || snapshot.status !== 'running') return;
         if (Math.abs((snapshot.timelineTime || 0) - time) <= 0.02) return;
-        snapshot = runtime.dispatch({ type: 'timeline.time.update', time });
+        snapshot = runtime.dispatch({ type: 'timeline.time.update', time, nodeId: timeline.nodeId });
       };
 
       const syncTimeline = () => {
@@ -666,7 +620,7 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
           const endTime = runtimeCore.getTimelineClipEndTime(clip);
           if ((snapshot.timelineTime || time) < endTime - 0.001) continue;
           timelineShownClipIds.add(clip.id);
-          snapshot = runtime.dispatch({ type: 'timeline.time.update', time: Math.max(clip.startTime || 0, endTime - 0.001) });
+          snapshot = runtime.dispatch({ type: 'timeline.time.update', time: Math.max(clip.startTime || 0, endTime - 0.001), nodeId: timeline.nodeId });
           pauseTimelineClock(video);
           return;
         }
@@ -678,16 +632,6 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
           if (performance.now() - startedAt >= durationMs && completeTimelineQte(clip, 'timeout', video)) return;
         }
 
-        timeline.clips.forEach((clip) => {
-          const endTime = runtimeCore.getTimelineClipEndTime(clip);
-          if (isTimelineQteClip(clip) || clip.type !== 'button' || !clip.timeoutAction || (snapshot.timelineTime || time) < endTime || timelineTimedOutClipIds.has(clip.id)) return;
-          timelineTimedOutClipIds.add(clip.id);
-          if (clip.timeoutAction.type === 'pause') {
-            pauseTimelineClock(video);
-            return;
-          }
-          send({ type: 'timeline.clip.timeout', clipId: clip.id, action: clip.timeoutAction });
-        });
         if (!snapshot || !snapshot.currentNode || effect('timelineOverlay')?.nodeId !== timeline.nodeId) return;
 
         renderTimelineOverlay(overlay, activeClips.filter((clip) => !isTimelineQteClip(clip) || !timelineResolvedQteClipIds.has(clip.id)));
@@ -710,17 +654,7 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
               syncTimeline();
               return;
             }
-            const action = timelineClipAction(clip);
-            if (action.type === 'continue') {
-              resumeTimelineClock(video);
-              return;
-            }
-            if (action.type === 'pause') {
-              pauseTimelineClock(video);
-              syncTimeline();
-              return;
-            }
-            send({ type: 'timeline.clip.triggered', clipId: clip.id, action });
+            send({ type: 'timeline.clip.triggered', clipId: clip.id, nodeId: timeline.nodeId });
           });
         });
       };
@@ -734,60 +668,47 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
       timelineClockTimer = setInterval(() => {
         const activeTimeline = effect('timelineOverlay');
         if (!activeTimeline || !snapshot || snapshot.status !== 'running') return;
-        if (!video && !timelineClockPaused) {
+        if (!timelineClockPaused) {
           const duration = Number(activeTimeline.duration) || 0;
           const nextTime = duration > 0 ? Math.min(duration, (snapshot.timelineTime || 0) + 0.1) : (snapshot.timelineTime || 0) + 0.1;
-          snapshot = runtime.dispatch({ type: 'timeline.time.update', time: nextTime });
+          snapshot = runtime.dispatch({ type: 'timeline.time.update', time: nextTime, nodeId: activeTimeline.nodeId });
         }
         syncTimeline();
       }, 100);
     };
 
     const renderActions = () => {
-      const timeline = effect('timelineOverlay');
-      if (timeline) return '';
       if (!snapshot || snapshot.status === 'ended' || (snapshot.currentNode && snapshot.currentNode.type === 'end')) {
-        return '<div class="actions actions-single actions-start"><button class="action-button" data-restart="1"><span class="action-label">' + escapeHtml(t('restart')) + '</span><span class="action-arrow">↻</span></button></div>';
-      }
-      const input = effect('showInput');
-      if (input) {
-        return '<div class="controls">' + promptHtml(input.prompt) + '<div class="input-row"><input id="answer" placeholder="' + escapeHtml(translatedDefault(input.placeholder, 'answerPlaceholder')) + '" /><button class="icon-button" data-input="1">→</button></div></div>';
-      }
-      const slider = effect('showSlider');
-      if (slider) {
-        return '<div class="controls">' + promptHtml(slider.prompt) + '<div class="actions actions-single actions-center"><button class="action-button" data-slider="1" data-handle="' + escapeHtml(slider.handleId) + '"><span class="action-label">' + escapeHtml(translatedDefault(slider.label, 'swipeUnlock')) + '</span><span class="action-arrow">→</span></button></div></div>';
-      }
-      const choices = effect('showChoices');
-      if (choices) {
-        const actionClass = choices.choices.length > 1 ? 'actions actions-grid' : 'actions actions-single actions-center';
-        return '<div class="controls">' + promptHtml(choices.prompt) + '<div class="' + actionClass + '">' + choices.choices.map((choice) => '<button class="action-button" data-choice-input="' + escapeHtml(choice.input) + '" data-handle="' + escapeHtml(choice.handleId) + '"><span class="action-label">' + escapeHtml(choice.label) + '</span><span class="action-arrow">→</span></button>').join('') + '</div></div>';
+        return '<div class="actions actions-single actions-start"><button class="action-button" data-restart="1"><span class="action-label">' + escapeHtml(t('restart')) + '</span><span class="action-arrow">&#8635;</span></button></div>';
       }
       const next = effect('showContinue');
-      return next ? '<div class="actions actions-single actions-start"><button class="action-button" data-next="1"><span class="action-label">' + escapeHtml(translatedDefault(next.label, 'continue')) + '</span><span class="action-arrow">→</span></button></div>' : '';
+      if (next) {
+        return '<div class="actions actions-single actions-start"><button class="action-button" data-next="' + escapeHtml(next.targetNodeId || '') + '"><span class="action-label">' + escapeHtml(translatedDefault(next.label, 'continue')) + '</span><span class="action-arrow">&rarr;</span></button></div>';
+      }
+      return '';
     };
 
     const render = () => {
-      if (countdownTimer) {
-        clearTimeout(countdownTimer);
-        countdownTimer = null;
-      }
       clearTimelineClock();
+      const autoNext = effect('autoNavigate');
+      if (autoNext && snapshot && snapshot.status === 'running') {
+        send({ type: 'navigate', nodeId: autoNext.targetNodeId });
+        return;
+      }
       const scene = effect('scene');
       const mediaEffect = effect('playMedia');
-      const timerEffect = effect('startTimer');
       if (!snapshot || !scene) {
-        appRoot.innerHTML = '<div class="scene"><div class="shade"></div><div class="bottom-glow"></div><main class="content"><div class="content-inner"><div class="story-copy"><h1>' + escapeHtml(t('playEnded')) + '</h1></div>' + renderActions() + '</div></main></div>';
+        appRoot.innerHTML = '<div class="scene"><div class="shade"></div><div class="bottom-glow"></div><main class="content"><div class="content-inner"><div class="scene-copy"><h1>' + escapeHtml(t('playEnded')) + '</h1></div>' + renderActions() + '</div></main></div>';
         appRoot.querySelector('[data-restart]')?.addEventListener('click', () => send({ type: 'restart' }));
         return;
       }
       const media = mediaEffect && mediaEffect.mediaType === 'video'
-        ? '<video class="media" src="' + escapeHtml(mediaEffect.src) + '" poster="' + escapeHtml(mediaEffect.poster || '') + '" autoplay playsinline controls' + (mediaEffect.muted ? ' muted' : '') + '></video>'
+        ? '<video class="media" src="' + escapeHtml(mediaEffect.src) + '" poster="' + escapeHtml(mediaEffect.poster || '') + '" autoplay playsinline' + (mediaEffect.muted ? ' muted' : '') + '></video>'
         : mediaEffect && mediaEffect.mediaType === 'image'
           ? '<img class="media" src="' + escapeHtml(mediaEffect.src) + '" />'
           : '';
-      const timer = timerEffect ? '<div class="timer"><span style="animation-duration:' + timerEffect.seconds + 's"></span></div>' : '';
-      const storyCopy = '<div class="story-copy"><div class="node-type">' + escapeHtml(scene.nodeType) + '</div><h1>' + escapeHtml(scene.title) + '</h1>' + (scene.text ? '<p>' + escapeHtml(scene.text) + '</p>' : '') + '</div>';
-      appRoot.innerHTML = '<div class="scene">' + media + '<div id="timelineOverlay" class="timeline-overlay"></div><div class="shade"></div><div class="bottom-glow"></div><main class="content"><div class="content-inner">' + storyCopy + renderActions() + timer + '</div></main></div>';
+      const sceneCopy = '<div class="scene-copy"><div class="node-type">' + escapeHtml(scene.nodeType) + '</div><h1>' + escapeHtml(scene.title) + '</h1>' + (scene.text ? '<p>' + escapeHtml(scene.text) + '</p>' : '') + '</div>';
+      appRoot.innerHTML = '<div class="scene">' + media + '<div id="timelineOverlay" class="timeline-overlay"></div><div class="shade"></div><div class="bottom-glow"></div><main class="content"><div class="content-inner">' + sceneCopy + renderActions() + '</div></main></div>';
       const renderedVideo = appRoot.querySelector('video.media');
       if (renderedVideo && mediaEffect && mediaEffect.mediaType === 'video' && mediaEffect.sourceStart > 0) {
         renderedVideo.addEventListener('loadedmetadata', () => {
@@ -795,29 +716,15 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
         }, { once: true });
       }
       wireTimelineOverlay();
-      if (timerEffect && snapshot.currentNode && snapshot.currentNode.type !== 'end') {
-        countdownTimer = setTimeout(() => send({ type: 'timer.timeout' }), timerEffect.seconds * 1000);
-      }
       appRoot.querySelectorAll('button').forEach((button) => {
         button.addEventListener('click', () => {
-          if (countdownTimer) {
-            clearTimeout(countdownTimer);
-            countdownTimer = null;
-          }
+          if (button.dataset.timelineClip) return;
           if (button.dataset.restart) {
             send({ type: 'restart' });
             return;
           }
-          if (button.dataset.slider) {
-            send({ type: 'slider.unlocked', input: 'unlocked', handleId: button.dataset.handle });
-            return;
-          }
-          if (button.dataset.input) {
-            send({ type: 'input.submitted', value: document.getElementById('answer')?.value || '' });
-            return;
-          }
-          if (button.dataset.choiceInput !== undefined) {
-            send({ type: 'choice.selected', input: button.dataset.choiceInput, handleId: button.dataset.handle });
+          if (button.dataset.next) {
+            send({ type: 'navigate', nodeId: button.dataset.next });
             return;
           }
           send({ type: 'continue' });
@@ -844,7 +751,7 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
       snapshot = runtime.start();
       render();
     } catch (error) {
-      appRoot.innerHTML = '<div class="scene"><div class="shade"></div><main class="content"><div class="content-inner"><div class="story-copy"><h1>Unable to load game data</h1></div></div></main></div>';
+      appRoot.innerHTML = '<div class="scene"><div class="shade"></div><main class="content"><div class="content-inner"><div class="scene-copy"><h1>Unable to load game data</h1></div></div></main></div>';
     }
   </script>
 </body>

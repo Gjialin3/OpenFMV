@@ -3,7 +3,6 @@ import {
   OverlayRect,
   ButtonQteConfig,
   ButtonStyleConfig,
-  TimelineAction,
   TimelineBookmark,
   TimelineClip,
   TimelineClipKeyframe,
@@ -293,7 +292,6 @@ const normalizeMediaClip = (clip: ClipRecord): TimelineMediaClip | null => {
 const normalizeInteractionClip = (clip: ClipRecord): TimelineInteractionClip | null => {
   if (!isInteractionClipType(clip.type)) return null;
   const base = normalizeBaseClip(clip);
-  const action = (clip.action || { type: 'continue' }) as TimelineAction;
   const label = typeof clip.label === 'string' ? clip.label : 'Choice';
   const mode = clip.mode === 'qte' ? 'qte' : undefined;
   const style = normalizeButtonStyle(clip.style, mode === 'qte' ? 'qte' : 'normal');
@@ -304,9 +302,7 @@ const normalizeInteractionClip = (clip: ClipRecord): TimelineInteractionClip | n
     ...(mode ? { mode } : {}),
     label,
     rect: clampOverlayRect((clip.rect as OverlayRect | undefined) || getDefaultOverlayRect('button')),
-    action,
     pauseOnShow: clip.pauseOnShow === true,
-    timeoutAction: clip.timeoutAction as TimelineAction | undefined,
     ...(mode === 'qte' ? { qte: normalizeButtonQteConfig(clip.qte) } : {}),
     ...(style ? { style } : {}),
   };
@@ -497,7 +493,6 @@ export const getTimelineClipLabel = (clip: TimelineClip) => {
 export const createInteractionClip = (type: TimelineInteractionClipType, startTime: number, timelineDuration: number): TimelineInteractionClip => {
   const safeStart = clampTimelineTime(startTime, timelineDuration);
   const duration = Math.min(DEFAULT_INTERACTION_CLIP_DURATION, Math.max(MIN_TIMELINE_CLIP_DURATION, timelineDuration - safeStart || DEFAULT_INTERACTION_CLIP_DURATION));
-  const action: TimelineAction = { type: 'continue' };
 
   return {
     id: createTimelineId(),
@@ -507,7 +502,6 @@ export const createInteractionClip = (type: TimelineInteractionClipType, startTi
     startTime: safeStart,
     duration,
     rect: getDefaultOverlayRect(type),
-    action,
     pauseOnShow: false,
     enabled: true,
     opacity: 1,

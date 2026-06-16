@@ -1,4 +1,4 @@
-import { AppEdge, AppNode, InteractionMode, InteractionRule, NodeType, OpenFMVGraph, OverlayRect, TimelineAction, TimelineClip, TimelineInteractionClip, TimelineMediaClip } from '../_types';
+import { AppEdge, AppNode, NodeType, OpenFMVGraph, OverlayRect, TimelineClip, TimelineInteractionClip, TimelineMediaClip } from '../_types';
 import {
   buildNodeEffects as buildCoreNodeEffects,
   compileNodeTimeline as compileCoreNodeTimeline,
@@ -15,18 +15,17 @@ import {
   getNodeText as getCoreNodeText,
   getNodeTitle as getCoreNodeTitle,
   getOutgoingEdges as getCoreOutgoingEdges,
-  getRuntimeChoiceRules as getCoreRuntimeChoiceRules,
-  getRuntimeInteractionMode as getCoreRuntimeInteractionMode,
+  getTimelineClipOutputHandleId as getCoreTimelineClipOutputHandleId,
   getTimelineClipEndTime as getCoreTimelineClipEndTime,
+  getTimelineClipRuntimeEndTime as getCoreTimelineClipRuntimeEndTime,
   getTimelineClips as getCoreTimelineClips,
+  getTimelineDuration as getCoreTimelineDuration,
   getTimelineInteractionClips as getCoreTimelineInteractionClips,
   getTimelineMediaClips as getCoreTimelineMediaClips,
-  getVisibleRules as getCoreVisibleRules,
   isTimelineClipActive as isCoreTimelineClipActive,
-  resolveTimelineActionNodeId as resolveCoreTimelineActionNodeId,
+  resolveOutputTargetNodeId as resolveCoreOutputTargetNodeId,
   resolveTimelineClipKeyframes as resolveCoreTimelineClipKeyframes,
   resolveNextNodeId as resolveCoreNextNodeId,
-  shouldShowRuntimeControls as shouldCoreShowRuntimeControls,
 } from './graphRuntimeCore.mjs';
 
 export interface RuntimeChoice {
@@ -53,27 +52,19 @@ export type RuntimeEvent =
   | { type: 'runtime.start' }
   | { type: 'restart' }
   | { type: 'continue' }
-  | { type: 'timer.timeout' }
-  | { type: 'choice.selected'; input?: string; handleId?: string | null }
-  | { type: 'input.submitted'; value: string }
-  | { type: 'slider.unlocked'; input?: string; handleId?: string | null }
   | { type: 'navigate'; nodeId: string | null }
-  | { type: 'variable.set'; key: string; value: unknown }
-  | { type: 'timeline.time.update'; time: number }
-  | { type: 'timeline.clip.triggered'; clipId: string; action?: TimelineAction }
-  | { type: 'timeline.clip.timeout'; clipId: string; action?: TimelineAction };
+  | { type: 'timeline.time.update'; time: number; nodeId?: string | null }
+  | { type: 'timeline.clip.triggered'; clipId: string; nodeId?: string | null }
+  | { type: 'timeline.clip.timeout'; clipId: string; nodeId?: string | null };
 
 export type RuntimeEffect =
   | { type: 'scene'; nodeId: string; nodeType: NodeType; title: string; text: string }
   | { type: 'playMedia'; mediaType: 'video'; src: string; playbackId?: string; poster?: string; timelineStartTime?: number; sourceStart?: number; sourceDuration?: number; duration?: number; timelineDuration?: number; muted?: boolean; rect?: OverlayRect; fit?: 'contain' | 'cover'; opacity?: number; rotation?: number; playbackRate?: number; preservePitch?: boolean; freezeFrameTime?: number }
   | { type: 'playMedia'; mediaType: 'image'; src: string; timelineStartTime?: number; duration?: number; timelineDuration?: number; rect?: OverlayRect; fit?: 'contain' | 'cover'; opacity?: number; rotation?: number }
   | { type: 'playMedia'; mediaType: 'audio'; src: string; timelineStartTime?: number; sourceStart?: number; sourceDuration?: number; duration?: number; timelineDuration?: number; muted?: boolean; volume?: number; playbackRate?: number; preservePitch?: boolean }
-  | { type: 'showChoices'; prompt: string; choices: Array<{ id: string; label: string; input: string; handleId: string; rule: InteractionRule }> }
-  | { type: 'showInput'; prompt: string; placeholder: string }
-  | { type: 'showSlider'; prompt: string; label: string; handleId: string }
-  | { type: 'showContinue'; label: string }
+  | { type: 'autoNavigate'; targetNodeId: string }
+  | { type: 'showContinue'; label: string; targetNodeId: string }
   | { type: 'showRestart' }
-  | { type: 'startTimer'; seconds: number; key: string }
   | { type: 'timelinePlayback'; nodeId: string; duration: number }
   | { type: 'timelineOverlay'; nodeId: string; clips: TimelineInteractionClip[]; duration?: number }
   | { type: 'end' };
@@ -112,8 +103,6 @@ export const getNodeText = (node: AppNode): string => getCoreNodeText(node);
 
 export const getNodeTitle = (node: AppNode): string => getCoreNodeTitle(node);
 
-export const getVisibleRules = (node: AppNode): InteractionRule[] => getCoreVisibleRules(node);
-
 export const getOutgoingEdges = (nodeId: string, edges: AppEdge[]): AppEdge[] => getCoreOutgoingEdges(nodeId, edges);
 
 export const resolveNextNodeId = (node: AppNode, edges: AppEdge[], choice: RuntimeChoice = {}): string | null => {
@@ -124,13 +113,9 @@ export const getNodeById = (nodes: AppNode[], nodeId: string | null | undefined)
   return getCoreNodeById(nodes, nodeId);
 };
 
-export const getRuntimeInteractionMode = (node: AppNode): InteractionMode => getCoreRuntimeInteractionMode(node);
-
-export const shouldShowRuntimeControls = (node: AppNode | null | undefined, edges: AppEdge[]): boolean => {
-  return shouldCoreShowRuntimeControls(node, edges);
+export const getTimelineClipOutputHandleId = (clipId: string, kind: 'click' | 'timeout' = 'click'): string => {
+  return getCoreTimelineClipOutputHandleId(clipId, kind);
 };
-
-export const getRuntimeChoiceRules = (node: AppNode): InteractionRule[] => getCoreRuntimeChoiceRules(node);
 
 export const getTimelineClips = (node: AppNode): TimelineClip[] => getCoreTimelineClips(node) as TimelineClip[];
 
@@ -139,6 +124,8 @@ export const getTimelineMediaClips = (node: AppNode): TimelineMediaClip[] => get
 export const getTimelineInteractionClips = (node: AppNode): TimelineInteractionClip[] => getCoreTimelineInteractionClips(node) as TimelineInteractionClip[];
 
 export const getTimelineClipEndTime = (clip: TimelineClip): number => getCoreTimelineClipEndTime(clip);
+
+export const getTimelineClipRuntimeEndTime = (clip: TimelineClip): number => getCoreTimelineClipRuntimeEndTime(clip);
 
 export const isTimelineClipActive = (clip: TimelineClip, time: number): boolean => isCoreTimelineClipActive(clip, time);
 
@@ -152,12 +139,14 @@ export const getActiveTimelineMediaClips = (node: AppNode, time: number): Timeli
 
 export const clampRuntimeTimelineTime = (time: number, duration?: number): number => clampCoreRuntimeTimelineTime(time, duration);
 
+export const getTimelineDuration = (node: AppNode): number => getCoreTimelineDuration(node);
+
 export const compileNodeTimeline = (node: AppNode): CompiledRuntimeNodeTimeline => {
   return compileCoreNodeTimeline(node) as CompiledRuntimeNodeTimeline;
 };
 
-export const resolveTimelineActionNodeId = (node: AppNode, edges: AppEdge[], action?: TimelineAction): string | null => {
-  return resolveCoreTimelineActionNodeId(node, edges, action);
+export const resolveOutputTargetNodeId = (node: AppNode | null | undefined, edges: AppEdge[], outputId: string): string | null => {
+  return resolveCoreOutputTargetNodeId(node, edges, outputId);
 };
 
 export const compileRuntimeGraph = (graph: OpenFMVGraph, options: { entryNodeId?: string | null } = {}): RuntimeProgram => {

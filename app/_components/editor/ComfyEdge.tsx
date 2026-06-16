@@ -15,6 +15,7 @@ import { AppEdge, NodeType } from '@/app/_types';
 import { useProjectSessionStore } from '@/app/_features/project-session/store';
 import { useEditorStore } from '@/app/_store/useEditorStore';
 import { nodeRegistry } from '@/app/_registry/nodeRegistry';
+import { NODE_DEFAULT_OUTPUT_ID } from '@/app/_utils/timelineOutputEdges';
 import { createEditorNode } from './canvas/nodeFactory';
 
 const EDGE_STYLE = { strokeWidth: 2, stroke: 'rgba(255,255,255,0.52)' } as const;
@@ -109,7 +110,7 @@ export default function ComfyEdge(props: EdgeProps) {
       ...createEditorNode(nodeType, { x: labelX - 140, y: labelY - 56 }, state.nodes, {
         startLabel: t('startNode'),
         endLabel: t('endNode'),
-        storyTitlePrefix: t('storyTitlePrefix'),
+        sceneTitlePrefix: t('storyTitlePrefix'),
       }),
       style: { width: 280 },
     };
@@ -130,7 +131,7 @@ export default function ComfyEdge(props: EdgeProps) {
       id: crypto.randomUUID(),
       type: 'comfy',
       source: newNode.id,
-      sourceHandle: null,
+      sourceHandle: NODE_DEFAULT_OUTPUT_ID,
       target: target ?? currentEdge.target,
       targetHandle: targetHandleId ?? currentEdge.targetHandle,
       animated: false,

@@ -166,6 +166,10 @@
         "name": "Scene",
         "description": "Playable media and interactions"
       },
+      "scene": {
+        "name": "Scene",
+        "description": "Playable media and interactions"
+      },
       "interaction": {
         "name": "Legacy interaction",
         "description": "Compatibility node from older projects"

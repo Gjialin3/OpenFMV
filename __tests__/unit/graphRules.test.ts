@@ -1,26 +1,26 @@
 import { describe, expect, it } from 'vitest';
 
 import { AppEdge, AppNode } from '@/app/_types';
-import { addGraphEdge, addNodeAndGraphEdge, filterEdgesForNodes, isValidGraphConnection } from '@/app/_utils/graphRules';
+import { addGraphEdge, filterEdgesForNodes, isValidGraphConnection } from '@/app/_utils/graphRules';
 
 const nodes: AppNode[] = [
   {
     id: 'source',
-    type: 'story',
+    type: 'scene',
     position: { x: 0, y: 0 },
-    data: { type: 'story', title: 'Source', content: '' },
+    data: { type: 'scene', title: 'Source', bodyText: '' },
   },
   {
     id: 'target-a',
-    type: 'story',
+    type: 'scene',
     position: { x: 100, y: 0 },
-    data: { type: 'story', title: 'Target A', content: '' },
+    data: { type: 'scene', title: 'Target A', bodyText: '' },
   },
   {
     id: 'target-b',
-    type: 'story',
+    type: 'scene',
     position: { x: 200, y: 0 },
-    data: { type: 'story', title: 'Target B', content: '' },
+    data: { type: 'scene', title: 'Target B', bodyText: '' },
   },
 ];
 
@@ -53,20 +53,5 @@ describe('graphRules', () => {
     ] as AppEdge[];
 
     expect(filterEdgesForNodes(persistedEdges, nodes)).toEqual([{ id: 'valid', source: 'source', target: 'target-a' }]);
-  });
-
-  it('creates and connects a node atomically when the connection is valid', () => {
-    const node: AppNode = {
-      id: 'created',
-      type: 'story',
-      position: { x: 300, y: 0 },
-      data: { type: 'story', title: 'Created', content: '' },
-    };
-
-    const result = addNodeAndGraphEdge(node, { source: 'source', sourceHandle: 'new', target: 'created', targetHandle: null }, nodes, []);
-
-    expect(result.nodes).toHaveLength(4);
-    expect(result.edges).toHaveLength(1);
-    expect(result.edges[0].target).toBe('created');
   });
 });

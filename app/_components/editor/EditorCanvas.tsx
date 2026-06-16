@@ -26,6 +26,7 @@ import AssetPicker from './AssetPicker';
 import { addAssetsToLocalProject, importAssetFromFile } from '@/app/_utils/localProjects';
 import { defaultGraphData } from '@/app/_utils/projectPersistence';
 import { isValidGraphConnection } from '@/app/_utils/graphRules';
+import { isValidNodeOutputHandle } from '@/app/_utils/timelineOutputEdges';
 import { getPickerAssetUpdate, PickerAsset } from './canvas/assetBinding';
 import { edgeTypes, nodeTypes } from './canvas/flowTypes';
 import { EmptyCanvasPrompt, FileDropOverlay, PendingConnectMenu, PendingConnectMenuState } from './canvas/CanvasOverlays';
@@ -48,10 +49,10 @@ const toPickerAsset = (asset: OpenFMVAsset): PickerAsset => ({
   createdAt: new Date(asset.importedAt),
 });
 
-const createStoryNodeFromAsset = (asset: PickerAsset, position: { x: number; y: number }, currentNodes: AppNode[], fallbackTitle: string): AppNode | null => {
+const createSceneNodeFromAsset = (asset: PickerAsset, position: { x: number; y: number }, currentNodes: AppNode[], fallbackTitle: string): AppNode | null => {
   if (asset.type === 'audio') return null;
 
-  const node = createEditorNode('story', getAvailableNodePosition(position, currentNodes), currentNodes);
+  const node = createEditorNode('scene', getAvailableNodePosition(position, currentNodes), currentNodes);
   const metadata = typeof asset.metadata === 'object' && asset.metadata ? asset.metadata as Record<string, unknown> : {};
   const title = typeof metadata.title === 'string' ? metadata.title : asset.prompt || fallbackTitle;
   const baseNode = {
@@ -139,7 +140,7 @@ const EditorContent = ({ projectId }: { projectId?: string | null }) => {
   const nodeDefaults = useMemo<EditorNodeDefaults>(() => ({
     startLabel: t('startNode'),
     endLabel: t('endNode'),
-    storyTitlePrefix: t('storyTitlePrefix'),
+    sceneTitlePrefix: t('storyTitlePrefix'),
   }), [t]);
 
   const { screenToFlowPosition, getViewport, fitView, getNodes: _getNodes, getEdges } = useReactFlow();
@@ -179,7 +180,9 @@ const EditorContent = ({ projectId }: { projectId?: string | null }) => {
   );
 
   const isValidConnection = useCallback((connection: Connection | Edge) => {
-    return isValidGraphConnection(connection, getEdges(), getNodes());
+    const nodes = getNodes();
+    const sourceNode = nodes.find((node) => node.id === connection.source);
+    return isValidGraphConnection(connection, getEdges(), nodes) && isValidNodeOutputHandle(sourceNode, connection.sourceHandle);
   }, [getEdges, getNodes]);
 
   const onConnect = useCallback((params: Connection | Edge) => {
@@ -229,7 +232,7 @@ const EditorContent = ({ projectId }: { projectId?: string | null }) => {
     const centerY = window.innerHeight / 2;
     const position = screenToFlowPosition({ x: centerX, y: centerY });
     const currentNodes = getNodes();
-    const newNode = createStoryNodeFromAsset(asset, position, currentNodes, t('assetStoryFallback'));
+    const newNode = createSceneNodeFromAsset(asset, position, currentNodes, t('assetStoryFallback'));
     if (newNode) addNode(newNode);
     if (!newNode) alert(assetsT('audioCannotBind'));
     setAssetPickerOpen(false);
@@ -284,7 +287,7 @@ const EditorContent = ({ projectId }: { projectId?: string | null }) => {
 
         const createdNodes: AppNode[] = [];
         for (const asset of importedAssets) {
-          const newNode = createStoryNodeFromAsset(toPickerAsset(asset), {
+          const newNode = createSceneNodeFromAsset(toPickerAsset(asset), {
             x: dropPosition.x + createdNodes.length * 34,
             y: dropPosition.y + createdNodes.length * 34,
           }, [...getNodes(), ...createdNodes], t('assetStoryFallback'));

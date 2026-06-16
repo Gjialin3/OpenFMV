@@ -1,7 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { Plus, Video } from 'lucide-react';
+import { FileText, Plus } from 'lucide-react';
 
 import { NodeType } from '@/app/_types';
 import { nodeRegistry } from '@/app/_registry/nodeRegistry';
@@ -52,8 +52,8 @@ export function EmptyCanvasPrompt({ onAddNode }: EmptyCanvasPromptProps) {
           </Button>
         </div>
         <div className="mt-5 flex flex-wrap justify-center gap-2">
-          <Button type="button" variant="glass" size="sm" onClick={() => onAddNode('story')}>
-            <Video size={15} />
+          <Button type="button" variant="glass" size="sm" onClick={() => onAddNode('scene')}>
+            <FileText size={15} />
             {t('nodeTypes.story.name')}
           </Button>
         </div>

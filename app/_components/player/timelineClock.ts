@@ -18,18 +18,12 @@ export const getRuntimeVideoSourceTimelineEnd = (effect?: RuntimeVideoEffect | n
 };
 
 export const shouldUseRuntimeTimelineIntervalClock = ({
-  timelineSyncVideoEffect,
-  timelineTime,
+  timelineSyncVideoEffect: _timelineSyncVideoEffect,
+  timelineTime: _timelineTime,
 }: {
   timelineSyncVideoEffect?: RuntimeVideoEffect | null;
   timelineTime: number;
-}) => {
-  if (!timelineSyncVideoEffect) return true;
-  if (Number.isFinite(Number(timelineSyncVideoEffect.freezeFrameTime))) return true;
-
-  const sourceTimelineEnd = getRuntimeVideoSourceTimelineEnd(timelineSyncVideoEffect);
-  return sourceTimelineEnd !== null && timelineTime >= sourceTimelineEnd - RUNTIME_TIMELINE_EPSILON;
-};
+}) => true;
 
 export const shouldResetRuntimeTimelineTriggerState = ({
   previousNodeId,

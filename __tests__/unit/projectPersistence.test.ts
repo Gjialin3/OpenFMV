@@ -9,12 +9,12 @@ vi.stubGlobal('crypto', {
 
 const storyNode: AppNode = {
   id: 'story',
-  type: 'story',
+  type: 'scene',
   position: { x: 0, y: 0 },
   data: {
-    type: 'story',
+    type: 'scene',
     title: 'Story',
-    content: '',
+    bodyText: '',
     timeline: {
       version: 2,
       duration: 24,

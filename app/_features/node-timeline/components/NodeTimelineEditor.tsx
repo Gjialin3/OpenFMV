@@ -70,7 +70,6 @@ import {
   NodeTimeline,
   OpenFMVAsset,
   OverlayRect,
-  TimelineAction,
   TimelineBookmark,
   TimelineClip,
   TimelineClipKeyframe,
@@ -85,10 +84,13 @@ import {
 } from '@/app/_types';
 import OpenFMVVideo from '@/app/_components/video/OpenFMVVideo';
 import { useProjectSessionStore } from '@/app/_features/project-session/store';
+import { buildTimelineAssetLibraryItems, getTimelineAssetItemKey, TimelineAssetItem } from '@/app/_features/node-timeline/assetLibrary';
 import { useResolvedMediaSrc } from '@/app/_hooks/useResolvedMediaSrc';
 import { useEditorStore } from '@/app/_store/useEditorStore';
+import { getAssetSource } from '@/app/_utils/assetIdentity';
 import { getLocalizedPath } from '@/app/_utils/localePaths';
 import { addAssetsToLocalProject, canUseNativeAssetPicker, importAssetFromFile, importAssetFromNativePicker, isStorageQuotaError, listLocalProjects, removeAssetFromLocalProject, resolveLocalProjectForEditor } from '@/app/_utils/localProjects';
+import { getTimelineClipOutputHandleId } from '@/app/_utils/timelineOutputEdges';
 import {
   addTimelineTrack,
   BUTTON_STYLE_SWATCHES,
@@ -367,14 +369,6 @@ const getClipAsset = (clip: TimelineMediaClip | null | undefined, assets: Timeli
     ?? null;
 };
 
-interface TimelineAssetItem {
-  asset: OpenFMVAsset;
-  projectId: string;
-  projectTitle: string;
-}
-
-const getTimelineAssetItemKey = (item: TimelineAssetItem) => `${item.projectId}:${item.asset.id}`;
-
 const interactionIcons = {
   button: MousePointerClick,
 } satisfies Record<TimelineInteractionClipType, LucideIcon>;
@@ -441,14 +435,11 @@ const buildAudioWaveformPlaceholder = (barCount: number) => {
 const getNodeTitle = (node: AppNode, t?: NodeTimelineTranslator) => {
   if (node.data.type === 'start') return node.data.label || t?.('fallback.start') || 'Start';
   if (node.data.type === 'end') return node.data.label || t?.('fallback.end') || 'End';
-  if (node.data.type === 'interaction') return node.data.title || node.data.prompt || t?.('fallback.interaction') || 'Interaction';
-  return node.data.title || t?.('fallback.story') || 'Story';
+  return node.data.title || t?.('fallback.story') || 'Scene';
 };
 
 const getNodeSubtitle = (node: AppNode) => {
-  if (node.data.type === 'story') return node.data.content || node.data.fullText || '';
-  if (node.data.type === 'interaction') return node.data.prompt || node.data.content || '';
-  return node.data.content || node.data.fullText || '';
+  return node.data.bodyText || '';
 };
 
 const isMediaClip = (clip: TimelineClip): clip is TimelineMediaClip => isMediaClipType(clip.type);
@@ -466,8 +457,6 @@ const isTimelineMediaAsset = (asset: OpenFMVAsset): asset is OpenFMVAsset & { ty
 };
 
 const isNodeTimelineLibraryAsset = isTimelineMediaAsset;
-
-const getAssetSource = (asset: OpenFMVAsset) => asset.relativePath || asset.path;
 
 const getAssetDuration = (asset: OpenFMVAsset) => {
   const duration = Number(asset.metadata?.duration);
@@ -520,32 +509,6 @@ const getAssetSizeLabel = (asset: OpenFMVAsset) => {
 
 const getAssetMetadataLabel = (asset: OpenFMVAsset) => {
   return [getAssetDurationLabel(asset), getAssetDimensionLabel(asset), getAssetSizeLabel(asset)].filter(Boolean).join(' / ');
-};
-
-const actionToValue = (action?: TimelineAction) => {
-  if (!action || action.type === 'continue') return 'continue';
-  if (action.type === 'pause') return 'pause';
-  if (action.type === 'goToHandle') return `handle:${action.handleId || '__default__'}`;
-  if (action.type === 'goToNode') return `node:${action.nodeId || ''}`;
-  return 'continue';
-};
-
-const valueToAction = (value: string): TimelineAction => {
-  if (value === 'pause') return { type: 'pause' };
-  if (value.startsWith('handle:')) {
-    const handleId = value.slice('handle:'.length);
-    return { type: 'goToHandle', handleId: handleId === '__default__' ? null : handleId };
-  }
-  if (value.startsWith('node:')) return { type: 'goToNode', nodeId: value.slice('node:'.length) || null };
-  return { type: 'continue' };
-};
-
-const timeoutActionToValue = (action?: TimelineAction) => {
-  return action ? actionToValue(action) : 'none';
-};
-
-const getInteractionAction = (clip: TimelineInteractionClip): TimelineAction => {
-  return clip.action;
 };
 
 const normalizeQteKeyLabel = (value: string | undefined) => {
@@ -859,20 +822,11 @@ const updateInteractionLabel = (clip: TimelineInteractionClip, value: string): T
   return { ...clip, label: value, name: value };
 };
 
-const updateInteractionAction = (clip: TimelineInteractionClip, action: TimelineAction): TimelineInteractionClip => {
-  return { ...clip, action };
-};
-
 const updateInteractionPauseMode = (clip: TimelineInteractionClip, pauseOnShow: boolean): TimelineInteractionClip => {
-  if (pauseOnShow && !isQteButtonClip(clip)) return { ...clip, pauseOnShow, timeoutAction: undefined };
   return { ...clip, pauseOnShow };
 };
 
-const updateInteractionTimeoutAction = (clip: TimelineInteractionClip, action?: TimelineAction): TimelineInteractionClip => {
-  return action ? { ...clip, timeoutAction: action } : { ...clip, timeoutAction: undefined };
-};
-
-const updateInteractionMode = (clip: TimelineInteractionClip, mode: ButtonMode): TimelineInteractionClip => {
+const updateButtonMode = (clip: TimelineInteractionClip, mode: ButtonMode): TimelineInteractionClip => {
   if (mode !== 'qte') {
     const buttonClip = { ...clip };
     delete buttonClip.mode;
@@ -1348,24 +1302,10 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
 
   const refreshAssetLibrary = useCallback(() => {
     const projects = listLocalProjects().map(resolveLocalProjectForEditor);
-    const activeProject = currentProjectId ? projects.find((project) => project.id === currentProjectId) : null;
-    const visibleProjects = activeProject
-      ? [activeProject, ...projects.filter((project) => project.id !== activeProject.id)]
-      : projects;
-    const seenProjectAssetKeys = new Set<string>();
-    setAssetLibrary(visibleProjects.flatMap((project) => {
-      return (project.assets || [])
-        .filter(isNodeTimelineLibraryAsset)
-        .flatMap((asset) => {
-          const key = `${project.id}:${asset.id}`;
-          if (seenProjectAssetKeys.has(key)) return [];
-          seenProjectAssetKeys.add(key);
-          return [{
-            asset,
-            projectId: project.id,
-            projectTitle: project.title,
-          }];
-        });
+    setAssetLibrary(buildTimelineAssetLibraryItems({
+      projects,
+      currentProjectId,
+      isAssetSupported: isNodeTimelineLibraryAsset,
     }));
   }, [currentProjectId]);
 
@@ -3850,8 +3790,6 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
           <InteractionClipInspector
             t={t}
             clip={resolveTimelineClipKeyframes(selectedClip, currentTime)}
-            nodes={nodes}
-            activeNode={selectedOrFirstNode}
             onUpdate={(update) => updateClip(selectedClip.id, (clip) => (isInteractionClip(clip) ? update(clip) : clip))}
           />
         ) : null}
@@ -4911,99 +4849,6 @@ function MediaClipInspector({
   );
 }
 
-function QteRuleActionSelect({
-  t,
-  value,
-  nodes,
-  activeNode,
-  includeNone = false,
-  includePause = false,
-  onChange,
-}: {
-  t: NodeTimelineTranslator;
-  value: string;
-  nodes: AppNode[];
-  activeNode: AppNode;
-  includeNone?: boolean;
-  includePause?: boolean;
-  onChange: (value: string) => void;
-}) {
-  type RuleActionOption = { value: string; label: string; icon: LucideIcon };
-  const [isOpen, setIsOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const targetNodes = nodes.filter((node) => node.id !== activeNode.id);
-  const options: RuleActionOption[] = [
-    ...(includeNone ? [{ value: 'none', label: t('actions.disappear'), icon: X }] : []),
-    { value: 'continue', label: t('actions.continue'), icon: Play },
-    ...(includePause ? [{ value: 'pause', label: t('actions.pause'), icon: Pause }] : []),
-    ...targetNodes.map((node) => {
-      const scene = getNodeTitle(node, t);
-      return { value: `node:${node.id}`, label: t('fields.goToScene', { scene }), icon: Layers };
-    }),
-  ];
-  const normalizedValue = value === 'none' && !includeNone ? 'continue' : value;
-  const selectedOption = options.find((option) => option.value === normalizedValue) ?? options[0];
-  const SelectedIcon = selectedOption?.icon;
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const handlePointerDown = (event: PointerEvent) => {
-      if (containerRef.current?.contains(event.target as Node)) return;
-      setIsOpen(false);
-    };
-    window.addEventListener('pointerdown', handlePointerDown);
-    return () => window.removeEventListener('pointerdown', handlePointerDown);
-  }, [isOpen]);
-
-  return (
-    <div ref={containerRef} className="relative">
-      <button
-        type="button"
-        onClick={() => setIsOpen((open) => !open)}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') setIsOpen(false);
-        }}
-        aria-haspopup="listbox"
-        aria-expanded={isOpen}
-        className={`flex h-openfmv-tool w-full items-center justify-between gap-2 rounded-openfmv-tool border border-white/10 bg-[#171717] px-2.5 text-left text-[11px] text-white outline-none transition hover:border-white/18 hover:bg-[#1d1d1d] ${isOpen ? 'border-white/20 bg-[#1d1d1d]' : ''}`}
-      >
-        <span className="flex min-w-0 items-center gap-2">
-          {SelectedIcon && <SelectedIcon size={13} className="shrink-0 text-openfmv-muted" />}
-          <span className="min-w-0 truncate">{selectedOption?.label}</span>
-        </span>
-        <ChevronDown size={14} className={`shrink-0 text-openfmv-muted transition ${isOpen ? 'rotate-180 text-white' : ''}`} />
-      </button>
-
-      {isOpen && (
-        <div role="listbox" className="absolute left-0 right-0 top-full z-50 mt-1 max-h-48 overflow-y-auto rounded-openfmv-tool border border-white/10 bg-[#171717] p-1 shadow-[0_18px_44px_rgba(0,0,0,0.38)]">
-          {options.map((option) => {
-            const selected = option.value === normalizedValue;
-            const OptionIcon = option.icon;
-            return (
-              <button
-                key={option.value}
-                type="button"
-                role="option"
-                aria-selected={selected}
-                onClick={() => {
-                  onChange(option.value);
-                  setIsOpen(false);
-                }}
-                className={`grid min-h-openfmv-tool w-full grid-cols-[24px_minmax(0,1fr)] items-center gap-2 rounded-openfmv-tool px-2 py-1.5 text-left text-[11px] transition ${selected ? 'bg-white/[0.12] text-white' : 'text-openfmv-sub hover:bg-[#1d1d1d] hover:text-white'}`}
-              >
-                <span className="grid h-5 w-5 shrink-0 place-items-center rounded-openfmv-tool bg-white/[0.055] text-openfmv-muted">
-                  <OptionIcon size={13} />
-                </span>
-                <span className="min-w-0 truncate">{option.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function InspectorFieldRow({
   label,
   icon: Icon,
@@ -5547,21 +5392,18 @@ function QteOutcomeRow({
 function InteractionClipInspector({
   t,
   clip,
-  nodes,
-  activeNode,
   onUpdate,
 }: {
   t: NodeTimelineTranslator;
   clip: TimelineInteractionClip;
-  nodes: AppNode[];
-  activeNode: AppNode;
   onUpdate: (update: (clip: TimelineInteractionClip) => TimelineInteractionClip) => void;
 }) {
-  const action = getInteractionAction(clip);
   const isPauseWait = clip.pauseOnShow === true;
   const mode = getButtonMode(clip);
   const isQte = mode === 'qte';
   const qteConfig = getQteConfig(clip);
+  const clickOutputId = getTimelineClipOutputHandleId(clip.id);
+  const timeoutOutputId = getTimelineClipOutputHandleId(clip.id, 'timeout');
   const [styleExpanded, setStyleExpanded] = useState(false);
   const resolvedStyle = resolveButtonStyleConfig(clip);
   const styleShapeLabel = {
@@ -5580,7 +5422,7 @@ function InteractionClipInspector({
             { label: t('fields.buttonModeNormal'), value: 'normal', icon: MousePointerClick },
             { label: t('fields.buttonModeQte'), value: 'qte', icon: Diamond },
           ]}
-          onChange={(value) => onUpdate((item) => updateInteractionMode(item, value === 'qte' ? 'qte' : 'normal'))}
+          onChange={(value) => onUpdate((item) => updateButtonMode(item, value === 'qte' ? 'qte' : 'normal'))}
         />
       </InspectorFieldRow>
 
@@ -5667,54 +5509,20 @@ function InteractionClipInspector({
         </>
       )}
 
-      {isQte ? (
-        <div className="space-y-2 py-1">
-          <QteOutcomeRow label={t('fields.qteSuccessAction')} icon={Check}>
-            <QteRuleActionSelect
-              t={t}
-              value={actionToValue(action)}
-              nodes={nodes}
-              activeNode={activeNode}
-              includePause
-              onChange={(value) => onUpdate((item) => updateInteractionAction(item, valueToAction(value)))}
-            />
-          </QteOutcomeRow>
+      <div className="space-y-2 py-1">
+        <QteOutcomeRow label={t('fields.qteSuccessAction')} icon={Check}>
+          <div className="h-openfmv-tool truncate rounded-openfmv-tool border border-white/10 bg-[#171717] px-2.5 py-2 font-mono text-[11px] text-openfmv-sub" title={clickOutputId}>
+            {clickOutputId}
+          </div>
+        </QteOutcomeRow>
+        {isQte && (
           <QteOutcomeRow label={t('fields.qteFailAction')} icon={X}>
-            <QteRuleActionSelect
-              t={t}
-              value={timeoutActionToValue(clip.timeoutAction)}
-              nodes={nodes}
-              activeNode={activeNode}
-              includePause
-              onChange={(value) => onUpdate((item) => updateInteractionTimeoutAction(item, valueToAction(value)))}
-            />
+            <div className="h-openfmv-tool truncate rounded-openfmv-tool border border-white/10 bg-[#171717] px-2.5 py-2 font-mono text-[11px] text-openfmv-sub" title={timeoutOutputId}>
+              {timeoutOutputId}
+            </div>
           </QteOutcomeRow>
-        </div>
-      ) : (
-        <div className="space-y-2 py-1">
-          <QteOutcomeRow label={t('fields.qteSuccessAction')} icon={Check}>
-            <QteRuleActionSelect
-              t={t}
-              value={actionToValue(action)}
-              nodes={nodes}
-              activeNode={activeNode}
-              onChange={(value) => onUpdate((item) => updateInteractionAction(item, valueToAction(value)))}
-            />
-          </QteOutcomeRow>
-          {!isPauseWait && (
-            <QteOutcomeRow label={t('fields.qteFailAction')} icon={X}>
-              <QteRuleActionSelect
-                t={t}
-                value={timeoutActionToValue(clip.timeoutAction)}
-                nodes={nodes}
-                activeNode={activeNode}
-                includeNone
-                onChange={(value) => onUpdate((item) => updateInteractionTimeoutAction(item, value === 'none' ? undefined : valueToAction(value)))}
-              />
-            </QteOutcomeRow>
-          )}
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

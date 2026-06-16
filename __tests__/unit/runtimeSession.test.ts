@@ -28,7 +28,6 @@ const timelineNode: AppNode = {
               startTime: 0,
               duration: 2,
               rect: { x: 0.4, y: 0.7, width: 0.2, height: 0.1 },
-              action: { type: 'continue' },
               pauseOnShow: false,
               enabled: true,
             },

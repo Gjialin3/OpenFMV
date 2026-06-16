@@ -28,15 +28,6 @@ export const addGraphEdge = (connection: Connection, edges: AppEdge[], nodes?: A
   return addEdge(connection, edges) as AppEdge[];
 };
 
-export const addNodeAndGraphEdge = (node: AppNode, connection: Connection, nodes: AppNode[], edges: AppEdge[]) => {
-  const nextNodes = [...nodes, node];
-  const nextEdges = addGraphEdge(connection, edges, nextNodes);
-  if (nextEdges === edges) {
-    return { nodes, edges };
-  }
-  return { nodes: nextNodes, edges: nextEdges };
-};
-
 export const filterEdgesForNodes = (edges: AppEdge[] | undefined, nodes: AppNode[]) => {
   if (!Array.isArray(edges)) return [];
   const nodeIds = new Set(nodes.map((node) => node.id));

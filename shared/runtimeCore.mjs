@@ -9,19 +9,14 @@ export function getEntryNodeId(graph, preferredEntryNodeId) {
 
 export function getNodeText(node) {
   const data = node?.data || {};
-  return String(data.fullText || data.content || '');
+  return String(data.bodyText || '');
 }
 
 export function getNodeTitle(node) {
   const data = node?.data || {};
   if (node?.type === 'start') return String(data.label || 'Start');
   if (node?.type === 'end') return String(data.label || '结束');
-  return String(data.title || data.prompt || '剧情');
-}
-
-export function getVisibleRules(node) {
-  const data = node?.data || {};
-  return (data.rules || []).filter((rule) => rule.id !== 'else' && rule.handleId !== 'else');
+  return String(data.title || 'Scene');
 }
 
 export function getOutgoingEdges(nodeId, edges) {
@@ -37,38 +32,12 @@ export function resolveNextNodeId(node, edges, choice = {}) {
     if (exactEdge) return exactEdge.target;
   }
 
-  const normalizedInput = choice.input?.trim().toLowerCase();
-  if (normalizedInput) {
-    const matchedRule = getVisibleRules(node).find((rule) => {
-      const condition = (rule.condition || rule.keyword || '').toLowerCase();
-      return condition && (normalizedInput.includes(condition) || condition.includes(normalizedInput));
-    });
-    if (matchedRule) {
-      const matchedEdge = outgoing.find((edge) => edge.sourceHandle === matchedRule.handleId);
-      if (matchedEdge) return matchedEdge.target;
-    }
-  }
-
-  return outgoing.find((edge) => edge.sourceHandle === 'else')?.target ?? outgoing[0]?.target ?? null;
+  return outgoing.find((edge) => edge.sourceHandle === 'node:default')?.target ?? null;
 }
 
 export function getNodeById(nodes, nodeId) {
   if (!nodeId) return null;
   return (Array.isArray(nodes) ? nodes : []).find((node) => node.id === nodeId) ?? null;
-}
-
-export function getRuntimeInteractionMode(node) {
-  const mode = node?.data?.interactionMode;
-  return mode === 'input' || mode === 'slider' ? mode : 'choice';
-}
-
-export function shouldShowRuntimeControls(node, edges) {
-  return Boolean(node && (node.type === 'interaction' || getOutgoingEdges(node.id, edges).length > 0));
-}
-
-export function getRuntimeChoiceRules(node) {
-  const rules = getVisibleRules(node);
-  return rules.length > 0 ? rules : [{ id: 'continue', keyword: '继续', condition: '继续', handleId: '' }];
 }
 
 export function isTimelineMediaClipType(type) {
@@ -77,6 +46,15 @@ export function isTimelineMediaClipType(type) {
 
 export function isTimelineInteractionClipType(type) {
   return type === 'button';
+}
+
+export function getTimelineClipOutputHandleId(clipId, kind = 'click') {
+  return kind === 'timeout' ? `button:${clipId}:timeout` : `button:${clipId}:click`;
+}
+
+export function resolveOutputTargetNodeId(node, edges, outputId) {
+  if (!node || !outputId) return null;
+  return getOutgoingEdges(node.id, edges).find((edge) => edge.sourceHandle === outputId)?.target ?? null;
 }
 
 export function getTimelineTracks(node) {
@@ -119,6 +97,24 @@ export function getTimelineClipEndTime(clip) {
   if (Number.isFinite(duration) && duration > 0) return startTime + duration;
   const endTime = Number(clip?.endTime);
   return Number.isFinite(endTime) && endTime > startTime ? endTime : startTime + 0.1;
+}
+
+export function getTimelineMediaPlaybackRate(clip) {
+  const playbackRate = Number(clip?.playbackRate);
+  if (!Number.isFinite(playbackRate) || playbackRate <= 0) return 1;
+  return Math.max(0.01, Math.min(5, playbackRate));
+}
+
+export function getTimelineClipRuntimeEndTime(clip) {
+  const clipEndTime = getTimelineClipEndTime(clip);
+  if (clip?.type !== 'video' && clip?.type !== 'audio') return clipEndTime;
+  if (clip.type === 'video' && Number.isFinite(Number(clip.freezeFrameTime))) return clipEndTime;
+
+  const sourceDuration = Number(clip.sourceDuration);
+  if (!Number.isFinite(sourceDuration) || sourceDuration <= 0) return clipEndTime;
+
+  const startTime = Number(clip.startTime) || 0;
+  return Math.min(clipEndTime, startTime + sourceDuration / getTimelineMediaPlaybackRate(clip));
 }
 
 export function isTimelineClipActive(clip, time) {
@@ -215,9 +211,9 @@ export function clampRuntimeTimelineTime(time, duration = 0) {
 }
 
 export function getTimelineDuration(node) {
-  const explicitDuration = Number(node?.data?.timeline?.duration);
-  const clipDuration = getTimelineClips(node).reduce((duration, clip) => Math.max(duration, getTimelineClipEndTime(clip)), 0);
-  return Number.isFinite(explicitDuration) && explicitDuration > 0 ? Math.max(explicitDuration, clipDuration) : clipDuration;
+  const mediaDuration = getTimelineMediaClips(node).reduce((duration, clip) => Math.max(duration, getTimelineClipRuntimeEndTime(clip)), 0);
+  const interactionDuration = getTimelineInteractionClips(node).reduce((duration, clip) => Math.max(duration, getTimelineClipEndTime(clip)), 0);
+  return Math.max(mediaDuration, interactionDuration);
 }
 
 export function compileNodeTimeline(node) {
@@ -232,14 +228,6 @@ export function compileNodeTimeline(node) {
     interactionClips,
     primaryMediaClip: visualMediaClips[0] ?? mediaClips[0] ?? null,
   };
-}
-
-export function resolveTimelineActionNodeId(node, edges, action = {}) {
-  if (!action || action.type === 'continue') return node?.id ?? null;
-  if (action.type === 'pause') return node?.id ?? null;
-  if (action.type === 'goToNode') return action.nodeId ?? null;
-  if (action.type === 'goToHandle') return resolveNextNodeId(node, edges, { handleId: action.handleId ?? null });
-  return node?.id ?? null;
 }
 
 export function compileRuntimeGraph(graph, options = {}) {
@@ -362,43 +350,11 @@ export function buildNodeEffects(node, edges, timelineTime = 0) {
     return effects;
   }
 
-  if (!shouldDeferRuntimeControls && shouldShowRuntimeControls(node, edges)) {
-    const mode = getRuntimeInteractionMode(node);
-    if (mode === 'input') {
-      effects.push({
-        type: 'showInput',
-        prompt: data.prompt || '',
-        placeholder: data.buttonText || '输入你的回答...',
-      });
-    } else if (mode === 'slider') {
-      effects.push({
-        type: 'showSlider',
-        prompt: data.prompt || '',
-        label: data.sliderConfig?.label || '滑动解锁',
-        handleId: 'slider',
-      });
-    } else if (node.type !== 'interaction' && getVisibleRules(node).length === 0) {
-      effects.push({ type: 'showContinue', label: '继续' });
-    } else {
-      effects.push({
-        type: 'showChoices',
-        prompt: data.prompt || '',
-        choices: getRuntimeChoiceRules(node).map((rule) => ({
-          id: rule.id,
-          label: rule.condition || rule.keyword || '选项',
-          input: rule.condition || rule.keyword || '',
-          handleId: rule.handleId || '',
-          rule,
-        })),
-      });
-    }
-  } else if (!shouldDeferRuntimeControls) {
-    effects.push({ type: 'showContinue', label: '继续' });
-  }
-
-  const seconds = Math.max(0, Math.floor(Number(data.timeLimit) || 0));
-  if (seconds > 0) {
-    effects.push({ type: 'startTimer', seconds, key: node.id });
+  const defaultEdge = getOutgoingEdges(node.id, edges).find((edge) => edge.sourceHandle === 'node:default');
+  if (hasNodeTimeline && compiledTimeline.duration > 0 && !shouldDeferRuntimeControls && defaultEdge) {
+    effects.push({ type: 'autoNavigate', targetNodeId: defaultEdge.target });
+  } else if (!shouldDeferRuntimeControls && defaultEdge) {
+    effects.push({ type: 'showContinue', label: '继续', targetNodeId: defaultEdge.target });
   }
 
   return effects;
@@ -424,11 +380,9 @@ export function dispatchRuntimeEvent(program, state, event) {
     return createRuntimeState(program);
   }
 
-  if (type === 'variable.set') {
-    return {
-      ...state,
-      variables: { ...state.variables, [event.key]: event.value },
-    };
+  const isNodeScopedTimelineEvent = type === 'timeline.time.update' || type === 'timeline.clip.triggered' || type === 'timeline.clip.timeout';
+  if (isNodeScopedTimelineEvent && event?.nodeId && event.nodeId !== state.currentNodeId) {
+    return state;
   }
 
   if (type === 'timeline.time.update') {
@@ -449,14 +403,11 @@ export function dispatchRuntimeEvent(program, state, event) {
     const isQteInteractionClip = interactionClip?.type === 'button' && interactionClip.mode === 'qte';
 
     if (type === 'timeline.clip.triggered' && (!interactionClip || !isTimelineClipActive(interactionClip, currentTimelineTime))) return state;
-    if (type === 'timeline.clip.timeout' && !interactionClip) return state;
+    if (type === 'timeline.clip.timeout' && (!interactionClip || !isQteInteractionClip)) return state;
     if (type === 'timeline.clip.timeout' && isQteInteractionClip && currentTimelineTime < (interactionClip.startTime || 0)) return state;
-    if (type === 'timeline.clip.timeout' && !isQteInteractionClip && currentTimelineTime < getTimelineClipEndTime(interactionClip)) return state;
 
-    const action = event.action || (type === 'timeline.clip.timeout' ? interactionClip?.timeoutAction : interactionClip?.action);
-    if (!action || action.type === 'continue') return state;
-    if (action.type === 'pause') return state;
-    const targetNodeId = resolveTimelineActionNodeId(currentNode, program.graph.edges, action);
+    const outputId = getTimelineClipOutputHandleId(interactionClip.id, type === 'timeline.clip.timeout' ? 'timeout' : 'click');
+    const targetNodeId = resolveOutputTargetNodeId(currentNode, program.graph.edges, outputId);
     const targetNode = getNodeById(program.graph.nodes, targetNodeId);
     if (!targetNode) return state;
     return {
@@ -471,28 +422,15 @@ export function dispatchRuntimeEvent(program, state, event) {
   const currentNode = getNodeById(program.graph.nodes, state.currentNodeId);
   if (!currentNode || state.status !== 'running') return state;
 
-  let choice = {};
-  let variables = state.variables;
-
-  if (type === 'choice.selected') {
-    choice = { input: event.input, handleId: event.handleId };
-  } else if (type === 'input.submitted') {
-    variables = { ...variables, lastInput: event.value || '' };
-    choice = { input: event.value || '' };
-  } else if (type === 'slider.unlocked') {
-    choice = { input: event.input || 'unlocked', handleId: event.handleId || 'slider' };
-  } else if (type === 'navigate') {
-    choice = { targetNodeId: event.nodeId };
-  }
-
-  const targetNodeId = choice.targetNodeId ?? resolveNextNodeId(currentNode, program.graph.edges, choice);
+  const targetNodeId = type === 'navigate'
+    ? event.nodeId
+    : resolveNextNodeId(currentNode, program.graph.edges, { handleId: 'node:default' });
   const targetNode = getNodeById(program.graph.nodes, targetNodeId);
   if (!targetNode) {
     return {
       ...state,
       status: 'ended',
       currentNodeId: null,
-      variables,
       timelineTime: 0,
     };
   }
@@ -502,7 +440,6 @@ export function dispatchRuntimeEvent(program, state, event) {
     status: 'running',
     currentNodeId: targetNode.id,
     history: [...state.history, targetNode.id],
-    variables,
     timelineTime: 0,
   };
 }
@@ -531,20 +468,20 @@ const runtimeFunctions = [
   getEntryNodeId,
   getNodeText,
   getNodeTitle,
-  getVisibleRules,
   getOutgoingEdges,
   resolveNextNodeId,
   getNodeById,
-  getRuntimeInteractionMode,
-  shouldShowRuntimeControls,
-  getRuntimeChoiceRules,
   isTimelineMediaClipType,
   isTimelineInteractionClipType,
+  getTimelineClipOutputHandleId,
+  resolveOutputTargetNodeId,
   getTimelineTracks,
   getTimelineClips,
   getTimelineMediaClips,
   getTimelineInteractionClips,
   getTimelineClipEndTime,
+  getTimelineMediaPlaybackRate,
+  getTimelineClipRuntimeEndTime,
   isTimelineClipActive,
   resolveTimelineClipKeyframes,
   getActiveTimelineClips,
@@ -552,7 +489,6 @@ const runtimeFunctions = [
   clampRuntimeTimelineTime,
   getTimelineDuration,
   compileNodeTimeline,
-  resolveTimelineActionNodeId,
   compileRuntimeGraph,
   createRuntimeState,
   buildNodeEffects,
@@ -566,15 +502,13 @@ export function buildRuntimeCoreBrowserScript() {
   const getEntryNodeId = ${getEntryNodeId.toString()};
   const getNodeText = ${getNodeText.toString()};
   const getNodeTitle = ${getNodeTitle.toString()};
-  const getVisibleRules = ${getVisibleRules.toString()};
   const getOutgoingEdges = ${getOutgoingEdges.toString()};
   const resolveNextNodeId = ${resolveNextNodeId.toString()};
   const getNodeById = ${getNodeById.toString()};
-  const getRuntimeInteractionMode = ${getRuntimeInteractionMode.toString()};
-  const shouldShowRuntimeControls = ${shouldShowRuntimeControls.toString()};
-  const getRuntimeChoiceRules = ${getRuntimeChoiceRules.toString()};
   const isTimelineMediaClipType = ${isTimelineMediaClipType.toString()};
   const isTimelineInteractionClipType = ${isTimelineInteractionClipType.toString()};
+  const getTimelineClipOutputHandleId = ${getTimelineClipOutputHandleId.toString()};
+  const resolveOutputTargetNodeId = ${resolveOutputTargetNodeId.toString()};
   const getTimelineTracks = ${getTimelineTracks.toString()};
   const getVisibleTimelineTracks = ${getVisibleTimelineTracks.toString()};
   const getTimelineClips = ${getTimelineClips.toString()};
@@ -582,6 +516,8 @@ export function buildRuntimeCoreBrowserScript() {
   const getTimelineMediaClips = ${getTimelineMediaClips.toString()};
   const getTimelineInteractionClips = ${getTimelineInteractionClips.toString()};
   const getTimelineClipEndTime = ${getTimelineClipEndTime.toString()};
+  const getTimelineMediaPlaybackRate = ${getTimelineMediaPlaybackRate.toString()};
+  const getTimelineClipRuntimeEndTime = ${getTimelineClipRuntimeEndTime.toString()};
   const isTimelineClipActive = ${isTimelineClipActive.toString()};
   const clampTimelineClipOpacity = ${clampTimelineClipOpacity.toString()};
   const clampTimelineKeyframeValue = ${clampTimelineKeyframeValue.toString()};
@@ -594,7 +530,6 @@ export function buildRuntimeCoreBrowserScript() {
   const clampRuntimeTimelineTime = ${clampRuntimeTimelineTime.toString()};
   const getTimelineDuration = ${getTimelineDuration.toString()};
   const compileNodeTimeline = ${compileNodeTimeline.toString()};
-  const resolveTimelineActionNodeId = ${resolveTimelineActionNodeId.toString()};
   const compileRuntimeGraph = ${compileRuntimeGraph.toString()};
   const createRuntimeState = ${createRuntimeState.toString()};
   const buildNodeEffects = ${buildNodeEffects.toString()};
@@ -605,15 +540,13 @@ export function buildRuntimeCoreBrowserScript() {
     getEntryNodeId,
     getNodeText,
     getNodeTitle,
-    getVisibleRules,
     getOutgoingEdges,
     resolveNextNodeId,
     getNodeById,
-    getRuntimeInteractionMode,
-    shouldShowRuntimeControls,
-    getRuntimeChoiceRules,
     isTimelineMediaClipType,
     isTimelineInteractionClipType,
+    getTimelineClipOutputHandleId,
+    resolveOutputTargetNodeId,
     getTimelineTracks,
     getVisibleTimelineTracks,
     getTimelineClips,
@@ -621,6 +554,8 @@ export function buildRuntimeCoreBrowserScript() {
     getTimelineMediaClips,
     getTimelineInteractionClips,
     getTimelineClipEndTime,
+    getTimelineMediaPlaybackRate,
+    getTimelineClipRuntimeEndTime,
     isTimelineClipActive,
     resolveTimelineClipKeyframes,
     getActiveTimelineClips,
@@ -628,7 +563,6 @@ export function buildRuntimeCoreBrowserScript() {
     clampRuntimeTimelineTime,
     getTimelineDuration,
     compileNodeTimeline,
-    resolveTimelineActionNodeId,
     compileRuntimeGraph,
     createRuntimeState,
     buildNodeEffects,

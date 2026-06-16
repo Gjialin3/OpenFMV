@@ -100,6 +100,34 @@ describe('localProjects', () => {
     expect(savedProjects[0].assets.map((asset) => asset.id)).toEqual(['asset-1', 'asset-2']);
   });
 
+  it('does not duplicate assets copied from the same original source', async () => {
+    storage[PROJECTS_KEY] = JSON.stringify([{
+      ...project,
+      assets: [
+        {
+          ...nextAsset,
+          id: 'asset-existing',
+          path: 'file:///D:/OpenFMV/assets/a.mp4',
+          relativePath: 'file:///D:/OpenFMV/assets/a.mp4',
+          metadata: { originalPath: 'D:\\media\\clip.mp4', duration: 7.06 },
+        },
+      ],
+    }]);
+
+    await addAssetsToLocalProject('project-1', {
+      ...nextAsset,
+      id: 'asset-copy',
+      path: 'file:///D:/OpenFMV/assets/b.mp4',
+      relativePath: 'file:///D:/OpenFMV/assets/b.mp4',
+      metadata: { originalPath: 'D:/media/clip.mp4', duration: 7.06 },
+    });
+
+    const savedProjects = JSON.parse(storage[PROJECTS_KEY]) as OpenFMVProject[];
+
+    expect(savedProjects[0].assets).toHaveLength(1);
+    expect(savedProjects[0].assets[0].id).toBe('asset-existing');
+  });
+
   it('removes an asset from the library without mutating graph timeline clips', async () => {
     storage[PROJECTS_KEY] = JSON.stringify([{
       ...project,

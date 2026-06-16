@@ -11,7 +11,7 @@ describe('nodeRegistry', () => {
     const uniqueDefinitions = Array.from(new Map(definitions.map((definition) => [definition.type, definition])).values());
 
     for (const definition of uniqueDefinitions) {
-      const data = nodeRegistry.createDefaultData(definition.type, { storyCount: 2 });
+      const data = nodeRegistry.createDefaultData(definition.type, { sceneCount: 2 });
       expect(data.type).toBe(definition.type);
     }
   });

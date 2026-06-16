@@ -9,16 +9,10 @@ import {
 } from '@xyflow/react';
 
 import { AppEdge, AppNode, NodeTimeline, OpenFMVGraph, OpenFMVProject } from '@/app/_types';
-import { addGraphEdge, filterEdgesForNodes } from '@/app/_utils/graphRules';
+import { filterEdgesForNodes } from '@/app/_utils/graphRules';
 import { getLocalProject, saveLocalProject } from '@/app/_utils/localProjects';
 import { createProjectSnapshot, defaultGraphData, ensureGraphData } from '@/app/_utils/projectPersistence';
-import {
-  isTimelineOutputHandleId,
-  syncTimelineOutputEdges,
-  updateTimelineOutputActionForConnection,
-  updateTimelineOutputActionsForEdges,
-  upsertTimelineOutputEdge,
-} from '@/app/_utils/timelineOutputEdges';
+import { syncTimelineOutputEdges, upsertTimelineOutputEdge } from '@/app/_utils/timelineOutputEdges';
 
 type MaybePromise<T> = T | Promise<T>;
 
@@ -187,33 +181,27 @@ export const createProjectSessionStateCreator = (repository: ProjectSessionRepos
     setEdges: (edges) => {
       const current = get();
       const filteredEdges = filterEdgesForNodes(edges, current.nodes);
-      const nextNodes = updateTimelineOutputActionsForEdges(current.nodes, current.edges, filteredEdges);
-      applyGraph(nextNodes, filteredEdges);
+      applyGraph(current.nodes, filteredEdges);
     },
 
     onNodesChange: (changes) => {
       const current = get();
       const nodes = applyNodeChanges(changes, current.nodes) as AppNode[];
       const filteredEdges = filterEdgesForNodes(current.edges, nodes);
-      const nextNodes = updateTimelineOutputActionsForEdges(nodes, current.edges, filteredEdges);
-      applyGraph(nextNodes, filteredEdges);
+      applyGraph(nodes, filteredEdges);
     },
 
     onEdgesChange: (changes) => {
       const current = get();
       const filteredEdges = filterEdgesForNodes(applyEdgeChanges(changes, current.edges) as AppEdge[], current.nodes);
-      const nextNodes = updateTimelineOutputActionsForEdges(current.nodes, current.edges, filteredEdges);
-      applyGraph(nextNodes, filteredEdges);
+      applyGraph(current.nodes, filteredEdges);
     },
 
     onConnect: (connection) => {
       const current = get();
-      const nextNodes = updateTimelineOutputActionForConnection(current.nodes, connection);
-      const nextEdges = isTimelineOutputHandleId(connection.sourceHandle)
-        ? upsertTimelineOutputEdge(connection, current.edges, nextNodes)
-        : addGraphEdge(connection, current.edges, nextNodes);
-      if (nextEdges === current.edges && nextNodes === current.nodes) return;
-      applyGraph(nextNodes, nextEdges);
+      const nextEdges = upsertTimelineOutputEdge(connection, current.edges, current.nodes);
+      if (nextEdges === current.edges) return;
+      applyGraph(current.nodes, nextEdges);
     },
 
     addNode: (node) => {
@@ -224,15 +212,9 @@ export const createProjectSessionStateCreator = (repository: ProjectSessionRepos
     addNodeAndConnect: (node, connection) => {
       const current = get();
       const nodesWithNewNode = [...current.nodes, node];
-      if (isTimelineOutputHandleId(connection.sourceHandle)) {
-        const nextNodes = updateTimelineOutputActionForConnection(nodesWithNewNode, connection);
-        applyGraph(nextNodes, upsertTimelineOutputEdge(connection, current.edges, nextNodes));
-        return;
-      }
 
-      const nextEdges = addGraphEdge(connection, current.edges, nodesWithNewNode);
-      const nextNodes = updateTimelineOutputActionForConnection(nodesWithNewNode, connection);
-      applyGraph(nextNodes, nextEdges);
+      const nextEdges = upsertTimelineOutputEdge(connection, current.edges, nodesWithNewNode);
+      applyGraph(nodesWithNewNode, nextEdges);
     },
 
     updateNodeData: (id, data) => {
@@ -253,8 +235,7 @@ export const createProjectSessionStateCreator = (repository: ProjectSessionRepos
       const current = get();
       const nodes = current.nodes.filter((node) => node.id !== id);
       const filteredEdges = current.edges.filter((edge) => edge.source !== id && edge.target !== id);
-      const nextNodes = updateTimelineOutputActionsForEdges(nodes, current.edges, filteredEdges);
-      applyGraph(nextNodes, filteredEdges);
+      applyGraph(nodes, filteredEdges);
     },
 
     saveNow: async (options) => {

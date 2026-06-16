@@ -29,7 +29,7 @@ describe('game exporter', () => {
             data: {
               type: 'start',
               label: 'Start',
-              content: 'Hello local game',
+              bodyText: 'Hello local game',
               timeline: {
                 version: 2,
                 duration: 24,
@@ -89,7 +89,7 @@ describe('game exporter', () => {
     expect(html).toContain('assets/source.png');
     expect(html).not.toContain("fetch('game.json')");
     expect(html).toContain('class="content"');
-    expect(html).toContain('class="story-copy"');
+    expect(html).toContain('class="scene-copy"');
     expect(html).not.toContain('class="panel"');
   });
 
@@ -131,12 +131,12 @@ describe('game exporter', () => {
           },
           {
             id: 'local',
-            type: 'story',
+            type: 'scene',
             position: { x: 100, y: 0 },
             data: {
-              type: 'story',
+              type: 'scene',
               title: 'Local',
-              content: '',
+              bodyText: '',
               timeline: {
                 version: 2,
                 duration: 24,
@@ -211,7 +211,7 @@ describe('game exporter', () => {
     await expect(readdir(join(result.outputDirectory, 'assets'))).resolves.toEqual(['local.png']);
   });
 
-  it('renders countdown runtime support for timed interactions', async () => {
+  it('does not export legacy countdown runtime support for timed interactions', async () => {
     const root = await mkdtemp(join(tmpdir(), 'openfmv-export-countdown-'));
     const project = {
       schemaVersion: 1,
@@ -223,7 +223,7 @@ describe('game exporter', () => {
             id: 'start',
             type: 'start',
             position: { x: 0, y: 0 },
-            data: { type: 'start', label: 'Start', timeLimit: 3 },
+            data: { type: 'start', label: 'Start' },
           },
         ],
         edges: [],
@@ -249,8 +249,10 @@ describe('game exporter', () => {
 
     const html = await readFile(join(result.outputDirectory, 'resources', 'app', 'index.html'), 'utf8');
     const main = await readFile(join(result.outputDirectory, 'resources', 'app', 'main.js'), 'utf8');
-    expect(html).toContain('countdownTimer = setTimeout');
-    expect(html).toContain('class="timer"');
+    expect(html).not.toContain('countdownTimer');
+    expect(html).not.toContain('timer.timeout');
+    expect(html).not.toContain('class="timer"');
+    expect(html).not.toContain('startTimer');
     expect(main).toContain('frame: false');
   });
 
@@ -288,9 +290,7 @@ describe('game exporter', () => {
                         enabled: true,
                         label: 'Dodge',
                         rect: { x: 0.4, y: 0.7, width: 0.2, height: 0.1 },
-                        action: { type: 'pause' },
                         pauseOnShow: true,
-                        timeoutAction: { type: 'goToNode', nodeId: 'fail' },
                         qte: { input: 'space', prompt: 'Press Space', keyLabel: 'Space', showCountdown: true },
                         opacity: 0.65,
                         rotation: 8,
@@ -313,18 +313,21 @@ describe('game exporter', () => {
           },
           {
             id: 'success',
-            type: 'story',
+            type: 'scene',
             position: { x: 200, y: 0 },
-            data: { type: 'story', title: 'Success', content: '' },
+            data: { type: 'scene', title: 'Success', bodyText: '' },
           },
           {
             id: 'fail',
-            type: 'story',
+            type: 'scene',
             position: { x: 400, y: 0 },
-            data: { type: 'story', title: 'Fail', content: '' },
+            data: { type: 'scene', title: 'Fail', bodyText: '' },
           },
         ],
-        edges: [],
+        edges: [
+          { id: 'success-edge', source: 'start', sourceHandle: 'button:space-qte:click', target: 'success' },
+          { id: 'fail-edge', source: 'start', sourceHandle: 'button:space-qte:timeout', target: 'fail' },
+        ],
       },
       assets: [],
       metadata: {},
@@ -347,22 +350,23 @@ describe('game exporter', () => {
     const html = await readFile(join(result.outputDirectory, 'index.html'), 'utf8');
     expect(html).toContain('timelineResolvedQteClipIds');
     expect(html).toContain('timelineClockTimer = setInterval');
+    expect(html).toContain("const autoNext = effect('autoNavigate')");
     expect(html).toContain('timelineButtonCssText');
     expect(html).toContain('"preset": "glass"');
     expect(html).toContain('"fillOpacity": 0.4');
     expect(html).toContain('data-qte-input');
     expect(html).toContain("document.addEventListener('keydown'");
-    expect(html).toContain("action.type === 'pause'");
     expect(html).toContain("send({ type: reason === 'timeout' ? 'timeline.clip.timeout' : 'timeline.clip.triggered'");
-    expect(html).toContain("if (timeline) return ''");
+    expect(html).toContain('button.dataset.timelineClip');
+    expect(html).not.toContain("action.type === 'pause'");
   });
 
-  it('exports the shared graph runtime for navigation rules', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'openfmv-export-runtime-rules-'));
+  it('exports the shared graph runtime for edge-based navigation', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'openfmv-export-runtime-edges-'));
     const project = {
       schemaVersion: 1,
-      id: 'project-runtime-rules',
-      title: 'Runtime Rules',
+      id: 'project-runtime-edges',
+      title: 'Runtime Edges',
       graphData: {
         nodes: [
           {
@@ -372,28 +376,18 @@ describe('game exporter', () => {
             data: { type: 'start', label: 'Start' },
           },
           {
-            id: 'choice',
-            type: 'interaction',
+            id: 'next',
+            type: 'scene',
             position: { x: 100, y: 0 },
-            data: {
-              type: 'interaction',
-              prompt: 'Choose',
-              interactionMode: 'input',
-              rules: [
-                { id: 'left', keyword: 'left', condition: 'Left', handleId: 'left-handle' },
-                { id: 'else', keyword: 'else', condition: 'Else', handleId: 'else' },
-              ],
-            },
+            data: { type: 'scene', title: 'Next', bodyText: '' },
           },
         ],
         edges: [
-          { id: 'to-choice', source: 'start', target: 'choice' },
-          { id: 'left-edge', source: 'choice', sourceHandle: 'left-handle', target: 'left-target' },
-          { id: 'else-edge', source: 'choice', sourceHandle: 'else', target: 'else-target' },
+          { id: 'to-next', source: 'start', sourceHandle: 'node:default', target: 'next' },
         ],
       },
       assets: [],
-      metadata: { entryNodeId: 'choice' },
+      metadata: { entryNodeId: 'start' },
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -401,9 +395,9 @@ describe('game exporter', () => {
     const result = await exportWebGamePackage({
       project,
       config: {
-        gameTitle: 'Runtime Rules',
+        gameTitle: 'Runtime Edges',
         outputDirectory: root,
-        entryNodeId: 'choice',
+        entryNodeId: 'start',
         windowMode: 'windowed',
         resolution: { width: 1280, height: 720 },
         includeDebugOverlay: false,
@@ -421,18 +415,19 @@ describe('game exporter', () => {
     expect(html).toContain('snapshot = runtime.dispatch(event)');
     expect(html).toContain('dispatchRuntimeEvent');
     expect(html).toContain('buildNodeEffects');
-    expect(html).toContain('normalizedInput.includes(condition) || condition.includes(normalizedInput)');
-    expect(html).toContain("outgoing.find((edge) => edge.sourceHandle === 'else')?.target");
-    expect(html).toContain("send({ type: 'input.submitted'");
+    expect(html).toContain("sourceHandle === 'node:default'");
+    expect(html).not.toContain('normalizedInput.includes(condition) || condition.includes(normalizedInput)');
+    expect(html).not.toContain("sourceHandle === 'else'");
+    expect(html).not.toContain("send({ type: 'input.submitted'");
     expect(html).toContain("send({ type: 'restart' })");
   });
 
-  it('uses the shared player control rules for start node choices and terminal fallback', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'openfmv-export-start-rules-'));
+  it('uses shared continue controls for node default outputs', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'openfmv-export-default-output-'));
     const project = {
       schemaVersion: 1,
-      id: 'project-start-rules',
-      title: 'Start Rules',
+      id: 'project-default-output',
+      title: 'Default Output',
       graphData: {
         nodes: [
           {
@@ -442,14 +437,17 @@ describe('game exporter', () => {
             data: {
               type: 'start',
               label: 'Start',
-              rules: [
-                { id: 'intro', keyword: 'intro', condition: 'Watch intro', handleId: 'intro' },
-              ],
             },
+          },
+          {
+            id: 'end',
+            type: 'end',
+            position: { x: 200, y: 0 },
+            data: { type: 'end', label: 'End' },
           },
         ],
         edges: [
-          { id: 'intro-edge', source: 'start', sourceHandle: 'intro', target: 'intro-target' },
+          { id: 'end-edge', source: 'start', sourceHandle: 'node:default', target: 'end' },
         ],
       },
       assets: [],
@@ -461,7 +459,7 @@ describe('game exporter', () => {
     const result = await exportWebGamePackage({
       project,
       config: {
-        gameTitle: 'Start Rules',
+        gameTitle: 'Default Output',
         outputDirectory: root,
         entryNodeId: 'start',
         windowMode: 'windowed',
@@ -471,12 +469,15 @@ describe('game exporter', () => {
     });
 
     const html = await readFile(join(result.outputDirectory, 'index.html'), 'utf8');
-    expect(html).toContain("const choices = effect('showChoices')");
-    expect(html).toContain("const actionClass = choices.choices.length > 1 ? 'actions actions-grid' : 'actions actions-single actions-center'");
-    expect(html).toContain('data-choice-input');
-    expect(html).toContain('button.dataset.choiceInput');
-    expect(html).toContain('actions actions-grid');
-    expect(html).toContain('actions actions-single actions-center');
+    expect(html).toContain("const next = effect('showContinue')");
+    expect(html).toContain('next.targetNodeId');
+    expect(html).toContain("send({ type: 'navigate', nodeId: button.dataset.next })");
+    expect(html).not.toContain('data-next="1"');
+    expect(html).not.toContain("const choices = effect('showChoices')");
+    expect(html).not.toContain('data-choice-input');
+    expect(html).not.toContain('button.dataset.choiceInput');
+    expect(html).not.toContain('actions actions-grid');
+    expect(html).not.toContain('actions actions-single actions-center');
     expect(html).toContain('actions actions-single actions-start');
     expect(html).toContain('class="action-button"');
     expect(html).toContain('class="action-arrow"');

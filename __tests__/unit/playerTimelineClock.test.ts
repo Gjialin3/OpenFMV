@@ -31,11 +31,12 @@ describe('player timeline clock helpers', () => {
     expect(getRuntimeVideoSourceTimelineEnd(videoEffect({ sourceDuration: undefined }))).toBeNull();
   });
 
-  it('uses the interval clock when video cannot keep advancing timeline time', () => {
+  it('uses the interval clock as the runtime timeline master', () => {
     expect(shouldUseRuntimeTimelineIntervalClock({ timelineSyncVideoEffect: null, timelineTime: 0 })).toBe(true);
     expect(shouldUseRuntimeTimelineIntervalClock({ timelineSyncVideoEffect: videoEffect({ freezeFrameTime: 5 }), timelineTime: 2.5 })).toBe(true);
-    expect(shouldUseRuntimeTimelineIntervalClock({ timelineSyncVideoEffect: videoEffect(), timelineTime: 3.9 })).toBe(false);
+    expect(shouldUseRuntimeTimelineIntervalClock({ timelineSyncVideoEffect: videoEffect(), timelineTime: 3.9 })).toBe(true);
     expect(shouldUseRuntimeTimelineIntervalClock({ timelineSyncVideoEffect: videoEffect(), timelineTime: 4 })).toBe(true);
+    expect(shouldUseRuntimeTimelineIntervalClock({ timelineSyncVideoEffect: videoEffect({ sourceDuration: undefined }), timelineTime: 7 })).toBe(true);
   });
 
   it('resets timeline trigger state when nodes change or timeline time rewinds', () => {

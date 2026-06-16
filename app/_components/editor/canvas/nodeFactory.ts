@@ -6,7 +6,7 @@ import { AppNode, NodeType } from '@/app/_types';
 export interface EditorNodeDefaults {
   startLabel: string;
   endLabel: string;
-  storyTitlePrefix: string;
+  sceneTitlePrefix: string;
 }
 
 export const getAvailableNodePosition = (position: XYPosition, nodes: AppNode[]) => {
@@ -32,12 +32,12 @@ export const getAvailableNodePosition = (position: XYPosition, nodes: AppNode[])
 };
 
 export const createEditorNode = (type: NodeType, position: XYPosition, nodes: AppNode[], defaults?: EditorNodeDefaults): AppNode => {
-  const storyCount = nodes.filter((node) => node.type === 'story').length;
+  const sceneCount = nodes.filter((node) => node.type === 'scene').length;
 
   return {
     id: crypto.randomUUID(),
     type,
     position,
-    data: nodeRegistry.createDefaultData(type, { storyCount, ...defaults }),
+    data: nodeRegistry.createDefaultData(type, { sceneCount, ...defaults }),
   };
 };

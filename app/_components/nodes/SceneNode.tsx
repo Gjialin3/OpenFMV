@@ -1,6 +1,8 @@
 import React, { memo, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Position, NodeProps } from '@xyflow/react';
+
+import type { NodeProps } from '@xyflow/react';
+import { Position } from '@xyflow/react';
 import { FileText } from 'lucide-react';
 
 import { AppNode } from '../../_types';
@@ -11,10 +13,10 @@ import EditorNodeCardBody, { getEditorNodeDurationLabel } from './EditorNodeCard
 import OpenNodeTimelineButton from './OpenNodeTimelineButton';
 import { nodeHeaderIconClassName, nodeTitleInputClassName, nodeTypeBadgeClassName } from './nodeStyles';
 
-const StoryNode = ({ id, data }: NodeProps<AppNode>) => {
+const SceneNode = ({ id, data }: NodeProps<AppNode>) => {
   const t = useTranslations('editor');
   const { updateNodeData } = useProjectSessionStore();
-  const title = data.type === 'story' ? data.title : t('nodeTypes.story.name');
+  const title = data.type === 'scene' ? data.title : t('nodeTypes.story.name');
   const durationLabel = getEditorNodeDurationLabel(data);
   const [localTitle, setLocalTitle] = useState(title);
 
@@ -40,4 +42,4 @@ const StoryNode = ({ id, data }: NodeProps<AppNode>) => {
   );
 };
 
-export default memo(StoryNode);
+export default memo(SceneNode);

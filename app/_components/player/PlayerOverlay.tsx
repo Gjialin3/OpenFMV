@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { ArrowRight, RotateCcw, X } from 'lucide-react';
 
@@ -8,46 +8,10 @@ import { getButtonClipInlineStyle } from '@/app/_features/node-timeline';
 import { useRuntimeSessionStore } from '@/app/_features/runtime-session/store';
 import { useResolvedMediaSrc } from '../../_hooks/useResolvedMediaSrc';
 import { usePlayerStore } from '../../_store/usePlayerStore';
-import { AppNode, ButtonQteConfig, OverlayRect, TimelineAction, TimelineInteractionClip } from '../../_types';
+import { AppNode, ButtonQteConfig, OverlayRect, TimelineInteractionClip } from '../../_types';
 import OpenFMVVideo from '../video/OpenFMVVideo';
-import { SwipeUnlock } from './interactions';
 import { getRuntimeMediaPlaybackRate, shouldResetRuntimeTimelineTriggerState, shouldUseRuntimeTimelineIntervalClock } from './timelineClock';
 import { getActiveTimelineClips, getTimelineClipEndTime, RuntimeEffect, RuntimeEvent } from '../../_utils/graphRuntime';
-
-const Countdown = ({ seconds, countdownKey, onTimeout }: { seconds?: number; countdownKey: string; onTimeout: () => void }) => {
-  const normalizedSeconds = Math.max(0, Math.floor(Number(seconds) || 0));
-  const [countdownState, setCountdownState] = useState({ key: countdownKey, timeLeft: normalizedSeconds });
-  const timeoutKeyRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    timeoutKeyRef.current = null;
-    setCountdownState({ key: countdownKey, timeLeft: normalizedSeconds });
-  }, [countdownKey, normalizedSeconds]);
-
-  useEffect(() => {
-    if (countdownState.key !== countdownKey || normalizedSeconds <= 0 || countdownState.timeLeft <= 0) return;
-    const timer = window.setTimeout(() => setCountdownState((state) => (state.key === countdownKey ? { ...state, timeLeft: state.timeLeft - 1 } : state)), 1000);
-    return () => window.clearTimeout(timer);
-  }, [countdownKey, countdownState, normalizedSeconds]);
-
-  useEffect(() => {
-    if (countdownState.key !== countdownKey || normalizedSeconds <= 0 || countdownState.timeLeft !== 0) return;
-    if (timeoutKeyRef.current === countdownKey) return;
-    timeoutKeyRef.current = countdownKey;
-    onTimeout();
-  }, [countdownKey, countdownState, normalizedSeconds, onTimeout]);
-
-  if (normalizedSeconds <= 0 || countdownState.key !== countdownKey || countdownState.timeLeft <= 0) return null;
-
-  return (
-    <div className="mx-auto mt-5 w-full max-w-xs">
-      <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
-        <div className="h-full rounded-full bg-openfmv-accent transition-all duration-1000" style={{ width: `${(countdownState.timeLeft / normalizedSeconds) * 100}%` }} />
-      </div>
-      <div className="mt-2 text-center font-mono text-xs font-semibold text-openfmv-accent">{countdownState.timeLeft}s</div>
-    </div>
-  );
-};
 
 const getEffect = <T extends RuntimeEffect['type']>(effects: RuntimeEffect[], type: T) => {
   return effects.find((effect): effect is Extract<RuntimeEffect, { type: T }> => effect.type === type);
@@ -203,14 +167,6 @@ const getQteConfig = (clip: TimelineInteractionClip): ButtonQteConfig => {
   };
 };
 
-const getTimelineClipAction = (clip: TimelineInteractionClip): TimelineAction => {
-  return clip.action;
-};
-
-const shouldResumeTimelineOnClick = (clip: TimelineInteractionClip) => {
-  return Boolean(clip);
-};
-
 const getTimelineClipClassName = (clip: TimelineInteractionClip) => {
   const base = 'pointer-events-auto absolute flex min-h-10 min-w-12 items-center justify-center overflow-hidden border px-3 text-xs font-bold backdrop-blur-xl transition hover:scale-[1.02]';
   return isQteButtonClip(clip) ? `${base} select-none` : base;
@@ -313,7 +269,7 @@ function RuntimeVisualMediaLayer({
       {effect.mediaType === 'image' ? (
         <img src={imageSrc} alt={sceneTitle || ''} className={getVisualMediaFitClassName(effect)} onLoad={(event) => reportNaturalSize(event.currentTarget.naturalWidth, event.currentTarget.naturalHeight)} />
       ) : (
-        <OpenFMVVideo src={effect.src} playbackId={effect.playbackId} poster={effect.poster} autoPlay muted={effect.muted} playsInline controls className={getVisualMediaFitClassName(effect)} playerRef={setVideoRef} />
+        <OpenFMVVideo src={effect.src} playbackId={effect.playbackId} poster={effect.poster} autoPlay muted={effect.muted} playsInline controls={false} className={getVisualMediaFitClassName(effect)} playerRef={setVideoRef} />
       )}
     </div>
   );
@@ -392,6 +348,7 @@ const TimelineRuntimeOverlay = ({
   const qteClickCountsRef = useRef<Map<string, number>>(new Map());
   const triggerStateRef = useRef<{ nodeId?: string | null; time: number }>({ nodeId: null, time: 0 });
   const [qteClockTick, setQteClockTick] = useState(0);
+  const runtimeNodeId = timelineEffect?.nodeId ?? currentNode?.id ?? null;
 
   useEffect(() => {
     const nextNodeId = timelineEffect?.nodeId ?? currentNode?.id ?? null;
@@ -423,31 +380,9 @@ const TimelineRuntimeOverlay = ({
     qteClickCountsRef.current.delete(clip.id);
     setQteClockTick(window.performance.now());
 
-    const action = reason === 'timeout' ? clip.timeoutAction : getTimelineClipAction(clip);
     if (reason === 'timeout') timedOutClipIdsRef.current.add(clip.id);
-
-    if (!action) {
-      if (clip.pauseOnShow) {
-        onResumeTimeline();
-        void videoRef.current?.play();
-      }
-      return;
-    }
-
-    if (action.type === 'continue') {
-      onResumeTimeline();
-      void videoRef.current?.play();
-      return;
-    }
-
-    if (action.type === 'pause') {
-      onPauseTimeline();
-      videoRef.current?.pause();
-      return;
-    }
-
-    dispatch({ type: reason === 'timeout' ? 'timeline.clip.timeout' : 'timeline.clip.triggered', clipId: clip.id, action });
-  }, [dispatch, onPauseTimeline, onResumeTimeline, videoRef]);
+    dispatch({ type: reason === 'timeout' ? 'timeline.clip.timeout' : 'timeline.clip.triggered', clipId: clip.id, nodeId: runtimeNodeId });
+  }, [dispatch, runtimeNodeId]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -470,11 +405,11 @@ const TimelineRuntimeOverlay = ({
       const endTime = getTimelineClipEndTime(clip);
       if (currentTime < endTime - RUNTIME_INTERACTION_PAUSE_EPSILON) return;
       shownClipIdsRef.current.add(clip.id);
-      dispatch({ type: 'timeline.time.update', time: Math.max(clip.startTime, endTime - RUNTIME_INTERACTION_PAUSE_EPSILON) });
+      dispatch({ type: 'timeline.time.update', time: Math.max(clip.startTime, endTime - RUNTIME_INTERACTION_PAUSE_EPSILON), nodeId: runtimeNodeId });
       video?.pause();
       onPauseTimeline();
     });
-  }, [currentTime, dispatch, onPauseTimeline, timelineEffect, videoRef]);
+  }, [currentTime, dispatch, onPauseTimeline, runtimeNodeId, timelineEffect, videoRef]);
 
   useEffect(() => {
     if (activeQteClips.length === 0) return;
@@ -538,17 +473,11 @@ const TimelineRuntimeOverlay = ({
     if (!timelineEffect) return;
     timelineEffect.clips.forEach((clip) => {
       const endTime = getTimelineClipEndTime(clip);
-      const action = clip.type === 'button' ? clip.timeoutAction : undefined;
-      if (isQteButtonClip(clip) || !action || currentTime < endTime || timedOutClipIdsRef.current.has(clip.id)) return;
+      if (isQteButtonClip(clip) || currentTime < endTime || timedOutClipIdsRef.current.has(clip.id)) return;
       timedOutClipIdsRef.current.add(clip.id);
-      if (action.type === 'pause') {
-        onPauseTimeline();
-        videoRef.current?.pause();
-        return;
-      }
-      dispatch({ type: 'timeline.clip.timeout', clipId: clip.id, action });
+      dispatch({ type: 'timeline.clip.timeout', clipId: clip.id, nodeId: runtimeNodeId });
     });
-  }, [currentTime, dispatch, onPauseTimeline, timelineEffect, videoRef]);
+  }, [currentTime, dispatch, runtimeNodeId, timelineEffect]);
 
   if (!timelineEffect || !currentNode || visibleActiveClips.length === 0) return null;
 
@@ -578,20 +507,7 @@ const TimelineRuntimeOverlay = ({
                 clickQteClip(clip);
                 return;
               }
-              const action = getTimelineClipAction(clip);
-              if (action.type === 'continue') {
-                if (shouldResumeTimelineOnClick(clip)) {
-                  onResumeTimeline();
-                  void videoRef.current?.play();
-                }
-                return;
-              }
-              if (action.type === 'pause') {
-                onPauseTimeline();
-                videoRef.current?.pause();
-                return;
-              }
-              dispatch({ type: 'timeline.clip.triggered', clipId: clip.id, action });
+              dispatch({ type: 'timeline.clip.triggered', clipId: clip.id, nodeId: runtimeNodeId });
             }}
             className={getTimelineClipClassName(clip)}
             data-qte-input={isQte ? qteConfig.input : undefined}
@@ -632,57 +548,17 @@ const TimelineRuntimeOverlay = ({
   );
 };
 
-const InteractionControls = ({ effects, dispatch }: { effects: RuntimeEffect[]; dispatch: (event: RuntimeEvent) => void }) => {
+const ContinueControl = ({ effects, dispatch }: { effects: RuntimeEffect[]; dispatch: (event: RuntimeEvent) => void }) => {
   const t = useTranslations('player');
-  const choiceEffect = getEffect(effects, 'showChoices');
-  const inputEffect = getEffect(effects, 'showInput');
-  const sliderEffect = getEffect(effects, 'showSlider');
   const continueEffect = getEffect(effects, 'showContinue');
-  const timerEffect = getEffect(effects, 'startTimer');
-  const [inputValue, setInputValue] = useState('');
 
-  useEffect(() => {
-    setInputValue('');
-  }, [choiceEffect?.prompt, inputEffect?.prompt, sliderEffect?.prompt]);
-
-  const submitInput = () => {
-    dispatch({ type: 'input.submitted', value: inputValue });
-    setInputValue('');
-  };
-
-  const prompt = choiceEffect?.prompt || inputEffect?.prompt || sliderEffect?.prompt || '';
-  const inputPlaceholder = inputEffect?.placeholder === '输入你的回答...' ? t('answerPlaceholder') : inputEffect?.placeholder;
-  const sliderLabel = sliderEffect?.label === '滑动解锁' ? t('swipeUnlock') : sliderEffect?.label;
-  const continueLabel = continueEffect?.label === '继续' ? t('continue') : continueEffect?.label;
+  if (!continueEffect) return null;
 
   return (
-    <div className="w-full max-w-4xl">
-      {prompt && <h2 className="mb-5 text-center text-2xl font-semibold text-white drop-shadow-lg md:text-3xl">{prompt}</h2>}
-
-      {sliderEffect ? (
-        <div className="flex justify-center"><SwipeUnlock label={sliderLabel} onUnlock={() => dispatch({ type: 'slider.unlocked', input: 'unlocked', handleId: sliderEffect.handleId })} /></div>
-      ) : inputEffect ? (
-        <div className="mx-auto flex max-w-xl items-center gap-2 rounded-full border border-white/15 bg-white/[0.12] p-2 shadow-[0_18px_60px_rgba(0,0,0,0.35)] backdrop-blur-3xl">
-          <input value={inputValue} onChange={(event) => setInputValue(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') submitInput(); }} placeholder={inputPlaceholder} className="min-w-0 flex-1 bg-transparent px-4 py-3 text-white outline-none placeholder-white/35" />
-          <button onClick={submitInput} className="flex h-11 w-11 items-center justify-center rounded-full bg-openfmv-accent text-white transition hover:bg-openfmv-accent-hover"><ArrowRight size={18} /></button>
-        </div>
-      ) : choiceEffect ? (
-        <div className={`grid gap-3 ${choiceEffect.choices.length > 1 ? 'sm:grid-cols-2' : 'grid-cols-1 place-items-center'}`}>
-          {choiceEffect.choices.map((choice) => (
-            <button key={choice.id} onClick={() => dispatch({ type: 'choice.selected', input: choice.input, handleId: choice.handleId })} className="group flex min-h-16 w-full max-w-xl items-center justify-between gap-3 rounded-[22px] border border-white/15 bg-white/10 px-5 py-4 text-left text-white shadow-[0_18px_60px_rgba(0,0,0,0.22)] backdrop-blur-3xl transition hover:-translate-y-0.5 hover:border-openfmv-accent/70 hover:bg-white/16">
-              <span className="min-w-0 break-words text-lg">{choice.label}</span>
-              <ArrowRight size={18} className="shrink-0 opacity-60 transition group-hover:translate-x-1 group-hover:opacity-100" />
-            </button>
-          ))}
-        </div>
-      ) : continueEffect ? (
-        <button onClick={() => dispatch({ type: 'continue' })} className="inline-flex items-center gap-2 rounded-full bg-openfmv-accent px-6 py-3 text-sm font-semibold text-white transition hover:bg-openfmv-accent-hover">{continueLabel}<ArrowRight size={16} /></button>
-      ) : null}
-
-      {timerEffect && (
-        <Countdown seconds={timerEffect.seconds} countdownKey={timerEffect.key} onTimeout={() => dispatch({ type: 'timer.timeout' })} />
-      )}
-    </div>
+    <button onClick={() => dispatch({ type: 'navigate', nodeId: continueEffect.targetNodeId })} className="inline-flex items-center gap-2 rounded-full bg-openfmv-accent px-6 py-3 text-sm font-semibold text-white transition hover:bg-openfmv-accent-hover">
+      {t('continue')}
+      <ArrowRight size={16} />
+    </button>
   );
 };
 
@@ -697,6 +573,7 @@ export default function PlayerOverlay() {
   const [isTimelineClockPaused, setIsTimelineClockPaused] = useState(false);
   const effects = snapshot?.effects || [];
   const currentNode = snapshot?.currentNode ?? null;
+  const currentNodeId = currentNode?.id ?? null;
   const sceneEffect = getEffect(effects, 'scene');
   const visualMediaEffects = getVisualMediaEffects(effects);
   const visualMediaEffect = visualMediaEffects.at(-1) ?? getVisualMediaEffect(effects);
@@ -704,10 +581,12 @@ export default function PlayerOverlay() {
   const timelineSyncVideoEffect = visualMediaEffects.filter((effect) => effect.mediaType === 'video').at(-1) ?? null;
   const audioMediaEffects = getAudioMediaEffects(effects);
   const audioMediaEffect = audioMediaEffects.at(-1) ?? null;
+  const autoNavigateEffect = getEffect(effects, 'autoNavigate');
   const timelinePlaybackEffect = getEffect(effects, 'timelinePlayback');
   const timelineEffect = getEffect(effects, 'timelineOverlay');
   const hasTimelinePlaybackEffect = Boolean(timelinePlaybackEffect);
   const hasTimelineSyncVideoEffect = Boolean(timelineSyncVideoEffect);
+  const autoNavigateTargetNodeId = autoNavigateEffect?.targetNodeId ?? null;
   const timelineTime = snapshot?.timelineTime ?? 0;
   const snapshotStatus = snapshot?.status;
   const timelineDuration = timelinePlaybackEffect?.duration ?? timelineEffect?.duration ?? visualMediaEffect?.timelineDuration ?? audioMediaEffect?.timelineDuration ?? 0;
@@ -737,16 +616,24 @@ export default function PlayerOverlay() {
 
   const dispatch = useCallback((event: RuntimeEvent) => {
     if (event.type === 'timeline.time.update' && !shouldDispatchTimelineTimeUpdate(timelineTimeRef.current, event.time)) return;
-    dispatchRuntimeEvent(event);
+    const nextSnapshot = dispatchRuntimeEvent(event);
+    if (nextSnapshot) {
+      timelineTimeRef.current = nextSnapshot.timelineTime;
+    }
   }, [dispatchRuntimeEvent]);
 
   useEffect(() => {
     timelineTimeRef.current = timelineTime;
   }, [timelineTime]);
 
+  useLayoutEffect(() => {
+    if (!autoNavigateTargetNodeId || snapshotStatus !== 'running') return;
+    dispatch({ type: 'navigate', nodeId: autoNavigateTargetNodeId });
+  }, [autoNavigateTargetNodeId, dispatch, snapshotStatus]);
+
   useEffect(() => {
     setIsTimelineClockPaused(false);
-  }, [currentNode?.id]);
+  }, [currentNodeId]);
 
   useEffect(() => {
     if (stageReferenceVisualMediaEffect) return;
@@ -774,7 +661,7 @@ export default function PlayerOverlay() {
     const syncTimelineTime = () => {
       const nextTime = activeVideoTimelineStart + Math.max(0, (video.currentTime || 0) - activeVideoSourceStart) / activeVideoPlaybackRate;
       if (shouldDispatchTimelineTimeUpdate(timelineTimeRef.current, nextTime)) {
-        dispatch({ type: 'timeline.time.update', time: nextTime });
+        dispatch({ type: 'timeline.time.update', time: nextTime, nodeId: currentNodeId });
       }
     };
     syncTimelineTime();
@@ -786,7 +673,7 @@ export default function PlayerOverlay() {
       video.removeEventListener('seeked', syncTimelineTime);
       video.removeEventListener('loadedmetadata', syncTimelineTime);
     };
-  }, [activeVideoPlaybackRate, activeVideoSourceStart, activeVideoTimelineStart, activeVideoSrc, dispatch, hasTimelinePlaybackEffect, hasTimelineSyncVideoEffect, shouldUseTimelineIntervalClock]);
+  }, [activeVideoPlaybackRate, activeVideoSourceStart, activeVideoTimelineStart, activeVideoSrc, currentNodeId, dispatch, hasTimelinePlaybackEffect, hasTimelineSyncVideoEffect, shouldUseTimelineIntervalClock]);
 
   useEffect(() => {
     if (!hasTimelinePlaybackEffect || snapshotStatus !== 'running' || isTimelineClockPaused || !shouldUseTimelineIntervalClock) return;
@@ -795,11 +682,11 @@ export default function PlayerOverlay() {
         ? Math.min(timelineDuration, timelineTimeRef.current + 0.1)
         : timelineTimeRef.current + 0.1;
       if (shouldDispatchTimelineTimeUpdate(timelineTimeRef.current, nextTime)) {
-        dispatch({ type: 'timeline.time.update', time: nextTime });
+        dispatch({ type: 'timeline.time.update', time: nextTime, nodeId: currentNodeId });
       }
     }, 100);
     return () => window.clearInterval(timer);
-  }, [dispatch, hasTimelinePlaybackEffect, isTimelineClockPaused, shouldUseTimelineIntervalClock, snapshotStatus, timelineDuration]);
+  }, [currentNodeId, dispatch, hasTimelinePlaybackEffect, isTimelineClockPaused, shouldUseTimelineIntervalClock, snapshotStatus, timelineDuration]);
 
   if (!isPlaying || !snapshot) return null;
 
@@ -819,7 +706,7 @@ export default function PlayerOverlay() {
           {visualMediaEffects.length > 0 ? (
             visualMediaEffects.map((effect, index) => (
               <RuntimeVisualMediaLayer
-                key={`${effect.src}-${effect.timelineStartTime ?? 0}-${index}`}
+                key={`${currentNodeId ?? 'node'}-${effect.src}-${effect.timelineStartTime ?? 0}-${index}`}
                 effect={effect}
                 sceneTitle={sceneEffect?.title}
                 onAspectRatioReady={effect === stageReferenceVisualMediaEffect ? handleRuntimeStageAspectRatioReady : undefined}
@@ -847,7 +734,7 @@ export default function PlayerOverlay() {
         </div>
         {audioMediaEffects.map((effect, index) => (
           <RuntimeAudioMediaLayer
-            key={`${effect.src}-${effect.timelineStartTime ?? 0}-${effect.sourceStart ?? 0}-${index}`}
+            key={`${currentNodeId ?? 'node'}-${effect.src}-${effect.timelineStartTime ?? 0}-${effect.sourceStart ?? 0}-${index}`}
             effect={effect}
             timelineTime={timelineTime}
             paused={snapshotStatus !== 'running' || isTimelineClockPaused}
@@ -865,10 +752,8 @@ export default function PlayerOverlay() {
 
           {snapshot.status === 'ended' || currentNode?.type === 'end' ? (
             <button onClick={() => dispatch({ type: 'restart' })} className="inline-flex items-center gap-2 rounded-full bg-openfmv-accent px-6 py-3 text-sm font-semibold text-white transition hover:bg-openfmv-accent-hover"><RotateCcw size={16} />{t('restart')}</button>
-          ) : timelineEffect ? (
-            null
           ) : (
-            <InteractionControls effects={effects} dispatch={dispatch} />
+            <ContinueControl effects={effects} dispatch={dispatch} />
           )}
         </div>
       </div>

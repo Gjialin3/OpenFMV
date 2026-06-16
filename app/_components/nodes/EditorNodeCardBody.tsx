@@ -7,10 +7,10 @@ import { ArrowRight, GitBranch, ImageIcon, ListTree, Music2, Video } from 'lucid
 import OpenFMVVideo from '../video/OpenFMVVideo';
 import { useProjectSessionStore } from '@/app/_features/project-session/store';
 import { compileNodeTimeline } from '../../_features/node-timeline/runtime';
-import { getTimelineClipLabel } from '../../_features/node-timeline/schema';
 import { useResolvedMediaSrc } from '../../_hooks/useResolvedMediaSrc';
-import { AppEdge, AppNode, InteractionRule, TimelineAction, TimelineInteractionClip, TimelineMediaClip } from '../../_types';
-import { getTimelineClipOutputHandleId } from '../../_utils/timelineOutputEdges';
+import { AppEdge, AppNode, TimelineMediaClip } from '../../_types';
+import { getTimelineDuration } from '../../_utils/graphRuntime';
+import { getNodeOutputs } from '../../_utils/timelineOutputEdges';
 import { CustomHandle } from './CustomHandle';
 import { useOpenNodeTimeline } from './OpenNodeTimelineButton';
 
@@ -37,17 +37,15 @@ const formatSeconds = (value: number) => {
 };
 
 export const getEditorNodeDurationLabel = (data: EditorNodeData) => {
-  const timelineDuration = Number(data.timeline?.duration);
-  const timeLimit = 'timeLimit' in data ? Number(data.timeLimit) : 0;
-  const duration = data.timeline && Number.isFinite(timelineDuration) && timelineDuration > 0 ? timelineDuration : timeLimit;
-  return duration > 0 ? `${formatSeconds(duration)}s` : null;
+  if (!data.timeline) return null;
+  const timelineDuration = getTimelineDuration({ id: 'duration-preview', type: data.type, position: { x: 0, y: 0 }, data } as AppNode);
+  return timelineDuration > 0 ? `${formatSeconds(timelineDuration)}s` : null;
 };
 
 const getNodeDisplayName = (node: AppNode | undefined, t: EditorTranslator) => {
   if (!node) return t('nodePreview.unlinked');
   if (node.data.type === 'start') return node.data.label || t('startNode');
   if (node.data.type === 'end') return node.data.label || t('endNode');
-  if (node.data.type === 'interaction') return node.data.title || node.data.prompt || t('nodeTypes.story.name');
   return node.data.title || t('nodeTypes.story.name');
 };
 
@@ -79,147 +77,28 @@ const getMediaSummary = (mediaClips: TimelineMediaClip[], t: EditorTranslator) =
   return t('nodePreview.noMedia');
 };
 
-const isGenericOptionLabel = (label: string) => /^option\s+\d+$/i.test(label.trim());
-
-const getGenericOptionIndex = (label: string, fallbackIndex: number) => {
-  const match = label.trim().match(/^option\s+(\d+)$/i);
-  return match ? Number(match[1]) : fallbackIndex;
-};
-
-const getRuleOutputLabel = (rule: InteractionRule, index: number, data: EditorNodeData, t: EditorTranslator) => {
-  const rawLabel = (rule.condition || rule.keyword || '').trim();
-  if (!rawLabel || isGenericOptionLabel(rawLabel)) {
-    return t('nodePreview.choiceResult', { index: getGenericOptionIndex(rawLabel, index + 1) });
-  }
-
-  if ((data.type === 'start' || data.type === 'interaction') && data.interactionMode === 'input') {
-    return t('nodePreview.inputMatched', { label: rawLabel });
-  }
-
-  return t('nodePreview.clicked', { label: rawLabel });
-};
-
-const getFallbackOutputLabel = (data: EditorNodeData, t: EditorTranslator) => {
-  if (data.type !== 'start' && data.type !== 'interaction') return t('nodePreview.fallback');
-  if (Number(data.timeLimit) > 0) return t('nodePreview.noAction');
-  if (data.interactionMode === 'input') return t('nodePreview.noMatch');
-
-  const customLabel = (data.elseLabel || '').trim();
-  if (customLabel && customLabel !== t('default') && customLabel !== t('defaultPath') && customLabel !== t('defaultPathShort')) return customLabel;
-  return t('nodePreview.fallback');
-};
-
-const getInteractionClipAction = (clip: TimelineInteractionClip): TimelineAction | undefined => {
-  return clip.action;
-};
-
-const getTimelineOutputLabel = (clip: TimelineInteractionClip, t: EditorTranslator) => t('nodePreview.clicked', { label: getTimelineClipLabel(clip) });
-const getTimelineFailureOutputLabel = (clip: TimelineInteractionClip, t: EditorTranslator) => `${getTimelineClipLabel(clip)}: ${t('nodePreview.fail')}`;
-
 const buildOutputRows = ({
-  data,
-  interactionClips,
+  node,
   nodesById,
   sourceEdges,
   t,
 }: {
-  data: EditorNodeData;
-  interactionClips: TimelineInteractionClip[];
+  node: AppNode;
   nodesById: Map<string, AppNode>;
   sourceEdges: AppEdge[];
   t: EditorTranslator;
 }) => {
-  const rows: EditorNodeOutputRow[] = [];
-  const usedHandles = new Set<string>();
-
-  const addRow = (row: EditorNodeOutputRow) => {
-    if (row.connectable) {
-      const handleKey = `handle:${row.handleId ?? '__default__'}`;
-      if (usedHandles.has(handleKey)) return;
-      usedHandles.add(handleKey);
-    }
-    rows.push(row);
-  };
-
-  const addActionRow = (
-    key: string,
-    label: string,
-    action?: TimelineAction,
-    options: { includeUnlinked?: boolean; handleId?: string | null; connectable?: boolean } = {}
-  ) => {
-    const rowHandleId = options.handleId ?? null;
-    const canConnectRow = Boolean(options.connectable && rowHandleId !== null);
-
-    if (!action || action.type === 'continue') {
-      if (options.includeUnlinked) {
-        addRow({ key, label, targetLabel: t('nodePreview.unlinked'), handleId: rowHandleId, connectable: canConnectRow, unlinked: true });
-      }
-      return;
-    }
-
-    if (action.type === 'pause') {
-      addRow({ key, label, targetLabel: t('nodePreview.pause'), handleId: rowHandleId, connectable: false, unlinked: false });
-      return;
-    }
-
-    if (action.type === 'goToNode') {
-      const targetLabel = action.nodeId ? getNodeDisplayName(nodesById.get(action.nodeId), t) : t('nodePreview.unlinked');
-      addRow({ key, label, targetLabel, handleId: rowHandleId, connectable: canConnectRow, unlinked: !action.nodeId });
-      return;
-    }
-
-    const targetHandleId = action.handleId ?? null;
-    const targetLabel = getSourceTargetLabel({ handleId: targetHandleId, nodesById, sourceEdges, t });
-    addRow({ key, label, targetLabel, handleId: rowHandleId ?? targetHandleId, connectable: true, unlinked: targetLabel === t('nodePreview.unlinked') });
-  };
-
-  interactionClips.forEach((clip) => {
-    addActionRow(`clip:${clip.id}`, getTimelineOutputLabel(clip, t), getInteractionClipAction(clip), {
-      includeUnlinked: true,
-      handleId: getTimelineClipOutputHandleId(clip.id),
+  return getNodeOutputs(node).map((output) => {
+    const targetLabel = getSourceTargetLabel({ handleId: output.id, nodesById, sourceEdges, t });
+    return {
+      key: output.id,
+      label: output.kind === 'default' ? t('nodePreview.continue') : output.label,
+      targetLabel,
+      handleId: output.id,
       connectable: true,
-    });
-    if (clip.timeoutAction) {
-      addActionRow(`clip:${clip.id}:timeout`, getTimelineFailureOutputLabel(clip, t), clip.timeoutAction, {
-        includeUnlinked: true,
-        handleId: getTimelineClipOutputHandleId(clip.id, 'timeout'),
-        connectable: true,
-      });
-    }
+      unlinked: targetLabel === t('nodePreview.unlinked'),
+    };
   });
-
-  if ((data.type === 'start' || data.type === 'interaction') && rows.length > 0) return rows;
-
-  if (data.type === 'story') {
-    const targetLabel = getSourceTargetLabel({ handleId: null, nodesById, sourceEdges, t });
-    addRow({ key: 'story:continue', label: t('nodePreview.continue'), targetLabel, handleId: null, connectable: true, unlinked: targetLabel === t('nodePreview.unlinked') });
-    return rows;
-  }
-
-  if (data.type !== 'start' && data.type !== 'interaction') return rows;
-
-  (data.rules || [])
-    .filter((rule) => rule.handleId !== 'else')
-    .forEach((rule, index) => {
-      const targetLabel = getSourceTargetLabel({ handleId: rule.handleId, nodesById, sourceEdges, t });
-      addRow({
-        key: `rule:${rule.id}`,
-        label: getRuleOutputLabel(rule, index, data, t),
-        targetLabel,
-        handleId: rule.handleId,
-        connectable: true,
-        unlinked: targetLabel === t('nodePreview.unlinked'),
-      });
-    });
-
-  if (data.interactionMode === 'slider') {
-    const targetLabel = getSourceTargetLabel({ handleId: 'slider', nodesById, sourceEdges, t });
-    addRow({ key: 'slider', label: t('nodePreview.sliderSucceeded', { label: data.sliderConfig?.label || t('sliderMode') }), targetLabel, handleId: 'slider', connectable: true, unlinked: targetLabel === t('nodePreview.unlinked') });
-  }
-
-  const targetLabel = getSourceTargetLabel({ handleId: 'else', nodesById, sourceEdges, t });
-  addRow({ key: 'default', label: getFallbackOutputLabel(data, t), targetLabel, handleId: 'else', connectable: true, unlinked: targetLabel === t('nodePreview.unlinked') });
-  return rows;
 };
 
 const MediaPreview = ({ clip }: { clip: TimelineMediaClip | null }) => {
@@ -291,12 +170,12 @@ const EditorNodeCardBody = ({ nodeId, data }: EditorNodeCardBodyProps) => {
   const nodes = useProjectSessionStore((state) => state.nodes);
   const edges = useProjectSessionStore((state) => state.edges);
   const compiledTimeline = useMemo(() => compileNodeTimeline(data.timeline), [data.timeline]);
+  const node = useMemo(() => ({ id: nodeId, type: data.type, position: { x: 0, y: 0 }, data }) as AppNode, [data, nodeId]);
   const nodesById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
   const sourceEdges = useMemo(() => edges.filter((edge) => edge.source === nodeId), [edges, nodeId]);
   const openNodeTimeline = useOpenNodeTimeline(nodeId);
   const outputRows = buildOutputRows({
-    data,
-    interactionClips: compiledTimeline.interactionClips,
+    node,
     nodesById,
     sourceEdges,
     t,

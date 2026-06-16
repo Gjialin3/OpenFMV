@@ -166,6 +166,10 @@
         "name": "シーン",
         "description": "再生メディアとインタラクション"
       },
+      "scene": {
+        "name": "シーン",
+        "description": "再生メディアとインタラクション"
+      },
       "interaction": {
         "name": "旧インタラクションノード",
         "description": "旧プロジェクト互換ノード"

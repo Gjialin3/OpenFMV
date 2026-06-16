@@ -166,6 +166,10 @@
         "name": "장면",
         "description": "재생 미디어와 인터랙션"
       },
+      "scene": {
+        "name": "장면",
+        "description": "재생 미디어와 인터랙션"
+      },
       "interaction": {
         "name": "레거시 인터랙션 노드",
         "description": "이전 프로젝트 호환 노드"

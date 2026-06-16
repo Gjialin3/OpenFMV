@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { AppEdge, AppNode, NodeTimeline, OpenFMVGraph, TimelineAction } from '@/app/_types';
+import { AppEdge, AppNode, NodeTimeline, OpenFMVGraph } from '@/app/_types';
 import {
   addTimelineTrack,
   buildAudioWaveformPeaks,
@@ -66,7 +66,8 @@ import {
   updateTimelineClipRect,
   updateTimelineTrack,
 } from '@/app/_features/node-timeline';
-import { buildNodeEffects, compileNodeTimeline, createRuntime, getActiveTimelineClips, getActiveTimelineMediaClips } from '@/app/_utils/graphRuntime';
+import { buildNodeEffects, compileNodeTimeline, createRuntime, getActiveTimelineClips, getActiveTimelineMediaClips, getTimelineClipRuntimeEndTime, getTimelineDuration } from '@/app/_utils/graphRuntime';
+import { getTimelineClipOutputHandleId } from '@/app/_utils/timelineOutputEdges';
 
 vi.stubGlobal('crypto', {
   randomUUID: vi.fn(() => `id-${Math.random().toString(36).slice(2)}`),
@@ -95,7 +96,7 @@ describe('NodeTimeline v2', () => {
     expect(buttonClip.mode).toBeUndefined();
     expect(buttonClip.qte).toBeUndefined();
     expect(buttonClip.label).toBe('New choice');
-    expect(buttonClip.action).toEqual({ type: 'continue' });
+    expect(buttonClip).not.toHaveProperty('action');
   });
 
   it('normalizes QTE button clips while keeping old buttons compatible', () => {
@@ -117,7 +118,7 @@ describe('NodeTimeline v2', () => {
               enabled: true,
               label: 'Old button',
               rect: { x: 0.1, y: 0.2, width: 0.3, height: 0.1 },
-              action: { type: 'continue' },
+              pauseOnShow: false,
             },
             {
               id: 'space-qte',
@@ -128,7 +129,6 @@ describe('NodeTimeline v2', () => {
               enabled: true,
               label: 'Dodge',
               rect: { x: 0.2, y: 0.3, width: 0.2, height: 0.1 },
-              action: { type: 'continue' },
               pauseOnShow: true,
               qte: { input: 'space' },
             },
@@ -168,7 +168,7 @@ describe('NodeTimeline v2', () => {
               enabled: true,
               label: 'Styled',
               rect: { x: 0.1, y: 0.2, width: 0.3, height: 0.1 },
-              action: { type: 'continue' },
+              pauseOnShow: false,
               style: {
                 preset: 'glass',
                 shape: 'pill',
@@ -189,7 +189,7 @@ describe('NodeTimeline v2', () => {
               enabled: true,
               label: 'Old',
               rect: { x: 0.2, y: 0.3, width: 0.2, height: 0.1 },
-              action: { type: 'continue' },
+              pauseOnShow: false,
             },
           ],
         },
@@ -247,17 +247,17 @@ describe('NodeTimeline v2', () => {
           name: 'Interaction',
           clips: [
             buttonClip,
-            { id: 'legacy-hotspot', type: 'hotspot', startTime: 1, duration: 1, enabled: true, rect: { x: 0, y: 0, width: 0.2, height: 0.2 }, action: { type: 'continue' } },
-            { id: 'legacy-pause', type: 'pauseGate', startTime: 2, duration: 1, enabled: true, label: 'Continue', action: { type: 'continue' } },
+            { id: 'legacy-hotspot', type: 'hotspot', startTime: 1, duration: 1, enabled: true, rect: { x: 0, y: 0, width: 0.2, height: 0.2 } },
+            { id: 'legacy-pause', type: 'pauseGate', startTime: 2, duration: 1, enabled: true, label: 'Continue' },
             { id: 'legacy-text', type: 'text', startTime: 3, duration: 1, enabled: true, text: 'Title' },
-            { id: 'legacy-branch', type: 'branch', startTime: 4, duration: 1, enabled: true, action: { type: 'continue' } },
-            { id: 'legacy-variable', type: 'variable', startTime: 5, duration: 1, enabled: true, action: { type: 'continue' } },
+            { id: 'legacy-branch', type: 'branch', startTime: 4, duration: 1, enabled: true },
+            { id: 'legacy-variable', type: 'variable', startTime: 5, duration: 1, enabled: true },
           ],
         },
       ],
     } as unknown as NodeTimeline;
     const normalized = ensureNodeTimeline(timeline);
-    const story = node('story', 'story', { type: 'story', title: 'Story', content: '', timeline: normalized });
+    const story = node('story', 'scene', { type: 'scene', title: 'Story', bodyText: '', timeline: normalized });
 
     expect(normalized.tracks.flatMap((track) => track.clips.map((clip) => clip.id))).toEqual([buttonClip.id]);
     expect(compileNodeTimeline(story).interactionClips.map((clip) => clip.id)).toEqual([buttonClip.id]);
@@ -274,7 +274,7 @@ describe('NodeTimeline v2', () => {
     timeline = insertTimelineClip({ timeline, clip: secondMedia });
     timeline = insertTimelineClip({ timeline, clip: firstButton });
     timeline = insertTimelineClip({ timeline, clip: secondButton });
-    const story = node('story', 'story', { type: 'story', title: 'Story', content: '', timeline });
+    const story = node('story', 'scene', { type: 'scene', title: 'Story', bodyText: '', timeline });
 
     expect(getActiveTimelineMediaClips(story, 2).map((clip) => clip.id)).toEqual([secondMedia.id]);
     expect(getActiveTimelineClips(story, 3).map((clip) => clip.id)).toEqual([secondButton.id]);
@@ -696,10 +696,7 @@ describe('NodeTimeline v2', () => {
       startTime: 0,
       duration: 8,
     });
-    const buttonClip = {
-      ...createInteractionClip('button', 2, 12),
-      action: { type: 'goToNode', nodeId: 'next' } satisfies TimelineAction,
-    };
+    const buttonClip = createInteractionClip('button', 2, 12);
 
     const withMedia = insertTimelineClip({ timeline: ensureNodeTimeline(), clip: mediaClip });
     const timeline = insertTimelineClip({ timeline: withMedia, clip: buttonClip });
@@ -1448,10 +1445,10 @@ describe('NodeTimeline v2', () => {
         sourceDuration: 6,
       },
     });
-    const story = node('story', 'story', {
-      type: 'story',
+    const story = node('story', 'scene', {
+      type: 'scene',
       title: 'Story',
-      content: '',
+      bodyText: '',
       timeline,
     });
 
@@ -1483,7 +1480,7 @@ describe('NodeTimeline v2', () => {
     timeline = upsertTimelineClipKeyframe({ timeline, clipId: buttonClip.id, property: 'rotation', time: 4, value: 90 });
     timeline = upsertTimelineClipKeyframe({ timeline, clipId: buttonClip.id, property: 'y', time: 0, value: 0.2 });
     timeline = upsertTimelineClipKeyframe({ timeline, clipId: buttonClip.id, property: 'y', time: 4, value: 0.4 });
-    const story = node('story', 'story', { type: 'story', title: 'Story', content: '', timeline });
+    const story = node('story', 'scene', { type: 'scene', title: 'Story', bodyText: '', timeline });
 
     const effects = buildNodeEffects(story, [], 2);
     expect(effects).toContainEqual(expect.objectContaining({
@@ -1528,10 +1525,10 @@ describe('NodeTimeline v2', () => {
       { startTime: 5, duration: 6, sourceStart: 5 },
     ]);
 
-    const story = node('story', 'story', {
-      type: 'story',
+    const story = node('story', 'scene', {
+      type: 'scene',
       title: 'Story',
-      content: '',
+      bodyText: '',
       timeline: result.timeline,
     });
     const effects = buildNodeEffects(story, [], 3.5);
@@ -1558,10 +1555,10 @@ describe('NodeTimeline v2', () => {
     };
     let timeline = insertTimelineClip({ timeline: ensureNodeTimeline(), clip: mainClip });
     timeline = insertTimelineClip({ timeline, clip: overlayClip });
-    const story = node('story', 'story', {
-      type: 'story',
+    const story = node('story', 'scene', {
+      type: 'scene',
       title: 'Story',
-      content: '',
+      bodyText: '',
       timeline,
     });
 
@@ -1584,10 +1581,10 @@ describe('NodeTimeline v2', () => {
     };
     let timeline = insertTimelineClip({ timeline: ensureNodeTimeline(), clip: voiceClip });
     timeline = insertTimelineClip({ timeline, clip: musicClip });
-    const story = node('story', 'story', {
-      type: 'story',
+    const story = node('story', 'scene', {
+      type: 'scene',
       title: 'Story',
-      content: '',
+      bodyText: '',
       timeline,
     });
 
@@ -1611,10 +1608,10 @@ describe('NodeTimeline v2', () => {
     };
     let timeline = insertTimelineClip({ timeline: ensureNodeTimeline(), clip: loudClip });
     timeline = insertTimelineClip({ timeline, clip: silentClip });
-    const story = node('story', 'story', {
-      type: 'story',
+    const story = node('story', 'scene', {
+      type: 'scene',
       title: 'Story',
-      content: '',
+      bodyText: '',
       timeline,
     });
 
@@ -1657,10 +1654,10 @@ describe('NodeTimeline v2', () => {
       preservePitch: false,
     });
 
-    const story = node('story', 'story', {
-      type: 'story',
+    const story = node('story', 'scene', {
+      type: 'scene',
       title: 'Story',
-      content: '',
+      bodyText: '',
       timeline: separated.timeline,
     });
     const effects = buildNodeEffects(story, [], 2);
@@ -1680,7 +1677,6 @@ describe('NodeTimeline v2', () => {
     const buttonClip = {
       ...createInteractionClip('button', 1, 8),
       enabled: false,
-      action: { type: 'goToNode', nodeId: 'next' } satisfies TimelineAction,
     };
     const timeline = insertTimelineClip({
       timeline: insertTimelineClip({
@@ -1689,10 +1685,10 @@ describe('NodeTimeline v2', () => {
       }),
       clip: buttonClip,
     });
-    const story = node('story', 'story', {
-      type: 'story',
+    const story = node('story', 'scene', {
+      type: 'scene',
       title: 'Story',
-      content: '',
+      bodyText: '',
       timeline,
     });
 
@@ -1703,7 +1699,7 @@ describe('NodeTimeline v2', () => {
     expect(findTimelineClip(timeline, buttonClip.id)?.clip.enabled).toBe(false);
     expect(compiled.mediaClips).toEqual([]);
     expect(compiled.interactionClips).toEqual([]);
-    expect(effects).toContainEqual(expect.objectContaining({ type: 'timelinePlayback', nodeId: 'story' }));
+    expect(effects).not.toContainEqual(expect.objectContaining({ type: 'timelinePlayback' }));
     expect(effects).not.toContainEqual(expect.objectContaining({ type: 'playMedia' }));
     expect(effects).not.toContainEqual(expect.objectContaining({ type: 'timelineOverlay' }));
   });
@@ -1738,10 +1734,10 @@ describe('NodeTimeline v2', () => {
     timeline = updateTimelineTrack({ timeline, trackId: mediaTracks[1].id, patch: { locked: true } });
 
     const hidden = setTimelineClipsHidden({ timeline, clipIds: [mediaClip.id, lockedClip.id, buttonClip.id], hidden: true });
-    const story = node('story', 'story', {
-      type: 'story',
+    const story = node('story', 'scene', {
+      type: 'scene',
       title: 'Story',
-      content: '',
+      bodyText: '',
       timeline: hidden,
     });
 
@@ -1767,10 +1763,10 @@ describe('NodeTimeline v2', () => {
     timeline = updateTimelineTrack({ timeline, trackId: lockedAudioTrackId, patch: { locked: true } });
 
     const muted = setTimelineClipsMuted({ timeline, clipIds: [videoClip.id, lockedAudioClip.id, imageClip.id], muted: true });
-    const story = node('story', 'story', {
-      type: 'story',
+    const story = node('story', 'scene', {
+      type: 'scene',
       title: 'Story',
-      content: '',
+      bodyText: '',
       timeline: muted,
     });
 
@@ -1902,12 +1898,11 @@ describe('NodeTimeline v2', () => {
     expect(findTimelineClip(moved, unrelated.id)?.clip.startTime).toBe(5);
   });
 
-  it('routes timeline button actions through the runtime dispatch loop', () => {
+  it('routes timeline button outputs through the runtime dispatch loop', () => {
     const buttonClip = {
       ...createInteractionClip('button', 1, 8),
       opacity: 0.5,
       rotation: -12,
-      action: { type: 'goToNode', nodeId: 'next' } satisfies TimelineAction,
     };
     const timeline = insertTimelineClip({
       timeline: insertTimelineClip({
@@ -1919,9 +1914,16 @@ describe('NodeTimeline v2', () => {
     const graph: OpenFMVGraph = {
       nodes: [
         node('start', 'start', { type: 'start', label: 'Start', timeline }),
-        node('next', 'story', { type: 'story', title: 'Next', content: '' }),
+        node('next', 'scene', { type: 'scene', title: 'Next', bodyText: '' }),
       ],
-      edges: [] as AppEdge[],
+      edges: [
+        {
+          id: 'button-edge',
+          source: 'start',
+          sourceHandle: getTimelineClipOutputHandleId(buttonClip.id),
+          target: 'next',
+        },
+      ] as AppEdge[],
     };
     const runtime = createRuntime(graph, { entryNodeId: 'start' });
 
@@ -1951,15 +1953,15 @@ describe('NodeTimeline v2', () => {
       }),
       clip: audioClip,
     });
-    const story = node('story', 'story', {
-      type: 'story',
+    const story = node('story', 'scene', {
+      type: 'scene',
       title: 'Story',
-      content: '',
+      bodyText: '',
       timeline,
     });
 
     const initialEffects = buildNodeEffects(story, [], 0);
-    expect(initialEffects).toContainEqual(expect.objectContaining({ type: 'timelinePlayback', nodeId: 'story', duration: timeline.duration }));
+    expect(initialEffects).toContainEqual(expect.objectContaining({ type: 'timelinePlayback', nodeId: 'story', duration: 5 }));
     expect(initialEffects).toContainEqual(expect.objectContaining({ type: 'playMedia', mediaType: 'video', src: 'assets/intro.mp4' }));
 
     const duringAudio = buildNodeEffects(story, [], 1);
@@ -1972,6 +1974,44 @@ describe('NodeTimeline v2', () => {
     expect(afterCut).not.toContainEqual(expect.objectContaining({ type: 'playMedia', mediaType: 'video', src: 'assets/intro.mp4' }));
   });
 
+  it('uses media source end instead of editor default duration for runtime completion', () => {
+    const shortVideoClip = createMediaClip({
+      type: 'video',
+      src: 'assets/short.mp4',
+      startTime: 0,
+      duration: 24,
+      sourceDuration: 7.06,
+    });
+    const timeline = insertTimelineClip({
+      timeline: ensureNodeTimeline(),
+      clip: shortVideoClip,
+    });
+    const graph: OpenFMVGraph = {
+      nodes: [
+        node('story', 'scene', { type: 'scene', title: 'Story', bodyText: '', timeline }),
+        node('next', 'scene', { type: 'scene', title: 'Next', bodyText: '' }),
+      ],
+      edges: [{ id: 'edge', source: 'story', sourceHandle: 'node:default', target: 'next' }] as AppEdge[],
+    };
+    const runtime = createRuntime(graph, { entryNodeId: 'story' });
+
+    expect(timeline.duration).toBe(24);
+    expect(getTimelineClipRuntimeEndTime(shortVideoClip)).toBe(7.06);
+    expect(getTimelineDuration(graph.nodes[0])).toBe(7.06);
+
+    const start = runtime.start();
+    expect(start.effects).toContainEqual(expect.objectContaining({ type: 'timelinePlayback', nodeId: 'story', duration: 7.06 }));
+    expect(start.effects).not.toContainEqual(expect.objectContaining({ type: 'showContinue' }));
+
+    const beforeSourceEnds = runtime.dispatch({ type: 'timeline.time.update', time: 7.05 });
+    expect(beforeSourceEnds.effects).not.toContainEqual(expect.objectContaining({ type: 'showContinue' }));
+
+    const completed = runtime.dispatch({ type: 'timeline.time.update', time: 24 });
+    expect(completed.timelineTime).toBe(7.06);
+    expect(completed.effects).toContainEqual(expect.objectContaining({ type: 'autoNavigate', targetNodeId: 'next' }));
+    expect(completed.effects).not.toContainEqual(expect.objectContaining({ type: 'showContinue' }));
+  });
+
   it('advances pure media timelines without requiring interaction overlays', () => {
     const timeline = insertTimelineClip({
       timeline: insertTimelineClip({
@@ -1982,10 +2022,10 @@ describe('NodeTimeline v2', () => {
     });
     const graph: OpenFMVGraph = {
       nodes: [
-        node('story', 'story', { type: 'story', title: 'Story', content: '', timeline }),
-        node('next', 'story', { type: 'story', title: 'Next', content: '' }),
+        node('story', 'scene', { type: 'scene', title: 'Story', bodyText: '', timeline }),
+        node('next', 'scene', { type: 'scene', title: 'Next', bodyText: '' }),
       ],
-      edges: [{ id: 'edge', source: 'story', target: 'next' }] as AppEdge[],
+      edges: [{ id: 'edge', source: 'story', sourceHandle: 'node:default', target: 'next' }] as AppEdge[],
     };
     const runtime = createRuntime(graph, { entryNodeId: 'story' });
 
@@ -2002,17 +2042,16 @@ describe('NodeTimeline v2', () => {
 
     const completed = runtime.dispatch({ type: 'timeline.time.update', time: 5 });
     expect(completed.timelineTime).toBe(5);
-    expect(completed.effects).toContainEqual(expect.objectContaining({ type: 'showContinue' }));
-    const continued = runtime.dispatch({ type: 'continue' });
-    expect(continued.currentNodeId).toBe('next');
-    expect(continued.timelineTime).toBe(0);
+    expect(completed.effects).toContainEqual(expect.objectContaining({ type: 'autoNavigate', targetNodeId: 'next' }));
+    expect(completed.effects).not.toContainEqual(expect.objectContaining({ type: 'showContinue' }));
+
+    const advanced = runtime.dispatch({ type: 'navigate', nodeId: 'next' });
+    expect(advanced.currentNodeId).toBe('next');
+    expect(advanced.timelineTime).toBe(0);
   });
 
   it('uses runtime timeline time for image timeline interaction playback', () => {
-    const buttonClip = {
-      ...createInteractionClip('button', 1, 6),
-      action: { type: 'goToNode', nodeId: 'next' } satisfies TimelineAction,
-    };
+    const buttonClip = createInteractionClip('button', 1, 6);
     const timeline = insertTimelineClip({
       timeline: insertTimelineClip({
         timeline: ensureNodeTimeline(),
@@ -2023,9 +2062,16 @@ describe('NodeTimeline v2', () => {
     const graph: OpenFMVGraph = {
       nodes: [
         node('start', 'start', { type: 'start', label: 'Start', timeline }),
-        node('next', 'story', { type: 'story', title: 'Next', content: '' }),
+        node('next', 'scene', { type: 'scene', title: 'Next', bodyText: '' }),
       ],
-      edges: [] as AppEdge[],
+      edges: [
+        {
+          id: 'button-edge',
+          source: 'start',
+          sourceHandle: getTimelineClipOutputHandleId(buttonClip.id),
+          target: 'next',
+        },
+      ] as AppEdge[],
     };
     const runtime = createRuntime(graph, { entryNodeId: 'start' });
 
@@ -2046,8 +2092,6 @@ describe('NodeTimeline v2', () => {
     const buttonClip = {
       ...createInteractionClip('button', 1, 4),
       duration: 2,
-      action: { type: 'goToNode', nodeId: 'next' } satisfies TimelineAction,
-      timeoutAction: { type: 'goToNode', nodeId: 'timeout' } satisfies TimelineAction,
     };
     const timeline = insertTimelineClip({
       timeline: ensureNodeTimeline({ duration: 6 }),
@@ -2056,10 +2100,23 @@ describe('NodeTimeline v2', () => {
     const graph: OpenFMVGraph = {
       nodes: [
         node('start', 'start', { type: 'start', label: 'Start', timeline }),
-        node('next', 'story', { type: 'story', title: 'Next', content: '' }),
-        node('timeout', 'story', { type: 'story', title: 'Timeout', content: '' }),
+        node('next', 'scene', { type: 'scene', title: 'Next', bodyText: '' }),
+        node('timeout', 'scene', { type: 'scene', title: 'Timeout', bodyText: '' }),
       ],
-      edges: [] as AppEdge[],
+      edges: [
+        {
+          id: 'button-edge',
+          source: 'start',
+          sourceHandle: getTimelineClipOutputHandleId(buttonClip.id),
+          target: 'next',
+        },
+        {
+          id: 'timeout-edge',
+          source: 'start',
+          sourceHandle: getTimelineClipOutputHandleId(buttonClip.id, 'timeout'),
+          target: 'timeout',
+        },
+      ] as AppEdge[],
     };
 
     let runtime = createRuntime(graph, { entryNodeId: 'start' });
@@ -2082,7 +2139,7 @@ describe('NodeTimeline v2', () => {
     const lateTrigger = runtime.dispatch({ type: 'timeline.clip.triggered', clipId: buttonClip.id });
     expect(lateTrigger.currentNodeId).toBe('start');
     const timeout = runtime.dispatch({ type: 'timeline.clip.timeout', clipId: buttonClip.id });
-    expect(timeout.currentNodeId).toBe('timeout');
+    expect(timeout.currentNodeId).toBe('start');
   });
 
   it('allows QTE timeouts while the active clip is paused before its timeline end', () => {
@@ -2092,8 +2149,6 @@ describe('NodeTimeline v2', () => {
       duration: 2,
       pauseOnShow: true,
       qte: { input: 'space' as const, keyLabel: 'Space', showCountdown: true },
-      action: { type: 'goToNode', nodeId: 'success' } satisfies TimelineAction,
-      timeoutAction: { type: 'goToNode', nodeId: 'timeout' } satisfies TimelineAction,
     };
     const timeline = insertTimelineClip({
       timeline: ensureNodeTimeline({ duration: 6 }),
@@ -2102,10 +2157,23 @@ describe('NodeTimeline v2', () => {
     const graph: OpenFMVGraph = {
       nodes: [
         node('start', 'start', { type: 'start', label: 'Start', timeline }),
-        node('success', 'story', { type: 'story', title: 'Success', content: '' }),
-        node('timeout', 'story', { type: 'story', title: 'Timeout', content: '' }),
+        node('success', 'scene', { type: 'scene', title: 'Success', bodyText: '' }),
+        node('timeout', 'scene', { type: 'scene', title: 'Timeout', bodyText: '' }),
       ],
-      edges: [] as AppEdge[],
+      edges: [
+        {
+          id: 'success-edge',
+          source: 'start',
+          sourceHandle: getTimelineClipOutputHandleId(qteClip.id),
+          target: 'success',
+        },
+        {
+          id: 'timeout-edge',
+          source: 'start',
+          sourceHandle: getTimelineClipOutputHandleId(qteClip.id, 'timeout'),
+          target: 'timeout',
+        },
+      ] as AppEdge[],
     };
 
     let runtime = createRuntime(graph, { entryNodeId: 'start' });
@@ -2128,14 +2196,12 @@ describe('NodeTimeline v2', () => {
     expect(success.timelineTime).toBe(0);
   });
 
-  it('keeps the current runtime position when a timeline action pauses', () => {
+  it('keeps the current runtime position when a button output is unconnected', () => {
     const qteClip = {
       ...createInteractionClip('button', 1, 6),
       mode: 'qte' as const,
       duration: 2,
       qte: { input: 'click' as const, clickCount: 1, showCountdown: true },
-      action: { type: 'pause' } satisfies TimelineAction,
-      timeoutAction: { type: 'pause' } satisfies TimelineAction,
     };
     const timeline = insertTimelineClip({
       timeline: ensureNodeTimeline({ duration: 6 }),
@@ -2144,7 +2210,7 @@ describe('NodeTimeline v2', () => {
     const graph: OpenFMVGraph = {
       nodes: [
         node('start', 'start', { type: 'start', label: 'Start', timeline }),
-        node('next', 'story', { type: 'story', title: 'Next', content: '' }),
+        node('next', 'scene', { type: 'scene', title: 'Next', bodyText: '' }),
       ],
       edges: [] as AppEdge[],
     };
@@ -2152,17 +2218,14 @@ describe('NodeTimeline v2', () => {
 
     runtime.start();
     runtime.dispatch({ type: 'timeline.time.update', time: 1.25 });
-    const paused = runtime.dispatch({ type: 'timeline.clip.triggered', clipId: qteClip.id });
+    const unchanged = runtime.dispatch({ type: 'timeline.clip.triggered', clipId: qteClip.id });
 
-    expect(paused.currentNodeId).toBe('start');
-    expect(paused.timelineTime).toBe(1.25);
+    expect(unchanged.currentNodeId).toBe('start');
+    expect(unchanged.timelineTime).toBe(1.25);
   });
 
   it('omits hidden tracks from runtime media and interaction overlays', () => {
-    const buttonClip = {
-      ...createInteractionClip('button', 1, 8),
-      action: { type: 'goToNode', nodeId: 'next' } satisfies TimelineAction,
-    };
+    const buttonClip = createInteractionClip('button', 1, 8);
     let timeline = insertTimelineClip({
       timeline: insertTimelineClip({
         timeline: ensureNodeTimeline(),
@@ -2174,10 +2237,10 @@ describe('NodeTimeline v2', () => {
     const interactionTrackId = timeline.tracks.find((track) => track.type === 'interaction')?.id as string;
     timeline = updateTimelineTrack({ timeline, trackId: mediaTrackId, patch: { hidden: true } });
     timeline = updateTimelineTrack({ timeline, trackId: interactionTrackId, patch: { hidden: true } });
-    const story = node('story', 'story', {
-      type: 'story',
+    const story = node('story', 'scene', {
+      type: 'scene',
       title: 'Story',
-      content: '',
+      bodyText: '',
       timeline,
     });
 
@@ -2197,10 +2260,10 @@ describe('NodeTimeline v2', () => {
     });
     const mediaTrackId = timeline.tracks.find((track) => track.type === 'media')?.id as string;
     timeline = updateTimelineTrack({ timeline, trackId: mediaTrackId, patch: { muted: true } });
-    const story = node('story', 'story', {
-      type: 'story',
+    const story = node('story', 'scene', {
+      type: 'scene',
       title: 'Story',
-      content: '',
+      bodyText: '',
       timeline,
     });
 

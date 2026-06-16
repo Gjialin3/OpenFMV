@@ -14,9 +14,14 @@ export const defaultGraphData = (): OpenFMVGraph => ({
   edges: [],
 });
 
+const isSupportedNode = (node: AppNode | null | undefined): node is AppNode => (
+  node?.type === 'start' || node?.type === 'scene' || node?.type === 'end'
+);
+
 export const ensureGraphData = (graphData?: Partial<OpenFMVGraph> | null): OpenFMVGraph => {
   const fallback = defaultGraphData();
-  const nodes = Array.isArray(graphData?.nodes) && graphData.nodes.length > 0 ? graphData.nodes : fallback.nodes;
+  const sourceNodes = Array.isArray(graphData?.nodes) ? graphData.nodes.filter(isSupportedNode) : [];
+  const nodes = sourceNodes.length > 0 ? sourceNodes : fallback.nodes;
   const nodeIds = new Set(nodes.map((node) => node.id));
   const edges = Array.isArray(graphData?.edges)
     ? graphData.edges.filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target) && edge.source !== edge.target)

@@ -1,6 +1,6 @@
 import { Node, Edge } from '@xyflow/react';
 
-export type NodeType = 'start' | 'end' | 'story' | 'interaction';
+export type NodeType = 'start' | 'scene' | 'end';
 
 export interface OpenFMVGraph {
   nodes: AppNode[];
@@ -203,12 +203,6 @@ export interface OverlayRect {
   height: number;
 }
 
-export interface TimelineAction {
-  type: 'goToHandle' | 'goToNode' | 'continue' | 'pause';
-  handleId?: string | null;
-  nodeId?: string | null;
-}
-
 export interface TimelineMediaClip extends BaseTimelineClip {
   type: TimelineMediaClipType;
   src: string;
@@ -251,34 +245,16 @@ export interface ButtonChoiceClip extends BaseTimelineClip {
   mode?: ButtonMode;
   label: string;
   rect: OverlayRect;
-  action: TimelineAction;
   pauseOnShow: boolean;
-  timeoutAction?: TimelineAction;
   qte?: ButtonQteConfig;
   style?: ButtonStyleConfig;
 }
 
 export type TimelineInteractionClip = ButtonChoiceClip;
 
-export type NodeData = 
-  | { type: 'story'; title: string; content: string; fullText?: string; timeline?: NodeTimeline }
-  | { type: 'interaction'; title?: string; rules: InteractionRule[]; elseLabel?: string; prompt?: string; buttonText?: string; interactionMode?: InteractionMode; sliderConfig?: SliderConfig; content?: string; fullText?: string; timeLimit?: number; timeline?: NodeTimeline }
-  | { type: 'start'; label?: string; content?: string; fullText?: string; rules?: InteractionRule[]; elseLabel?: string; prompt?: string; buttonText?: string; interactionMode?: InteractionMode; sliderConfig?: SliderConfig; timeLimit?: number; timeline?: NodeTimeline }
-  | { type: 'end'; label?: string; content?: string; fullText?: string; timeline?: NodeTimeline };
-
-export interface InteractionRule {
-  id: string;
-  keyword: string;
-  condition?: string;
-  handleId: string;
-  generated?: boolean;
-  style?: 'aggressive' | 'defensive' | 'clever' | 'neutral';
-}
+export type NodeData =
+  | { type: 'start'; label?: string; title?: string; bodyText?: string; timeline?: NodeTimeline }
+  | { type: 'scene'; title: string; bodyText?: string; timeline?: NodeTimeline }
+  | { type: 'end'; label?: string; title?: string; bodyText?: string; timeline?: NodeTimeline };
 
 export type AppEdge = Edge;
-
-export type InteractionMode = 'choice' | 'input' | 'slider';
-
-export interface SliderConfig {
-  label?: string;
-}

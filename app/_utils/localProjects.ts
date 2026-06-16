@@ -5,6 +5,7 @@ import {
   ensureGraphData as normalizeGraphData,
 } from './projectPersistence';
 import { classifyAssetSource } from './assetPaths';
+import { getAssetIdentityKeys } from './assetIdentity';
 import { saveBrowserAssetFile } from './browserAssets';
 import { resolveMediaSrc } from './mediaSrc';
 import { decodeTextBuffer } from './textEncoding';
@@ -390,20 +391,16 @@ export const saveLocalProject = async (project: OpenFMVProject): Promise<OpenFMV
   return nextProject;
 };
 
-const getAssetKeys = (asset: OpenFMVAsset) => {
-  return [asset.id, asset.path, asset.relativePath].filter((value): value is string => Boolean(value));
-};
-
 export const addAssetsToLocalProject = async (projectId: string | null | undefined, assets: OpenFMVAsset | OpenFMVAsset[]) => {
   const project = getStoredLocalProject(projectId);
   if (!project) return null;
 
   const importedAssets = Array.isArray(assets) ? assets : [assets];
-  const existingKeys = new Set(project.assets.flatMap(getAssetKeys));
+  const existingKeys = new Set(project.assets.flatMap(getAssetIdentityKeys));
   const nextAssets: OpenFMVAsset[] = [];
 
   for (const asset of importedAssets) {
-    const keys = getAssetKeys(asset);
+    const keys = getAssetIdentityKeys(asset);
     if (keys.some((key) => existingKeys.has(key))) continue;
     keys.forEach((key) => existingKeys.add(key));
     nextAssets.push(asset);

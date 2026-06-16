@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { AppNode, NodeTimeline, OpenFMVProject } from '@/app/_types';
+import { AppEdge, AppNode, NodeTimeline, OpenFMVProject } from '@/app/_types';
 import { getTimelineClipOutputHandleId } from '@/app/_utils/timelineOutputEdges';
 import { createProjectSessionStateCreator, ProjectSessionRepository, ProjectSessionState } from '@/app/_features/project-session/store';
 
@@ -14,19 +14,19 @@ const startNode: AppNode = {
 
 const storyNode: AppNode = {
   id: 'story',
-  type: 'story',
+  type: 'scene',
   position: { x: 300, y: 0 },
-  data: { type: 'story', title: 'Story', content: '' },
+  data: { type: 'scene', title: 'Story', bodyText: '' },
 };
 
-const createStoryNode = (id: string, x = 300): AppNode => ({
+const createSceneNode = (id: string, x = 300): AppNode => ({
   id,
-  type: 'story',
+  type: 'scene',
   position: { x, y: 0 },
-  data: { type: 'story', title: id, content: '' },
+  data: { type: 'scene', title: id, bodyText: '' },
 });
 
-const buttonTimeline = (targetNodeId?: string | null): NodeTimeline => ({
+const buttonTimeline = (): NodeTimeline => ({
   version: 2,
   duration: 10,
   bookmarks: [],
@@ -43,7 +43,6 @@ const buttonTimeline = (targetNodeId?: string | null): NodeTimeline => ({
           startTime: 0,
           duration: 4,
           rect: { x: 0.4, y: 0.7, width: 0.2, height: 0.1 },
-          action: targetNodeId ? { type: 'goToNode', nodeId: targetNodeId } : { type: 'continue' },
           pauseOnShow: false,
           enabled: true,
         },
@@ -69,12 +68,6 @@ const project: OpenFMVProject = {
 const createTestStore = (repository: ProjectSessionRepository) => (
   create<ProjectSessionState>()(createProjectSessionStateCreator(repository))
 );
-
-const getStartButtonAction = (state: ProjectSessionState) => {
-  const start = state.nodes.find((node) => node.id === 'start-node');
-  const clip = start?.data.timeline?.tracks[0]?.clips[0];
-  return clip && 'action' in clip ? clip.action : null;
-};
 
 describe('ProjectSession', () => {
   let savedProjects: OpenFMVProject[];
@@ -110,33 +103,37 @@ describe('ProjectSession', () => {
     expect(state.status).toBe('ready');
   });
 
-  it('updates a node timeline, syncs output edges, and marks the session dirty', async () => {
+  it('updates a node timeline, prunes invalid output edges, and marks the session dirty', async () => {
     const store = createTestStore(repository);
     await store.getState().loadProject('project-1');
 
-    store.getState().updateNodeTimeline('start-node', buttonTimeline('story'));
+    store.getState().setEdges([
+      {
+        id: 'stale-edge',
+        source: 'start-node',
+        sourceHandle: getTimelineClipOutputHandleId('missing-button'),
+        target: 'story',
+      },
+    ] as AppEdge[]);
+    store.getState().updateNodeTimeline('start-node', buttonTimeline());
 
     const state = store.getState();
     expect(state.dirty).toBe(true);
-    expect(state.revision).toBe(1);
-    expect(state.edges).toHaveLength(1);
-    expect(state.edges[0]).toMatchObject({
-      source: 'start-node',
-      sourceHandle: getTimelineClipOutputHandleId('button-1'),
-      target: 'story',
-    });
+    expect(state.revision).toBe(2);
+    expect(state.edges).toHaveLength(0);
   });
 
   it('runs graph commands through the project session revision boundary', async () => {
     const store = createTestStore(repository);
     await store.getState().loadProject('project-1');
 
-    store.getState().addNode(createStoryNode('next'));
+    store.getState().addNode(createSceneNode('next'));
     store.getState().updateNodeData('start-node', { label: 'Updated Start' });
+    store.getState().updateNodeTimeline('start-node', buttonTimeline());
     store.getState().onConnect({
       source: 'start-node',
       target: 'next',
-      sourceHandle: 'handle-1',
+      sourceHandle: getTimelineClipOutputHandleId('button-1'),
       targetHandle: null,
     });
     store.getState().removeNode('next');
@@ -145,32 +142,33 @@ describe('ProjectSession', () => {
     expect(state.nodes.find((node) => node.id === 'start-node')?.data).toMatchObject({ label: 'Updated Start' });
     expect(state.nodes.some((node) => node.id === 'next')).toBe(false);
     expect(state.edges).toHaveLength(0);
-    expect(state.revision).toBe(4);
+    expect(state.revision).toBe(5);
     expect(state.dirty).toBe(true);
   });
 
-  it('applies graph connection rules in project session commands', async () => {
+  it('only allows connections from derived node outputs', async () => {
     const store = createTestStore(repository);
     await store.getState().loadProject('project-1');
-    store.getState().addNode(createStoryNode('target-1'));
-    store.getState().addNode(createStoryNode('target-2', 600));
+    store.getState().addNode(createSceneNode('target-1'));
+    store.getState().addNode(createSceneNode('target-2', 600));
+    store.getState().updateNodeTimeline('start-node', buttonTimeline());
 
     store.getState().onConnect({
       source: 'start-node',
       target: 'target-1',
-      sourceHandle: 'handle-1',
+      sourceHandle: getTimelineClipOutputHandleId('button-1'),
       targetHandle: null,
     });
     store.getState().onConnect({
       source: 'start-node',
       target: 'target-2',
-      sourceHandle: 'handle-1',
+      sourceHandle: getTimelineClipOutputHandleId('button-1'),
       targetHandle: null,
     });
     store.getState().onConnect({
       source: 'start-node',
       target: 'target-2',
-      sourceHandle: 'handle-2',
+      sourceHandle: 'invalid-output',
       targetHandle: null,
     });
     store.getState().onConnect({
@@ -181,16 +179,15 @@ describe('ProjectSession', () => {
     });
 
     const edges = store.getState().edges;
-    expect(edges).toHaveLength(2);
-    expect(edges[0]).toMatchObject({ sourceHandle: 'handle-1', target: 'target-1' });
-    expect(edges[1]).toMatchObject({ sourceHandle: 'handle-2', target: 'target-2' });
+    expect(edges).toHaveLength(1);
+    expect(edges[0]).toMatchObject({ sourceHandle: getTimelineClipOutputHandleId('button-1'), target: 'target-2' });
   });
 
-  it('writes timeline output editor connections back to timeline actions', async () => {
+  it('stores timeline output editor connections as edges without mutating button clips', async () => {
     const store = createTestStore(repository);
     await store.getState().loadProject('project-1');
-    store.getState().addNode(createStoryNode('target-1'));
-    store.getState().addNode(createStoryNode('target-2', 600));
+    store.getState().addNode(createSceneNode('target-1'));
+    store.getState().addNode(createSceneNode('target-2', 600));
     store.getState().updateNodeTimeline('start-node', buttonTimeline());
     const handleId = getTimelineClipOutputHandleId('button-1');
 
@@ -210,32 +207,40 @@ describe('ProjectSession', () => {
     const state = store.getState();
     expect(state.edges).toHaveLength(1);
     expect(state.edges[0]).toMatchObject({ sourceHandle: handleId, target: 'target-2' });
-    expect(getStartButtonAction(state)).toEqual({ type: 'goToNode', nodeId: 'target-2' });
+    const clip = state.nodes.find((node) => node.id === 'start-node')?.data.timeline?.tracks[0]?.clips[0];
+    expect(clip).not.toHaveProperty('action');
   });
 
-  it('clears timeline output actions when synced editor edges are removed', async () => {
+  it('removes timeline output edges without mutating button clips', async () => {
     const store = createTestStore(repository);
     await store.getState().loadProject('project-1');
-    store.getState().updateNodeTimeline('start-node', buttonTimeline('story'));
+    store.getState().updateNodeTimeline('start-node', buttonTimeline());
+    store.getState().onConnect({
+      source: 'start-node',
+      sourceHandle: getTimelineClipOutputHandleId('button-1'),
+      target: 'story',
+      targetHandle: null,
+    });
 
     store.getState().setEdges([]);
 
     const state = store.getState();
     expect(state.edges).toHaveLength(0);
-    expect(getStartButtonAction(state)).toEqual({ type: 'continue' });
+    const clip = state.nodes.find((node) => node.id === 'start-node')?.data.timeline?.tracks[0]?.clips[0];
+    expect(clip).not.toHaveProperty('action');
   });
 
   it('saves the current graph snapshot and marks the current revision clean', async () => {
     const store = createTestStore(repository);
     await store.getState().loadProject('project-1');
     store.getState().setTitle('Next title');
-    store.getState().updateNodeTimeline('start-node', buttonTimeline('story'));
+    store.getState().updateNodeTimeline('start-node', buttonTimeline());
 
     const savedProject = await store.getState().saveNow();
 
     expect(repository.saveProject).toHaveBeenCalledTimes(1);
     expect(savedProject?.title).toBe('Next title');
-    expect(savedProject?.graphData.nodes.find((node) => node.id === 'start-node')?.data.timeline).toEqual(buttonTimeline('story'));
+    expect(savedProject?.graphData.nodes.find((node) => node.id === 'start-node')?.data.timeline).toEqual(buttonTimeline());
     expect(store.getState().dirty).toBe(false);
     expect(store.getState().savedRevision).toBe(store.getState().revision);
   });

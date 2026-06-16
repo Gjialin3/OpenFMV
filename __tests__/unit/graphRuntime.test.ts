@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
 import { AppEdge, AppNode, OpenFMVGraph } from '@/app/_types';
-import { createRuntime, getEntryNodeId, getNodeText, getNodeTitle, getRuntimeChoiceRules, getRuntimeInteractionMode, getVisibleRules, resolveNextNodeId, shouldShowRuntimeControls } from '@/app/_utils/graphRuntime';
+import {
+  createRuntime,
+  getEntryNodeId,
+  getNodeText,
+  getNodeTitle,
+  getTimelineClipOutputHandleId,
+  resolveNextNodeId,
+  resolveOutputTargetNodeId,
+} from '@/app/_utils/graphRuntime';
 
 const node = (id: string, type: AppNode['type'], data: AppNode['data']): AppNode => ({
   id,
@@ -11,21 +19,37 @@ const node = (id: string, type: AppNode['type'], data: AppNode['data']): AppNode
 });
 
 const startNode = node('start', 'start', { type: 'start', label: 'Start' });
-const interactiveStartNode = node('start', 'start', {
-  type: 'start',
-  label: 'Start',
-  rules: [
-    { id: 'intro', keyword: 'intro', condition: 'Watch intro', handleId: 'intro' },
-    { id: 'skip', keyword: 'skip', condition: 'Skip', handleId: 'skip' },
-  ],
-});
-const storyNode = node('story', 'story', { type: 'story', title: 'Story', content: 'Scene text' });
-const interactionNode = node('interaction', 'interaction', {
-  type: 'interaction',
-  rules: [
-    { id: 'first', keyword: 'left', condition: 'Go left', handleId: 'left' },
-    { id: 'else', keyword: 'else', condition: 'Else', handleId: 'else' },
-  ],
+const storyNode = node('story', 'scene', { type: 'scene', title: 'Story', bodyText: 'Scene text' });
+const endNode = node('end', 'end', { type: 'end', label: 'Finished' });
+
+const timelineNode = node('timeline', 'scene', {
+  type: 'scene',
+  title: 'Timeline',
+  bodyText: '',
+  timeline: {
+    version: 2,
+    duration: 4,
+    bookmarks: [],
+    tracks: [
+      {
+        id: 'interaction-track',
+        type: 'interaction',
+        name: 'Interaction',
+        clips: [
+          {
+            id: 'button-1',
+            type: 'button',
+            label: 'Open door',
+            startTime: 0,
+            duration: 4,
+            rect: { x: 0.35, y: 0.7, width: 0.3, height: 0.1 },
+            pauseOnShow: false,
+            enabled: true,
+          },
+        ],
+      },
+    ],
+  },
 });
 
 describe('graphRuntime', () => {
@@ -47,108 +71,102 @@ describe('graphRuntime', () => {
     expect(getNodeText(storyNode)).toBe('Scene text');
   });
 
-  it('hides else rules from player choices', () => {
-    expect(getVisibleRules(interactionNode)).toEqual([
-      { id: 'first', keyword: 'left', condition: 'Go left', handleId: 'left' },
-    ]);
-  });
-
-  it('normalizes shared player control state', () => {
+  it('routes default continuation only through node:default', () => {
     const edges = [
-      { id: 'story-next', source: 'story', target: 'next-target' },
+      { id: 'invalid-old-edge', source: 'story', sourceHandle: 'old-handle', target: 'end' },
+      { id: 'default-edge', source: 'story', sourceHandle: 'node:default', target: 'start' },
     ] as AppEdge[];
 
-    expect(getRuntimeInteractionMode(interactionNode)).toBe('choice');
-    expect(shouldShowRuntimeControls(storyNode, edges)).toBe(true);
-    expect(shouldShowRuntimeControls(storyNode, [])).toBe(false);
-    expect(getRuntimeChoiceRules(node('empty', 'interaction', { type: 'interaction', rules: [] }))).toEqual([
-      { id: 'continue', keyword: '继续', condition: '继续', handleId: '' },
-    ]);
+    expect(resolveNextNodeId(storyNode, edges)).toBe('start');
+    expect(resolveNextNodeId(storyNode, edges, { handleId: 'old-handle' })).toBe('end');
+    expect(resolveNextNodeId(storyNode, [{ id: 'old', source: 'story', target: 'end' }] as AppEdge[])).toBeNull();
   });
 
-  it('prefers exact handle routing over input matching', () => {
+  it('resolves timeline button outputs through graph edges', () => {
+    const outputId = getTimelineClipOutputHandleId('button-1');
     const edges = [
-      { id: 'left-edge', source: 'interaction', sourceHandle: 'left', target: 'left-target' },
-      { id: 'right-edge', source: 'interaction', sourceHandle: 'right', target: 'right-target' },
+      { id: 'button-edge', source: 'timeline', sourceHandle: outputId, target: 'end' },
     ] as AppEdge[];
 
-    expect(resolveNextNodeId(interactionNode, edges, { input: 'go left', handleId: 'right' })).toBe('right-target');
+    expect(outputId).toBe('button:button-1:click');
+    expect(resolveOutputTargetNodeId(timelineNode, edges, outputId)).toBe('end');
+    expect(resolveOutputTargetNodeId(timelineNode, edges, getTimelineClipOutputHandleId('missing'))).toBeNull();
   });
 
-  it('matches text input to interaction rules and falls back to else', () => {
-    const edges = [
-      { id: 'left-edge', source: 'interaction', sourceHandle: 'left', target: 'left-target' },
-      { id: 'else-edge', source: 'interaction', sourceHandle: 'else', target: 'else-target' },
-    ] as AppEdge[];
-
-    expect(resolveNextNodeId(interactionNode, edges, { input: 'I should go left now' })).toBe('left-target');
-    expect(resolveNextNodeId(interactionNode, edges, { input: 'unknown' })).toBe('else-target');
-  });
-
-  it('routes start node choices through interaction handles', () => {
-    const edges = [
-      { id: 'intro-edge', source: 'start', sourceHandle: 'intro', target: 'intro-target' },
-      { id: 'skip-edge', source: 'start', sourceHandle: 'skip', target: 'skip-target' },
-    ] as AppEdge[];
-
-    expect(getVisibleRules(interactiveStartNode)).toHaveLength(2);
-    expect(resolveNextNodeId(interactiveStartNode, edges, { handleId: 'skip' })).toBe('skip-target');
-    expect(resolveNextNodeId(interactiveStartNode, edges, { input: 'watch intro' })).toBe('intro-target');
-  });
-
-  it('falls back to the first outgoing edge when no rule matches', () => {
-    const edges = [
-      { id: 'first-edge', source: 'story', target: 'first-target' },
-      { id: 'second-edge', source: 'story', target: 'second-target' },
-    ] as AppEdge[];
-
-    expect(resolveNextNodeId(storyNode, edges)).toBe('first-target');
-  });
-
-  it('runs graph playback through the runtime core dispatch loop', () => {
+  it('runs default graph playback through node:default', () => {
     const graph: OpenFMVGraph = {
-      nodes: [
-        interactiveStartNode,
-        storyNode,
-        node('end', 'end', { type: 'end', label: 'Finished' }),
-      ],
+      nodes: [startNode, storyNode, endNode],
       edges: [
-        { id: 'skip-edge', source: 'start', sourceHandle: 'skip', target: 'story' },
-        { id: 'finish-edge', source: 'story', target: 'end' },
+        { id: 'start-edge', source: 'start', sourceHandle: 'node:default', target: 'story' },
+        { id: 'finish-edge', source: 'story', sourceHandle: 'node:default', target: 'end' },
       ] as AppEdge[],
     };
     const runtime = createRuntime(graph, { entryNodeId: 'start' });
 
     const start = runtime.start();
     expect(start.currentNodeId).toBe('start');
-    expect(start.effects).toContainEqual(expect.objectContaining({ type: 'showChoices' }));
+    expect(start.effects).toContainEqual(expect.objectContaining({ type: 'showContinue', targetNodeId: 'story' }));
 
-    const story = runtime.dispatch({ type: 'choice.selected', input: 'Skip', handleId: 'skip' });
+    const story = runtime.dispatch({ type: 'continue' });
     expect(story.currentNodeId).toBe('story');
     expect(story.history).toEqual(['start', 'story']);
-    expect(story.effects).toContainEqual(expect.objectContaining({ type: 'showContinue' }));
 
     const finished = runtime.dispatch({ type: 'continue' });
     expect(finished.currentNodeId).toBe('end');
     expect(finished.effects).toContainEqual(expect.objectContaining({ type: 'showRestart' }));
   });
 
-  it('stores text input in runtime variables before resolving routes', () => {
+  it('runs timeline button playback through button output edges', () => {
     const graph: OpenFMVGraph = {
-      nodes: [
-        interactionNode,
-        storyNode,
-      ],
+      nodes: [timelineNode, endNode],
       edges: [
-        { id: 'left-edge', source: 'interaction', sourceHandle: 'left', target: 'story' },
+        {
+          id: 'button-edge',
+          source: 'timeline',
+          sourceHandle: getTimelineClipOutputHandleId('button-1'),
+          target: 'end',
+        },
       ] as AppEdge[],
     };
-    const runtime = createRuntime(graph, { entryNodeId: 'interaction' });
+    const runtime = createRuntime(graph, { entryNodeId: 'timeline' });
+
+    const start = runtime.start();
+    expect(start.effects).toContainEqual(expect.objectContaining({ type: 'timelineOverlay' }));
+
+    const finished = runtime.dispatch({ type: 'timeline.clip.triggered', clipId: 'button-1' });
+    expect(finished.currentNodeId).toBe('end');
+    expect(finished.history).toEqual(['timeline', 'end']);
+  });
+
+  it('ignores stale timeline events from a previous node after navigation', () => {
+    const startWithTimeline = node('timeline-start', 'start', {
+      type: 'start',
+      label: 'Start',
+      timeline: {
+        version: 2,
+        duration: 8,
+        bookmarks: [],
+        tracks: [],
+      },
+    });
+    const graph: OpenFMVGraph = {
+      nodes: [startWithTimeline, storyNode],
+      edges: [
+        { id: 'to-story', source: 'timeline-start', sourceHandle: 'node:default', target: 'story' },
+      ] as AppEdge[],
+    };
+    const runtime = createRuntime(graph, { entryNodeId: 'timeline-start' });
+
     runtime.start();
+    const story = runtime.dispatch({ type: 'navigate', nodeId: 'story' });
+    expect(story.currentNodeId).toBe('story');
 
-    const snapshot = runtime.dispatch({ type: 'input.submitted', value: 'go left' });
+    const staleUpdate = runtime.dispatch({ type: 'timeline.time.update', nodeId: 'timeline-start', time: 7 });
+    expect(staleUpdate.currentNodeId).toBe('story');
+    expect(staleUpdate.timelineTime).toBe(0);
 
-    expect(snapshot.currentNodeId).toBe('story');
-    expect(snapshot.variables.lastInput).toBe('go left');
+    const staleContinue = runtime.dispatch({ type: 'timeline.clip.triggered', nodeId: 'timeline-start', clipId: 'button-1' });
+    expect(staleContinue.currentNodeId).toBe('story');
+    expect(staleContinue.timelineTime).toBe(0);
   });
 });

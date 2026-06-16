@@ -1,4 +1,4 @@
-import { AppEdge, AppNode, InteractionRule, NodeType, OpenFMVGraph, OverlayRect, TimelineAction, TimelineClip, TimelineInteractionClip, TimelineMediaClip } from '../_types';
+import { AppEdge, AppNode, NodeType, OpenFMVGraph, OverlayRect, TimelineClip, TimelineInteractionClip, TimelineMediaClip } from '../_types';
 
 export interface RuntimeChoice {
   input?: string;
@@ -8,20 +8,20 @@ export interface RuntimeChoice {
 export function getEntryNodeId(graph: OpenFMVGraph, preferredEntryNodeId?: string | null): string | null;
 export function getNodeText(node: AppNode): string;
 export function getNodeTitle(node: AppNode): string;
-export function getVisibleRules(node: AppNode): InteractionRule[];
 export function getOutgoingEdges(nodeId: string, edges: AppEdge[]): AppEdge[];
 export function resolveNextNodeId(node: AppNode, edges: AppEdge[], choice?: RuntimeChoice): string | null;
 export function getNodeById(nodes: AppNode[], nodeId: string | null | undefined): AppNode | null;
-export function getRuntimeInteractionMode(node: AppNode): 'choice' | 'input' | 'slider';
-export function shouldShowRuntimeControls(node: AppNode | null | undefined, edges: AppEdge[]): boolean;
-export function getRuntimeChoiceRules(node: AppNode): InteractionRule[];
 export function isTimelineMediaClipType(type: unknown): boolean;
 export function isTimelineInteractionClipType(type: unknown): boolean;
+export function getTimelineClipOutputHandleId(clipId: string, kind?: 'click' | 'timeout'): string;
+export function resolveOutputTargetNodeId(node: AppNode | null | undefined, edges: AppEdge[], outputId: string): string | null;
 export function getTimelineTracks(node: AppNode): unknown[];
 export function getTimelineClips(node: AppNode): TimelineClip[];
 export function getTimelineMediaClips(node: AppNode): TimelineMediaClip[];
 export function getTimelineInteractionClips(node: AppNode): TimelineInteractionClip[];
 export function getTimelineClipEndTime(clip: TimelineClip): number;
+export function getTimelineMediaPlaybackRate(clip: TimelineClip): number;
+export function getTimelineClipRuntimeEndTime(clip: TimelineClip): number;
 export function isTimelineClipActive(clip: TimelineClip, time: number): boolean;
 export function resolveTimelineClipKeyframes<TClip extends TimelineClip>(clip: TClip, timelineTime: number): TClip;
 export function getActiveTimelineClips(node: AppNode, time: number): TimelineInteractionClip[];
@@ -36,7 +36,6 @@ export function compileNodeTimeline(node: AppNode): {
   interactionClips: TimelineInteractionClip[];
   primaryMediaClip: TimelineMediaClip | null;
 };
-export function resolveTimelineActionNodeId(node: AppNode, edges: AppEdge[], action?: TimelineAction): string | null;
 export type RuntimeStatus = 'running' | 'ended';
 export interface RuntimeProgram {
   graph: OpenFMVGraph;
@@ -53,26 +52,18 @@ export type RuntimeEvent =
   | { type: 'runtime.start' }
   | { type: 'restart' }
   | { type: 'continue' }
-  | { type: 'timer.timeout' }
-  | { type: 'choice.selected'; input?: string; handleId?: string | null }
-  | { type: 'input.submitted'; value: string }
-  | { type: 'slider.unlocked'; input?: string; handleId?: string | null }
   | { type: 'navigate'; nodeId: string | null }
-  | { type: 'variable.set'; key: string; value: unknown }
-  | { type: 'timeline.time.update'; time: number }
-  | { type: 'timeline.clip.triggered'; clipId: string; action?: TimelineAction }
-  | { type: 'timeline.clip.timeout'; clipId: string; action?: TimelineAction };
+  | { type: 'timeline.time.update'; time: number; nodeId?: string | null }
+  | { type: 'timeline.clip.triggered'; clipId: string; nodeId?: string | null }
+  | { type: 'timeline.clip.timeout'; clipId: string; nodeId?: string | null };
 export type RuntimeEffect =
   | { type: 'scene'; nodeId: string; nodeType: NodeType; title: string; text: string }
   | { type: 'playMedia'; mediaType: 'video'; src: string; playbackId?: string; poster?: string; timelineStartTime?: number; sourceStart?: number; sourceDuration?: number; duration?: number; timelineDuration?: number; muted?: boolean; rect?: OverlayRect; fit?: 'contain' | 'cover'; opacity?: number; rotation?: number; playbackRate?: number; preservePitch?: boolean; freezeFrameTime?: number }
   | { type: 'playMedia'; mediaType: 'image'; src: string; timelineStartTime?: number; duration?: number; timelineDuration?: number; rect?: OverlayRect; fit?: 'contain' | 'cover'; opacity?: number; rotation?: number }
   | { type: 'playMedia'; mediaType: 'audio'; src: string; timelineStartTime?: number; sourceStart?: number; sourceDuration?: number; duration?: number; timelineDuration?: number; muted?: boolean; volume?: number; playbackRate?: number; preservePitch?: boolean }
-  | { type: 'showChoices'; prompt: string; choices: Array<{ id: string; label: string; input: string; handleId: string; rule: InteractionRule }> }
-  | { type: 'showInput'; prompt: string; placeholder: string }
-  | { type: 'showSlider'; prompt: string; label: string; handleId: string }
-  | { type: 'showContinue'; label: string }
+  | { type: 'autoNavigate'; targetNodeId: string }
+  | { type: 'showContinue'; label: string; targetNodeId: string }
   | { type: 'showRestart' }
-  | { type: 'startTimer'; seconds: number; key: string }
   | { type: 'timelinePlayback'; nodeId: string; duration: number }
   | { type: 'timelineOverlay'; nodeId: string; clips: TimelineInteractionClip[]; duration?: number }
   | { type: 'end' };

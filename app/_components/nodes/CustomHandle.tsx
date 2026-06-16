@@ -52,14 +52,8 @@ export const CustomHandle = ({ className, ...props }: CustomHandleProps) => {
     const newNode = createEditorNode(type, newPosition, getNodes() as unknown as AppNode[], {
       startLabel: t('startNode'),
       endLabel: t('endNode'),
-      storyTitlePrefix: t('storyTitlePrefix'),
+      sceneTitlePrefix: t('storyTitlePrefix'),
     });
-    const enhancedData =
-      type === 'interaction'
-        ? { ...newNode.data, elseLabel: t('defaultPath') } as AppNode['data']
-        : newNode.data;
-    newNode.data = enhancedData;
-
     addNodeAndConnect(newNode, {
       source: nodeId,
       sourceHandle: props.id ?? null,

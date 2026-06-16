@@ -10,7 +10,7 @@ export type PickerAsset = {
 };
 
 export const canReceiveAsset = (node: AppNode) => {
-  return node.type === 'start' || node.type === 'story' || node.type === 'interaction' || node.type === 'end';
+  return node.type === 'start' || node.type === 'scene' || node.type === 'end';
 };
 
 export const getPickerAssetUpdate = (targetNode: AppNode, asset: PickerAsset) => {
@@ -19,7 +19,7 @@ export const getPickerAssetUpdate = (targetNode: AppNode, asset: PickerAsset) =>
   if (asset.type === 'text') {
     const metadata = typeof asset.metadata === 'object' && asset.metadata ? asset.metadata as Record<string, unknown> : {};
     const content = typeof metadata.content === 'string' ? metadata.content : asset.prompt || '';
-    return targetNode.type === 'interaction' ? { prompt: content } : { content, fullText: content };
+    return { bodyText: content };
   }
 
   return null;

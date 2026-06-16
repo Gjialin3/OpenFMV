@@ -166,6 +166,10 @@
         "name": "场景",
         "description": "承载可播放媒体和交互"
       },
+      "scene": {
+        "name": "场景",
+        "description": "承载可播放媒体和交互"
+      },
       "interaction": {
         "name": "旧版交互节点",
         "description": "旧项目兼容节点"
