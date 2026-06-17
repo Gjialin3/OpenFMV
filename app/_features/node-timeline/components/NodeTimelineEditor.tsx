@@ -46,6 +46,7 @@ import {
   SlidersHorizontal,
   Snowflake,
   Redo2,
+  RotateCw,
   Trash2,
   Type,
   Upload,
@@ -241,6 +242,16 @@ type OverlayDragState =
       originRect: OverlayRect;
       originX: number;
       originY: number;
+    }
+  | {
+      clipId: string;
+      mode: 'rotate';
+      centerX: number;
+      centerY: number;
+      originAngle: number;
+      originRotation: number;
+      originX: number;
+      originY: number;
     };
 
 interface TimelineDragState {
@@ -326,6 +337,9 @@ type NodeTimelineTranslator = ReturnType<typeof useTranslations<'nodeTimeline'>>
 const TIMELINE_HISTORY_LIMIT = 80;
 const MAX_AUDIO_WAVEFORM_BARS = 160;
 const POINTER_DRAG_THRESHOLD_PX = 5;
+const OVERLAY_ROTATION_DEAD_ZONE_PX = 28;
+const OVERLAY_ROTATION_SNAP_THRESHOLD_DEG = 2;
+const OVERLAY_ROTATION_SNAP_ANGLES = [0, 90, 180, 270] as const;
 const AUDIO_VOLUME_LINE_HIT_AREA_PX = 16;
 const TIMELINE_KEYFRAME_INDICATOR_MIN_WIDTH_PX = 42;
 const TIMELINE_KEYFRAME_LANE_HEIGHT_PX = 24;
@@ -612,6 +626,18 @@ const getButtonFloatingToolbarPlacement = (clip: TimelineInteractionClip): {
   };
 };
 
+const getButtonRotationHandleAnchorStyle = (clip: TimelineInteractionClip): React.CSSProperties => {
+  const rect = getClipRect(clip);
+  return {
+    left: `${rect.x * 100}%`,
+    top: `${rect.y * 100}%`,
+    width: `${rect.width * 100}%`,
+    height: `${rect.height * 100}%`,
+    transform: `rotate(${getTimelineClipRotation(clip)}deg)`,
+    transformOrigin: 'center',
+  };
+};
+
 const getPreviewFrameClassName = () => {
   return 'relative shrink-0 overflow-visible border border-white/20 bg-black shadow-[0_18px_52px_rgba(0,0,0,0.22)]';
 };
@@ -667,6 +693,35 @@ const getTimelineClipOpacity = (clip?: Pick<TimelineClip, 'opacity'> | null) => 
 
 const getTimelineClipRotation = (clip?: Pick<TimelineClip, 'rotation'> | null) => {
   return clampTimelineClipRotation(clip?.rotation);
+};
+
+const getPointerAngleDegrees = (centerX: number, centerY: number, clientX: number, clientY: number) => {
+  return Math.atan2(clientY - centerY, clientX - centerX) * (180 / Math.PI);
+};
+
+const getShortestRotationDelta = (angle: number, originAngle: number) => {
+  const delta = angle - originAngle;
+  return ((((delta + 180) % 360) + 360) % 360) - 180;
+};
+
+const roundOverlayRotation = (rotation: number) => {
+  return Math.round(clampTimelineClipRotation(rotation) * 10) / 10;
+};
+
+const snapOverlayRotation = (rotation: number) => {
+  let closestRotation = rotation;
+  let closestDistance = Number.POSITIVE_INFINITY;
+
+  for (const snapAngle of OVERLAY_ROTATION_SNAP_ANGLES) {
+    const candidate = snapAngle + Math.round((rotation - snapAngle) / 360) * 360;
+    const distance = Math.abs(rotation - candidate);
+    if (distance < closestDistance) {
+      closestDistance = distance;
+      closestRotation = candidate;
+    }
+  }
+
+  return closestDistance <= OVERLAY_ROTATION_SNAP_THRESHOLD_DEG ? closestRotation : rotation;
 };
 
 const clampTimelineAudioVolume = (volume: unknown) => {
@@ -839,6 +894,43 @@ function PreviewAudioLayer({
   }, [clip, isTimelinePlaying, localTime, resolvedSrc, sourceEnded, volume]);
 
   return <audio ref={audioRef} src={resolvedSrc} muted={clip.muted === true} className="hidden" />;
+}
+
+function PreviewButtonRotationHandle({
+  clip,
+  dragging,
+  label,
+  onPointerDown,
+}: {
+  clip: TimelineInteractionClip;
+  dragging: boolean;
+  label: string;
+  onPointerDown: (clip: TimelineInteractionClip, event: React.PointerEvent<HTMLElement>) => void;
+}) {
+  const rotation = getTimelineClipRotation(clip);
+
+  return (
+    <div
+      data-node-overlay-rotation-anchor={clip.id}
+      className="pointer-events-none absolute z-50"
+      style={getButtonRotationHandleAnchorStyle(clip)}
+    >
+      <button
+        type="button"
+        title={label}
+        aria-label={label}
+        data-node-overlay-rotation-handle={clip.id}
+        onPointerDown={(event) => onPointerDown(clip, event)}
+        className={`pointer-events-auto absolute -right-5 -top-5 grid h-6 w-6 touch-none place-items-center text-sky-300 drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)] transition hover:text-sky-100 ${dragging ? 'cursor-grabbing scale-110 text-sky-100' : 'cursor-grab'}`}
+        style={{
+          transform: `rotate(${-rotation}deg)`,
+          transformOrigin: 'center',
+        }}
+      >
+        <RotateCw size={14} strokeWidth={2.4} />
+      </button>
+    </div>
+  );
 }
 
 const getClipRect = (clip: TimelineInteractionClip): OverlayRect => {
@@ -1028,6 +1120,7 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
   const audioVolumeHistorySnapshotRef = useRef<NodeTimeline | null>(null);
   const overlayDragHistoryPushedRef = useRef(false);
   const overlayDragHistorySnapshotRef = useRef<NodeTimeline | null>(null);
+  const overlayRotateStateRef = useRef<{ lastAngle: number; rotation: number } | null>(null);
   const timelineScrubPointerRef = useRef<{ clientX: number; clientY: number; shiftKey: boolean } | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [previewViewportSize, setPreviewViewportSize] = useState({ width: 0, height: 0 });
@@ -3450,6 +3543,38 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
+  const handleOverlayRotatePointerDown = (clip: TimelineInteractionClip, event: React.PointerEvent<HTMLElement>) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const frame = previewFrameRef.current;
+    if (!frame) return;
+    const bounds = frame.getBoundingClientRect();
+    const clipRect = getClipRect(clip);
+    const centerX = bounds.left + (clipRect.x + clipRect.width / 2) * bounds.width;
+    const centerY = bounds.top + (clipRect.y + clipRect.height / 2) * bounds.height;
+    const originAngle = getPointerAngleDegrees(centerX, centerY, event.clientX, event.clientY);
+    const originRotation = getTimelineClipRotation(clip);
+    selectSingleClip(clip.id);
+    overlayDragHistoryPushedRef.current = false;
+    overlayDragHistorySnapshotRef.current = timeline;
+    overlayRotateStateRef.current = {
+      lastAngle: originAngle,
+      rotation: originRotation,
+    };
+    setOverlayDrag({
+      clipId: clip.id,
+      mode: 'rotate',
+      centerX,
+      centerY,
+      originAngle,
+      originRotation,
+      originX: event.clientX,
+      originY: event.clientY,
+    });
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
   useEffect(() => {
     if (!overlayDrag) return;
 
@@ -3476,6 +3601,34 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
       const clip = clipRef?.clip;
       const canTransformClip = clip && !clipRef.track.locked && (isInteractionClip(clip) || (isMediaClip(clip) && isVisualMediaClip(clip)));
       if (!canTransformClip) return;
+
+      if (overlayDrag.mode === 'rotate') {
+        const pointerDistance = Math.hypot(event.clientX - overlayDrag.centerX, event.clientY - overlayDrag.centerY);
+        if (pointerDistance < OVERLAY_ROTATION_DEAD_ZONE_PX) return;
+        const pointerAngle = getPointerAngleDegrees(overlayDrag.centerX, overlayDrag.centerY, event.clientX, event.clientY);
+        const rotateState = overlayRotateStateRef.current ?? {
+          lastAngle: overlayDrag.originAngle,
+          rotation: overlayDrag.originRotation,
+        };
+        const rawRotation = rotateState.rotation + getShortestRotationDelta(pointerAngle, rotateState.lastAngle);
+        const nextRotation = roundOverlayRotation(isSnappingEnabledRef.current ? snapOverlayRotation(rawRotation) : rawRotation);
+        overlayRotateStateRef.current = {
+          lastAngle: pointerAngle,
+          rotation: nextRotation,
+        };
+        if (getTimelineClipRotation(clip) === nextRotation) return;
+        updateOverlaySnapLines([]);
+        writeOverlayDrag(updateTimelineClip({
+          timeline: sourceTimeline,
+          clipId: overlayDrag.clipId,
+          update: (item) => (
+            isInteractionClip(item) || (isMediaClip(item) && isVisualMediaClip(item))
+              ? { ...item, rotation: nextRotation }
+              : item
+          ),
+        }));
+        return;
+      }
 
       const snapTargets = buildPreviewSnapTargets(
         [...sourceCompiledTimeline.visualMediaClips, ...sourceCompiledTimeline.interactionClips]
@@ -3507,6 +3660,7 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
     const handlePointerUp = () => {
       overlayDragHistoryPushedRef.current = false;
       overlayDragHistorySnapshotRef.current = null;
+      overlayRotateStateRef.current = null;
       setOverlayDrag(null);
       updateOverlaySnapLines([]);
     };
@@ -3787,6 +3941,7 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
                   const qteConfig = isQteButtonClip(resolvedClip) ? getQteConfig(resolvedClip) : null;
                   const qteCueLabel = qteConfig ? getQteCueLabel(qteConfig) : null;
                   const buttonVisualStyle = getButtonClipInlineStyle(resolvedClip);
+                  const rotating = overlayDrag?.mode === 'rotate' && overlayDrag.clipId === resolvedClip.id;
                   return (
                     <button
                       key={clip.id}
@@ -3802,6 +3957,7 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
                         opacity: active ? getTimelineClipOpacity(resolvedClip) : Math.min(getTimelineClipOpacity(resolvedClip), 0.45),
                         transform: `rotate(${getTimelineClipRotation(resolvedClip)}deg)`,
                         transformOrigin: 'center',
+                        transition: rotating ? 'none' : undefined,
                         backgroundColor: 'transparent',
                         borderColor: 'transparent',
                         borderWidth: 0,
@@ -3839,6 +3995,14 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
                 })}
               </div>
               {selectedButtonToolbarClip && (
+                <PreviewButtonRotationHandle
+                  clip={selectedButtonToolbarClip}
+                  dragging={overlayDrag?.mode === 'rotate' && overlayDrag.clipId === selectedButtonToolbarClip.id}
+                  label={t('fields.rotation')}
+                  onPointerDown={handleOverlayRotatePointerDown}
+                />
+              )}
+              {selectedButtonToolbarClip && overlayDrag?.mode !== 'rotate' && (
                 <ButtonFloatingStyleToolbar
                   t={t}
                   clip={selectedButtonToolbarClip}
