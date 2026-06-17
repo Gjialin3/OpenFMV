@@ -311,9 +311,16 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
     html, body { margin: 0; width: 100%; height: 100%; background: #050505; color: white; font-family: Inter, Arial, sans-serif; overflow: hidden; }
     #app { position: fixed; inset: 0; background: linear-gradient(135deg,#090b10,#15110d); }
     .scene { position: relative; width: 100%; height: 100%; overflow: hidden; background: #000; }
-    .media { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: .9; background: #000; }
-    .shade { position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(0,0,0,.62), rgba(0,0,0,.18), rgba(0,0,0,.88)); }
-    .bottom-glow { position: absolute; inset: auto 0 0; height: 50%; background: radial-gradient(circle at 50% 100%, rgba(249,115,22,.15), transparent 45%); }
+    .stage-wrap { position: absolute; inset: 0; display: grid; place-items: center; background: #000; }
+    .runtime-stage { position: relative; max-width: 100vw; max-height: 100vh; overflow: hidden; background: #000; }
+    .media-layer { position: absolute; overflow: hidden; }
+    .media-item { display: block; width: 100%; height: 100%; background: #000; }
+    .media-contain { object-fit: contain; }
+    .media-cover { object-fit: cover; }
+    .empty-stage { position: absolute; inset: 0; background: radial-gradient(circle at 50% 24%, rgba(249,115,22,.22), transparent 34%), radial-gradient(circle at 78% 12%, rgba(255,255,255,.09), transparent 30%), linear-gradient(135deg,#151821,#070a10 62%,#17120f); }
+    .audio-layer { display: none; }
+    .shade { pointer-events: none; position: absolute; inset: 0; z-index: 10; background: linear-gradient(to bottom, rgba(0,0,0,.62), rgba(0,0,0,.18), rgba(0,0,0,.88)); }
+    .bottom-glow { pointer-events: none; position: absolute; inset: auto 0 0; z-index: 10; height: 50%; background: radial-gradient(circle at 50% 100%, rgba(249,115,22,.15), transparent 45%); }
     .content { position: relative; z-index: 2; min-height: 100%; display: flex; flex-direction: column; justify-content: flex-end; box-sizing: border-box; padding: 32px 20px; }
     .content-inner { width: 100%; max-width: 1024px; margin: 0 auto; }
     .scene-copy { max-width: 768px; margin-bottom: 32px; }
@@ -328,9 +335,8 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
     .action-label { min-width: 0; overflow-wrap: anywhere; }
     .action-arrow { flex: none; opacity: .62; transition: transform .16s ease, opacity .16s ease; }
     .action-button:hover .action-arrow { transform: translateX(4px); opacity: 1; }
-    .timeline-overlay { pointer-events: none; position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; }
-    .timeline-frame { position: relative; aspect-ratio: 16 / 9; width: 100%; height: 100%; max-width: 100%; max-height: 100%; }
-    .timeline-clip { pointer-events: auto; position: absolute; display: flex; min-width: 48px; min-height: 36px; align-items: center; justify-content: center; box-sizing: border-box; border-radius: 12px; padding: 0 12px; color: white; font-size: 14px; font-weight: 750; cursor: pointer; box-shadow: 0 18px 54px rgba(0,0,0,.32); backdrop-filter: blur(14px); transition: transform .16s ease; }
+    .timeline-overlay { pointer-events: none; position: absolute; inset: 0; z-index: 20; }
+    .timeline-clip { pointer-events: auto; position: absolute; display: flex; min-width: 48px; min-height: 40px; align-items: center; justify-content: center; box-sizing: border-box; overflow: hidden; border-radius: 12px; padding: 0 12px; color: white; font-size: 12px; line-height: 16px; font-weight: 700; cursor: pointer; box-shadow: 0 18px 54px rgba(0,0,0,.32); backdrop-filter: blur(24px); transition: transform .16s ease; }
     .timeline-clip:hover { transform: scale(1.02); }
     .timeline-clip.button { border: 1px solid rgba(253,186,116,.9); background: rgba(249,115,22,.92); }
     .timeline-clip.qte { border-color: rgba(165,243,252,.9); background: rgba(6,182,212,.92); }
@@ -366,11 +372,81 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
     let timelineQteClickCounts = new Map();
     let timelineClockTimer = null;
     let timelineClockPaused = false;
+    let currentRenderSignature = '';
+    let runtimeStageAspectRatio = 16 / 9;
+    let timelineTriggerState = { nodeId: null, time: 0 };
 
     const escapeHtml = (value) => String(value || '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
     const effect = (type) => (snapshot && snapshot.effects || []).find((item) => item.type === type);
+    const effectsOfType = (type) => (snapshot && snapshot.effects || []).filter((item) => item.type === type);
     const t = (key) => playerMessages[key] || playerMessagesByLocale['zh-CN'][key] || key;
     const translatedDefault = (value, key) => value === playerMessagesByLocale['zh-CN'][key] ? t(key) : value;
+    const visualMediaEffects = () => effectsOfType('playMedia').filter((item) => item.mediaType === 'video' || item.mediaType === 'image');
+    const audioMediaEffects = () => effectsOfType('playMedia').filter((item) => item.mediaType === 'audio');
+    const timelinePlaybackEffect = () => effect('timelinePlayback');
+    const timelineOverlayEffect = () => effect('timelineOverlay');
+    const getVisualMediaRect = (item) => item && item.rect ? item.rect : { x: 0, y: 0, width: 1, height: 1 };
+    const clampMediaOpacity = (item) => {
+      const value = Number(item && item.opacity);
+      return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 1;
+    };
+    const getMediaRotation = (item) => {
+      const value = Number(item && item.rotation);
+      return Number.isFinite(value) ? value : 0;
+    };
+    const getMediaPlaybackRate = (item) => {
+      const value = Number(item && item.playbackRate);
+      if (!Number.isFinite(value) || value <= 0) return 1;
+      return Math.max(0.01, Math.min(5, value));
+    };
+    const getMediaSourceEnd = (item) => {
+      const sourceDuration = Number(item && item.sourceDuration);
+      if (!Number.isFinite(sourceDuration) || sourceDuration <= 0) return null;
+      return Math.max(0, Number(item && item.sourceStart) || 0) + sourceDuration;
+    };
+    const getNaturalMediaAspectRatio = (width, height) => {
+      if (!Number.isFinite(width) || width <= 0 || !Number.isFinite(height) || height <= 0) return null;
+      return Math.max(0.25, Math.min(4, width / height));
+    };
+    const runtimeStageCssText = (aspectRatio) => 'aspect-ratio:' + aspectRatio + ';width:min(100vw, calc(100vh * ' + aspectRatio + '))';
+    const mediaLayerCssText = (item) => {
+      const rect = getVisualMediaRect(item);
+      return [
+        'left:' + (rect.x * 100) + '%',
+        'top:' + (rect.y * 100) + '%',
+        'width:' + (rect.width * 100) + '%',
+        'height:' + (rect.height * 100) + '%',
+        'opacity:' + clampMediaOpacity(item),
+        'transform:rotate(' + getMediaRotation(item) + 'deg)',
+        'transform-origin:center',
+      ].join(';');
+    };
+    const mediaIdentity = (item, index) => [
+      index,
+      item && item.mediaType,
+      item && item.src,
+      item && item.poster,
+      item && item.timelineStartTime,
+      item && item.sourceStart,
+      item && item.sourceDuration,
+      item && item.muted,
+    ].join('|');
+    const renderSignature = () => {
+      const scene = effect('scene');
+      const next = effect('showContinue');
+      const timeline = timelineOverlayEffect();
+      return JSON.stringify({
+        status: snapshot && snapshot.status,
+        nodeId: snapshot && snapshot.currentNodeId,
+        scene,
+        visual: visualMediaEffects().map(mediaIdentity),
+        audio: audioMediaEffects().map(mediaIdentity),
+        timelineNodeId: timeline && timeline.nodeId,
+        hasTimelineOverlay: Boolean(timeline),
+        next: next && next.targetNodeId,
+        ended: !snapshot || snapshot.status === 'ended' || (snapshot.currentNode && snapshot.currentNode.type === 'end'),
+      });
+    };
 
     const send = (event) => {
       snapshot = runtime.dispatch(event);
@@ -478,7 +554,7 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
       if (fit === 'stretch') return '100% 100%';
       return 'cover';
     };
-    const timelineButtonCssUrl = (value) => String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '');
+    const timelineButtonCssUrl = (value) => String(value).replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'").replace(/\\n/g, '');
     const timelineButtonCssText = (clip, rect) => {
       const style = timelineButtonStyleConfig(clip);
       const clipPath = timelineButtonClipPath(style.shape);
@@ -490,8 +566,8 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
         'width:' + (rect.width * 100) + '%',
         'height:' + (rect.height * 100) + '%',
         'opacity:' + clipOpacity,
-        Number.isFinite(rotation) && rotation !== 0 ? 'transform:rotate(' + rotation + 'deg)' : '',
-        Number.isFinite(rotation) && rotation !== 0 ? 'transform-origin:center' : '',
+        'transform:rotate(' + (Number.isFinite(rotation) ? rotation : 0) + 'deg)',
+        'transform-origin:center',
         'background-color:' + timelineButtonRgba(style.fillColor, style.fillOpacity),
         style.backgroundImageSrc ? "background-image:url('" + timelineButtonCssUrl(style.backgroundImageSrc) + "')" : '',
         style.backgroundImageSrc ? 'background-position:center' : '',
@@ -538,7 +614,7 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
     };
     const normalizeTimelineQteKeyToken = (value) => {
       if (value === ' ') return 'space';
-      const normalized = (value || '').trim().toLowerCase().replace(/\s+/g, '');
+      const normalized = (value || '').trim().toLowerCase().replace(/\\s+/g, '');
       if (normalized === 'spacebar') return 'space';
       if (normalized === 'esc') return 'escape';
       return normalized;
@@ -582,7 +658,7 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
     };
 
     const renderTimelineOverlay = (overlay, activeClips) => {
-      overlay.innerHTML = '<div class="timeline-frame">' + activeClips.map((clip) => {
+      overlay.innerHTML = activeClips.map((clip) => {
         const rect = timelineClipRect(clip);
         const isQte = isTimelineQteClip(clip);
         const qte = timelineQteConfig(clip);
@@ -595,120 +671,241 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
           ? '<span class="timeline-qte-label">' + (qteCueLabel ? '<span class="timeline-qte-cue">' + escapeHtml(qteCueLabel) + '</span>' : '') + '<span class="timeline-qte-name">' + escapeHtml(timelineQteDisplayName(clip)) + '</span>' + (qte.showCountdown ? '<span class="timeline-qte-countdown"><span style="width:' + (qteRemainingRatio * 100) + '%"></span></span>' : '') + '</span>'
           : '<span class="timeline-label">' + escapeHtml(label) + '</span>';
         return '<button class="timeline-clip ' + escapeHtml(clip.type) + (isQte ? ' qte' : '') + '" data-timeline-clip="' + escapeHtml(clip.id) + '"' + (isQte ? ' data-qte-input="' + escapeHtml(qte.input) + '"' : '') + ' style="' + timelineButtonCssText(clip, rect) + '">' + labelHtml + '</button>';
-      }).join('') + '</div>';
+      }).join('');
     };
 
     const resetTimelineSessionIfNeeded = (timeline) => {
-      if (!timeline || timeline.nodeId === timelineNodeId) return;
-      timelineNodeId = timeline.nodeId;
+      const nextNodeId = timeline && timeline.nodeId || snapshot && snapshot.currentNode && snapshot.currentNode.id || null;
+      const nextTime = snapshot && Number.isFinite(Number(snapshot.timelineTime)) ? Number(snapshot.timelineTime) : 0;
+      if (nextNodeId === timelineTriggerState.nodeId && nextTime >= timelineTriggerState.time - 0.001) {
+        timelineTriggerState = { nodeId: nextNodeId, time: nextTime };
+        return;
+      }
+      timelineNodeId = nextNodeId;
       timelineShownClipIds = new Set();
       timelineTimedOutClipIds = new Set();
       timelineResolvedQteClipIds = new Set();
       timelineQteStartedAt = new Map();
       timelineQteClickCounts = new Map();
       timelineClockPaused = false;
+      timelineTriggerState = { nodeId: nextNodeId, time: nextTime };
+    };
+
+    const getTimelineSyncVideo = () => {
+      const visuals = visualMediaEffects();
+      let videoIndex = -1;
+      visuals.forEach((item, index) => {
+        if (item.mediaType === 'video') videoIndex = index;
+      });
+      return videoIndex >= 0 ? appRoot.querySelector('video[data-visual-index="' + videoIndex + '"]') : null;
+    };
+
+    const applyMediaPlaybackOptions = (element, item) => {
+      element.playbackRate = getMediaPlaybackRate(item);
+      if ('preservesPitch' in element) element.preservesPitch = item && item.preservePitch !== false;
+    };
+
+    const getMediaPlaybackTarget = (item) => {
+      const playbackRate = getMediaPlaybackRate(item);
+      const sourceStart = Math.max(0, Number(item && item.sourceStart) || 0);
+      const timelineStart = Number(item && item.timelineStartTime) || 0;
+      const freezeFrame = item && item.mediaType === 'video' && Number.isFinite(Number(item.freezeFrameTime))
+        ? Math.max(0, Number(item.freezeFrameTime))
+        : null;
+      const unclampedTargetTime = Math.max(0, sourceStart + Math.max(0, (snapshot && snapshot.timelineTime || 0) - timelineStart) * playbackRate);
+      const sourceEnd = getMediaSourceEnd(item);
+      const targetTime = freezeFrame !== null ? freezeFrame : sourceEnd === null ? unclampedTargetTime : Math.min(unclampedTargetTime, sourceEnd);
+      return {
+        targetTime,
+        sourceEnded: sourceEnd !== null && targetTime >= sourceEnd,
+        freezeFrame,
+      };
+    };
+
+    const syncPlayableMediaElement = (element, item) => {
+      if (!element || !item) return;
+      applyMediaPlaybackOptions(element, item);
+      const target = getMediaPlaybackTarget(item);
+      const syncTime = () => {
+        if (Number.isFinite(target.targetTime) && Math.abs((element.currentTime || 0) - target.targetTime) > 0.25) {
+          try {
+            element.currentTime = target.targetTime;
+          } catch {
+          }
+        }
+      };
+      if (element.readyState >= 1) {
+        syncTime();
+      } else if (!element.dataset.timeSyncWired) {
+        element.dataset.timeSyncWired = '1';
+        element.addEventListener('loadedmetadata', () => {
+          delete element.dataset.timeSyncWired;
+          syncTime();
+        }, { once: true });
+      }
+      const shouldPause = !snapshot || snapshot.status !== 'running' || timelineClockPaused || target.freezeFrame !== null || target.sourceEnded;
+      if (shouldPause) {
+        element.pause();
+      } else {
+        void element.play().catch(() => undefined);
+      }
+    };
+
+    const setRuntimeStageAspectRatio = (aspectRatio) => {
+      if (!Number.isFinite(aspectRatio) || aspectRatio <= 0) return;
+      if (Math.abs(runtimeStageAspectRatio - aspectRatio) > 0.001) runtimeStageAspectRatio = aspectRatio;
+      const stage = document.getElementById('runtimeStage');
+      if (stage) stage.setAttribute('style', runtimeStageCssText(runtimeStageAspectRatio));
+    };
+
+    const updateVisualMediaLayers = () => {
+      const visuals = visualMediaEffects();
+      if (visuals.length === 0) {
+        setRuntimeStageAspectRatio(16 / 9);
+        return;
+      }
+      visuals.forEach((item, index) => {
+        const layer = appRoot.querySelector('[data-visual-layer="' + index + '"]');
+        if (layer) layer.setAttribute('style', mediaLayerCssText(item));
+        const element = appRoot.querySelector('[data-visual-index="' + index + '"]');
+        if (!element) return;
+        element.className = 'media-item ' + (item.fit === 'cover' ? 'media-cover' : 'media-contain');
+        if (item.mediaType === 'image') {
+          if (index === 0 && element.naturalWidth && element.naturalHeight) {
+            const aspectRatio = getNaturalMediaAspectRatio(element.naturalWidth, element.naturalHeight);
+            if (aspectRatio) setRuntimeStageAspectRatio(aspectRatio);
+          } else if (index === 0 && !element.dataset.aspectReadyWired) {
+            element.dataset.aspectReadyWired = '1';
+            element.addEventListener('load', () => {
+              const aspectRatio = getNaturalMediaAspectRatio(element.naturalWidth, element.naturalHeight);
+              if (aspectRatio) setRuntimeStageAspectRatio(aspectRatio);
+            });
+          }
+          return;
+        }
+        if (index === 0 && element.videoWidth && element.videoHeight) {
+          const aspectRatio = getNaturalMediaAspectRatio(element.videoWidth, element.videoHeight);
+          if (aspectRatio) setRuntimeStageAspectRatio(aspectRatio);
+        } else if (index === 0 && !element.dataset.aspectReadyWired) {
+          element.dataset.aspectReadyWired = '1';
+          const syncAspectRatio = () => {
+            const aspectRatio = getNaturalMediaAspectRatio(element.videoWidth, element.videoHeight);
+            if (aspectRatio) setRuntimeStageAspectRatio(aspectRatio);
+          };
+          element.addEventListener('loadedmetadata', syncAspectRatio);
+          element.addEventListener('loadeddata', syncAspectRatio);
+        }
+        element.muted = item.muted === true;
+        syncPlayableMediaElement(element, item);
+      });
+    };
+
+    const updateAudioMediaLayers = () => {
+      audioMediaEffects().forEach((item, index) => {
+        const element = appRoot.querySelector('audio[data-audio-index="' + index + '"]');
+        if (!element || item.muted) return;
+        const volume = Number(item.volume);
+        element.volume = Number.isFinite(volume) ? Math.max(0, Math.min(1, volume)) : 1;
+        syncPlayableMediaElement(element, item);
+      });
     };
 
     const wireTimelineOverlay = () => {
-      const timeline = effect('timelineOverlay');
+      const timeline = timelineOverlayEffect();
       const overlay = document.getElementById('timelineOverlay');
-      const video = appRoot.querySelector('video.media');
-      if (!timeline || !overlay || !snapshot.currentNode) return;
+      const video = getTimelineSyncVideo();
+      if (!overlay) return;
+      if (!timeline || !snapshot || !snapshot.currentNode) {
+        overlay.innerHTML = '';
+        resetTimelineSessionIfNeeded(null);
+        return;
+      }
 
       resetTimelineSessionIfNeeded(timeline);
+      const time = snapshot.timelineTime || 0;
+      const activeClips = runtimeCore.getActiveTimelineClips(snapshot.currentNode, time);
+      const activeQteClipIds = new Set(activeClips.filter(isTimelineQteClip).map((clip) => clip.id));
+      activeClips.forEach((clip) => {
+        if (isTimelineQteClip(clip) && !timelineQteStartedAt.has(clip.id)) timelineQteStartedAt.set(clip.id, performance.now());
+      });
+      timelineQteStartedAt.forEach((_startedAt, clipId) => {
+        if (!activeQteClipIds.has(clipId)) timelineQteStartedAt.delete(clipId);
+      });
+      timelineQteClickCounts.forEach((_count, clipId) => {
+        if (!activeQteClipIds.has(clipId)) timelineQteClickCounts.delete(clipId);
+      });
 
-      const getTimelineTime = () => snapshot.timelineTime || 0;
-
-      const updateRuntimeTimelineTime = (time) => {
-        if (!snapshot || snapshot.status !== 'running') return;
-        if (Math.abs((snapshot.timelineTime || 0) - time) <= 0.02) return;
-        snapshot = runtime.dispatch({ type: 'timeline.time.update', time, nodeId: timeline.nodeId });
-      };
-
-      const syncTimeline = () => {
-        if (!snapshot || !snapshot.currentNode) return;
-        const time = getTimelineTime();
-        updateRuntimeTimelineTime(time);
-        const activeClips = runtimeCore.getActiveTimelineClips(snapshot.currentNode, snapshot.timelineTime || time);
-        const activeQteClipIds = new Set(activeClips.filter(isTimelineQteClip).map((clip) => clip.id));
-        activeClips.forEach((clip) => {
-          if (isTimelineQteClip(clip) && !timelineQteStartedAt.has(clip.id)) timelineQteStartedAt.set(clip.id, performance.now());
-        });
-        timelineQteStartedAt.forEach((_startedAt, clipId) => {
-          if (!activeQteClipIds.has(clipId)) timelineQteStartedAt.delete(clipId);
-        });
-        timelineQteClickCounts.forEach((_count, clipId) => {
-          if (!activeQteClipIds.has(clipId)) timelineQteClickCounts.delete(clipId);
-        });
-
-        activeClips.forEach((clip) => {
-          if (timelineShownClipIds.has(clip.id)) return;
-          if (clip.pauseOnShow && isTimelineQteClip(clip)) {
-            timelineShownClipIds.add(clip.id);
-            timelineClockPaused = true;
-            if (video) video.pause();
-          }
-        });
-
-        for (const clip of timeline.clips) {
-          if (isTimelineQteClip(clip) || clip.type !== 'button' || !clip.pauseOnShow || timelineShownClipIds.has(clip.id)) continue;
-          const endTime = runtimeCore.getTimelineClipEndTime(clip);
-          if ((snapshot.timelineTime || time) < endTime - 0.001) continue;
+      activeClips.forEach((clip) => {
+        if (timelineShownClipIds.has(clip.id)) return;
+        if (clip.pauseOnShow && isTimelineQteClip(clip)) {
           timelineShownClipIds.add(clip.id);
-          snapshot = runtime.dispatch({ type: 'timeline.time.update', time: Math.max(clip.startTime || 0, endTime - 0.001), nodeId: timeline.nodeId });
           pauseTimelineClock(video);
-          return;
         }
+      });
 
-        for (const clip of activeClips) {
-          if (!isTimelineQteClip(clip) || timelineResolvedQteClipIds.has(clip.id)) continue;
-          const startedAt = timelineQteStartedAt.get(clip.id) || performance.now();
-          const durationMs = Math.max(0, (clip.duration || 0) * 1000);
-          if (performance.now() - startedAt >= durationMs && completeTimelineQte(clip, 'timeout', video)) return;
-        }
+      for (const clip of timeline.clips) {
+        if (isTimelineQteClip(clip) || clip.type !== 'button' || !clip.pauseOnShow || timelineShownClipIds.has(clip.id)) continue;
+        const endTime = runtimeCore.getTimelineClipEndTime(clip);
+        if (time < endTime - 0.001) continue;
+        timelineShownClipIds.add(clip.id);
+        snapshot = runtime.dispatch({ type: 'timeline.time.update', time: Math.max(clip.startTime || 0, endTime - 0.001), nodeId: timeline.nodeId });
+        pauseTimelineClock(video);
+        return;
+      }
 
-        if (!snapshot || !snapshot.currentNode || effect('timelineOverlay')?.nodeId !== timeline.nodeId) return;
+      for (const clip of activeClips) {
+        if (!isTimelineQteClip(clip) || timelineResolvedQteClipIds.has(clip.id)) continue;
+        const startedAt = timelineQteStartedAt.get(clip.id) || performance.now();
+        const durationMs = Math.max(0, (clip.duration || 0) * 1000);
+        if (performance.now() - startedAt >= durationMs && completeTimelineQte(clip, 'timeout', video)) return;
+      }
 
-        renderTimelineOverlay(overlay, activeClips.filter((clip) => !isTimelineQteClip(clip) || !timelineResolvedQteClipIds.has(clip.id)));
-
-        overlay.querySelectorAll('[data-timeline-clip]').forEach((button) => {
-          button.addEventListener('click', (event) => {
-            event.stopPropagation();
-            const clip = timeline.clips.find((item) => item.id === button.dataset.timelineClip);
-            if (!clip) return;
-            if (isTimelineQteClip(clip)) {
-              const qte = timelineQteConfig(clip);
-              if (qte.input !== 'click') return;
-              const clickCount = timelineQteClickCount(qte);
-              const nextCount = (timelineQteClickCounts.get(clip.id) || 0) + 1;
-              timelineQteClickCounts.set(clip.id, nextCount);
-              if (nextCount >= clickCount) {
-                if (!completeTimelineQte(clip, 'success', video)) syncTimeline();
-                return;
-              }
-              syncTimeline();
+      renderTimelineOverlay(overlay, activeClips.filter((clip) => !isTimelineQteClip(clip) || !timelineResolvedQteClipIds.has(clip.id)));
+      overlay.querySelectorAll('[data-timeline-clip]').forEach((button) => {
+        button.addEventListener('click', (event) => {
+          event.stopPropagation();
+          const clip = timeline.clips.find((item) => item.id === button.dataset.timelineClip);
+          if (!clip) return;
+          if (isTimelineQteClip(clip)) {
+            const qte = timelineQteConfig(clip);
+            if (qte.input !== 'click') return;
+            const clickCount = timelineQteClickCount(qte);
+            const nextCount = (timelineQteClickCounts.get(clip.id) || 0) + 1;
+            timelineQteClickCounts.set(clip.id, nextCount);
+            if (nextCount >= clickCount) {
+              if (!completeTimelineQte(clip, 'success', video)) render();
               return;
             }
-            send({ type: 'timeline.clip.triggered', clipId: clip.id, nodeId: timeline.nodeId });
-          });
+            render();
+            return;
+          }
+          send({ type: 'timeline.clip.triggered', clipId: clip.id, nodeId: timeline.nodeId });
         });
-      };
+      });
+    };
 
-      syncTimeline();
-      if (video) {
-        video.addEventListener('timeupdate', syncTimeline);
-        video.addEventListener('seeked', syncTimeline);
-        video.addEventListener('loadedmetadata', syncTimeline);
+    const syncTimelineClock = () => {
+      const playback = timelinePlaybackEffect();
+      if (!playback || !snapshot || snapshot.status !== 'running') {
+        clearTimelineClock();
+        return;
       }
+      if (timelineClockTimer) return;
       timelineClockTimer = setInterval(() => {
-        const activeTimeline = effect('timelineOverlay');
-        if (!activeTimeline || !snapshot || snapshot.status !== 'running') return;
-        if (!timelineClockPaused) {
-          const duration = Number(activeTimeline.duration) || 0;
-          const nextTime = duration > 0 ? Math.min(duration, (snapshot.timelineTime || 0) + 0.1) : (snapshot.timelineTime || 0) + 0.1;
-          snapshot = runtime.dispatch({ type: 'timeline.time.update', time: nextTime, nodeId: activeTimeline.nodeId });
+        const activePlayback = timelinePlaybackEffect();
+        if (!activePlayback || !snapshot || snapshot.status !== 'running') {
+          clearTimelineClock();
+          render();
+          return;
         }
-        syncTimeline();
+        if (!timelineClockPaused) {
+          const duration = Number(activePlayback.duration) || 0;
+          const nextTime = duration > 0 ? Math.min(duration, (snapshot.timelineTime || 0) + 0.1) : (snapshot.timelineTime || 0) + 0.1;
+          if (Math.abs((snapshot.timelineTime || 0) - nextTime) > 0.02) {
+            snapshot = runtime.dispatch({ type: 'timeline.time.update', time: nextTime, nodeId: activePlayback.nodeId });
+          }
+        }
+        render();
       }, 100);
     };
 
@@ -723,34 +920,24 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
       return '';
     };
 
-    const render = () => {
-      clearTimelineClock();
-      const autoNext = effect('autoNavigate');
-      if (autoNext && snapshot && snapshot.status === 'running') {
-        send({ type: 'navigate', nodeId: autoNext.targetNodeId });
-        return;
-      }
-      const scene = effect('scene');
-      const mediaEffect = effect('playMedia');
-      if (!snapshot || !scene) {
-        appRoot.innerHTML = '<div class="scene"><div class="shade"></div><div class="bottom-glow"></div><main class="content"><div class="content-inner"><div class="scene-copy"><h1>' + escapeHtml(t('playEnded')) + '</h1></div>' + renderActions() + '</div></main></div>';
-        appRoot.querySelector('[data-restart]')?.addEventListener('click', () => send({ type: 'restart' }));
-        return;
-      }
-      const media = mediaEffect && mediaEffect.mediaType === 'video'
-        ? '<video class="media" src="' + escapeHtml(mediaEffect.src) + '" poster="' + escapeHtml(mediaEffect.poster || '') + '" autoplay playsinline' + (mediaEffect.muted ? ' muted' : '') + '></video>'
-        : mediaEffect && mediaEffect.mediaType === 'image'
-          ? '<img class="media" src="' + escapeHtml(mediaEffect.src) + '" />'
-          : '';
-      const sceneCopy = '<div class="scene-copy"><div class="node-type">' + escapeHtml(scene.nodeType) + '</div><h1>' + escapeHtml(scene.title) + '</h1>' + (scene.text ? '<p>' + escapeHtml(scene.text) + '</p>' : '') + '</div>';
-      appRoot.innerHTML = '<div class="scene">' + media + '<div id="timelineOverlay" class="timeline-overlay"></div><div class="shade"></div><div class="bottom-glow"></div><main class="content"><div class="content-inner">' + sceneCopy + renderActions() + '</div></main></div>';
-      const renderedVideo = appRoot.querySelector('video.media');
-      if (renderedVideo && mediaEffect && mediaEffect.mediaType === 'video' && mediaEffect.sourceStart > 0) {
-        renderedVideo.addEventListener('loadedmetadata', () => {
-          renderedVideo.currentTime = mediaEffect.sourceStart;
-        }, { once: true });
-      }
-      wireTimelineOverlay();
+    const renderVisualMediaLayers = () => {
+      const visuals = visualMediaEffects();
+      if (visuals.length === 0) return '<div class="empty-stage"></div>';
+      return visuals.map((item, index) => {
+        const fitClassName = item.fit === 'cover' ? 'media-cover' : 'media-contain';
+        const style = mediaLayerCssText(item);
+        if (item.mediaType === 'video') {
+          return '<div class="media-layer" data-visual-layer="' + index + '" style="' + style + '"><video class="media-item ' + fitClassName + '" data-visual-index="' + index + '" src="' + escapeHtml(item.src || '') + '" poster="' + escapeHtml(item.poster || '') + '" autoplay playsinline' + (item.muted ? ' muted' : '') + '></video></div>';
+        }
+        return '<div class="media-layer" data-visual-layer="' + index + '" style="' + style + '"><img class="media-item ' + fitClassName + '" data-visual-index="' + index + '" src="' + escapeHtml(item.src || '') + '" alt="" /></div>';
+      }).join('');
+    };
+
+    const renderAudioMediaLayers = () => audioMediaEffects()
+      .map((item, index) => item.muted ? '' : '<audio class="audio-layer" data-audio-index="' + index + '" src="' + escapeHtml(item.src || '') + '" autoplay></audio>')
+      .join('');
+
+    const wireActions = () => {
       appRoot.querySelectorAll('button').forEach((button) => {
         button.addEventListener('click', () => {
           if (button.dataset.timelineClip) return;
@@ -767,15 +954,37 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
       });
     };
 
+    const render = () => {
+      const autoNext = effect('autoNavigate');
+      if (autoNext && snapshot && snapshot.status === 'running') {
+        send({ type: 'navigate', nodeId: autoNext.targetNodeId });
+        return;
+      }
+      const scene = effect('scene');
+      const nextRenderSignature = renderSignature();
+      if (nextRenderSignature !== currentRenderSignature) {
+        currentRenderSignature = nextRenderSignature;
+        const sceneCopy = scene
+          ? '<div class="scene-copy"><div class="node-type">' + escapeHtml(scene.nodeType) + '</div><h1>' + escapeHtml(scene.title) + '</h1>' + (scene.text ? '<p>' + escapeHtml(scene.text) + '</p>' : '') + '</div>'
+          : '<div class="scene-copy"><h1>' + escapeHtml(t('playEnded')) + '</h1></div>';
+        appRoot.innerHTML = '<div class="scene"><div class="stage-wrap"><div id="runtimeStage" class="runtime-stage" style="' + runtimeStageCssText(runtimeStageAspectRatio) + '">' + renderVisualMediaLayers() + '<div class="shade"></div><div class="bottom-glow"></div><div id="timelineOverlay" class="timeline-overlay"></div></div>' + renderAudioMediaLayers() + '</div><main class="content"><div class="content-inner">' + sceneCopy + renderActions() + '</div></main></div>';
+        wireActions();
+      }
+      updateVisualMediaLayers();
+      updateAudioMediaLayers();
+      wireTimelineOverlay();
+      syncTimelineClock();
+    };
+
     document.addEventListener('keydown', (event) => {
       if (isTextEditingTarget(event.target)) return;
-      const timeline = effect('timelineOverlay');
+      const timeline = timelineOverlayEffect();
       if (!timeline || !snapshot || !snapshot.currentNode) return;
       const activeClips = runtimeCore.getActiveTimelineClips(snapshot.currentNode, snapshot.timelineTime || 0);
       const clip = activeClips.find((item) => isTimelineQteClip(item) && !timelineResolvedQteClipIds.has(item.id) && timelineQteMatchesKeyEvent(event, timelineQteConfig(item)));
       if (!clip) return;
       event.preventDefault();
-      const video = appRoot.querySelector('video.media');
+      const video = getTimelineSyncVideo();
       if (!completeTimelineQte(clip, 'success', video)) render();
     });
 

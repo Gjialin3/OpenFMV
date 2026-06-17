@@ -3,12 +3,19 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { createRequire } from 'module';
 import { pathToFileURL } from 'url';
+import { Script } from 'vm';
 import { describe, expect, it } from 'vitest';
 
 import { graphRuntimeFunctionNames } from '@/app/_utils/graphRuntimeCore.mjs';
 
 const require = createRequire(import.meta.url);
 const { exportGamePackage, exportWebGamePackage, saveProjectToDirectory } = require('../../../electron/exporter');
+
+const expectExportPlayerScriptToParse = (html: string) => {
+  const playerScript = html.split('<script>').at(-1)?.split('</script>')[0] || '';
+  expect(playerScript).toContain('const appRoot');
+  expect(() => new Script(playerScript)).not.toThrow();
+};
 
 describe('game exporter', () => {
   it('exports a playable web package with local graph media rewritten to relative assets', async () => {
@@ -91,6 +98,7 @@ describe('game exporter', () => {
     expect(html).toContain('class="content"');
     expect(html).toContain('class="scene-copy"');
     expect(html).not.toContain('class="panel"');
+    expectExportPlayerScriptToParse(html);
   });
 
   it('leaves non-project asset sources out of export copying', async () => {
@@ -354,6 +362,10 @@ describe('game exporter', () => {
     expect(html).toContain('timelineClockTimer = setInterval');
     expect(html).toContain("const autoNext = effect('autoNavigate')");
     expect(html).toContain('timelineButtonCssText');
+    expect(html).toContain('min-height: 40px');
+    expect(html).toContain('font-size: 12px');
+    expect(html).toContain("'transform:rotate(' + (Number.isFinite(rotation) ? rotation : 0) + 'deg)'");
+    expect(html).toContain("'transform-origin:center'");
     expect(html).toContain('"preset": "glass"');
     expect(html).toContain('"shape": "diamond"');
     expect(html).toContain('"fillOpacity": 0.4');
@@ -365,7 +377,98 @@ describe('game exporter', () => {
     expect(html).toContain("document.addEventListener('keydown'");
     expect(html).toContain("send({ type: reason === 'timeout' ? 'timeline.clip.timeout' : 'timeline.clip.triggered'");
     expect(html).toContain('button.dataset.timelineClip');
+    expect(html).toContain('event.stopPropagation()');
+    expect(html).toContain('timelineQteMatchesKeyEvent');
+    expect(html).toContain('clip.pauseOnShow');
     expect(html).not.toContain("action.type === 'pause'");
+  });
+
+  it('exports a preview-parity web player shell for layered timeline media', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'openfmv-export-layered-media-'));
+    const sourceImage = join(root, 'card.png');
+    const sourceVideo = join(root, 'clip.mp4');
+    const sourceAudio = join(root, 'bed.mp3');
+    await writeFile(sourceImage, Buffer.from([137, 80, 78, 71]));
+    await writeFile(sourceVideo, Buffer.from('video'));
+    await writeFile(sourceAudio, Buffer.from('audio'));
+
+    const project = {
+      schemaVersion: 1,
+      id: 'project-layered-media',
+      title: 'Layered Media',
+      graphData: {
+        nodes: [
+          {
+            id: 'start',
+            type: 'start',
+            position: { x: 0, y: 0 },
+            data: {
+              type: 'start',
+              label: 'Start',
+              timeline: {
+                version: 2,
+                duration: 6,
+                bookmarks: [],
+                tracks: [
+                  {
+                    id: 'media-track',
+                    type: 'media',
+                    name: 'Media',
+                    clips: [
+                      { id: 'image-clip', type: 'image', src: sourceImage, startTime: 0, duration: 4, enabled: true, rect: { x: 0, y: 0, width: 1, height: 1 }, fit: 'cover', opacity: 0.75, rotation: 4 },
+                      { id: 'video-clip', type: 'video', src: sourceVideo, poster: sourceImage, startTime: 1, duration: 4, enabled: true, sourceStart: 0.5, sourceDuration: 2, playbackRate: 1.25, rect: { x: 0.1, y: 0.12, width: 0.8, height: 0.76 }, fit: 'contain' },
+                      { id: 'audio-clip', type: 'audio', src: sourceAudio, startTime: 0, duration: 6, enabled: true, volume: 0.4, sourceStart: 0.2 },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+          {
+            id: 'next',
+            type: 'scene',
+            position: { x: 200, y: 0 },
+            data: { type: 'scene', title: 'Next', bodyText: '' },
+          },
+        ],
+        edges: [{ id: 'default-edge', source: 'start', sourceHandle: 'node:default', target: 'next' }],
+      },
+      assets: [],
+      metadata: {},
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const result = await exportWebGamePackage({
+      project,
+      config: {
+        gameTitle: 'Layered Media',
+        outputDirectory: root,
+        entryNodeId: 'start',
+        windowMode: 'windowed',
+        resolution: { width: 1280, height: 720 },
+        includeDebugOverlay: false,
+      },
+    });
+
+    const html = await readFile(join(result.outputDirectory, 'index.html'), 'utf8');
+    const gameJson = JSON.parse(await readFile(join(result.outputDirectory, 'game.json'), 'utf8'));
+    const clips = gameJson.graphData.nodes[0].data.timeline.tracks[0].clips;
+
+    expect(clips.map((clip: { src: string }) => clip.src)).toEqual(['assets/card.png', 'assets/clip.mp4', 'assets/bed.mp3']);
+    expect(clips[1].poster).toBe('assets/card.png');
+    expect(html).toContain('class="runtime-stage"');
+    expect(html).toContain('data-visual-layer');
+    expect(html).toContain('data-audio-index');
+    expect(html).toContain('timelinePlaybackEffect');
+    expect(html).toContain('syncTimelineClock');
+    expect(html).toContain('updateVisualMediaLayers');
+    expect(html).toContain('updateAudioMediaLayers');
+    expect(html).toContain('getMediaPlaybackTarget');
+    expect(html).toContain('media-cover');
+    expect(html).not.toContain("effect('playMedia')");
+    expect(html).not.toContain('video.media');
+    expectExportPlayerScriptToParse(html);
   });
 
   it('exports the shared graph runtime for edge-based navigation', async () => {
