@@ -38,7 +38,6 @@ import {
   Minus,
   MousePointerClick,
   Music,
-  Palette,
   Pause,
   Play,
   Plus,
@@ -601,7 +600,7 @@ const getClipTone = (clip: TimelineClip, selected: boolean) => {
 const getPreviewClipClassName = (clip: TimelineInteractionClip, selected: boolean, active: boolean) => {
   const base = 'absolute flex min-h-openfmv-control min-w-12 items-center justify-center overflow-hidden rounded-openfmv-tool border px-2 text-xs font-bold text-white shadow-[0_18px_52px_rgba(0,0,0,0.38)] backdrop-blur-xl transition hover:scale-[1.02]';
   const tone = isQteButtonClip(clip) ? 'border-cyan-200/90 bg-cyan-500/92' : 'border-orange-200/90 bg-orange-500/92';
-  return `${base} ${tone} ${selected ? 'ring-2 ring-white ring-offset-2 ring-offset-black' : ''} ${active ? '' : 'opacity-45'}`;
+  return `${base} ${tone} ${selected ? 'ring-2 ring-white ring-offset-2 ring-offset-black' : ''} ${active || selected ? '' : 'opacity-45'}`;
 };
 
 type FloatingToolbarPlacement = 'above' | 'below';
@@ -1387,7 +1386,6 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
     });
   }, [assetLibrary, assetSortMode]);
   const mediaAssetItems = useMemo(() => sortedAssetItems.filter((item) => isTimelineMediaAsset(item.asset)), [sortedAssetItems]);
-  const imageAssetItems = useMemo(() => sortedAssetItems.filter((item) => item.asset.type === 'image'), [sortedAssetItems]);
   const audioAssetItems = useMemo(() => sortedAssetItems.filter((item) => item.asset.type === 'audio'), [sortedAssetItems]);
   const visibleMediaAssetItems = activeLibraryTab === 'audio' ? audioAssetItems : mediaAssetItems;
   const isMediaLibraryTab = activeLibraryTab === 'assets' || activeLibraryTab === 'audio';
@@ -3941,6 +3939,10 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
                   const qteConfig = isQteButtonClip(resolvedClip) ? getQteConfig(resolvedClip) : null;
                   const qteCueLabel = qteConfig ? getQteCueLabel(qteConfig) : null;
                   const buttonVisualStyle = getButtonClipInlineStyle(resolvedClip);
+                  const selected = resolvedClip.id === selectedClip?.id;
+                  const previewOpacity = active || selected
+                    ? getTimelineClipOpacity(resolvedClip)
+                    : Math.min(getTimelineClipOpacity(resolvedClip), 0.45);
                   const rotating = overlayDrag?.mode === 'rotate' && overlayDrag.clipId === resolvedClip.id;
                   return (
                     <button
@@ -3948,13 +3950,13 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
                       type="button"
                       onPointerDown={(event) => handleOverlayPointerDown(resolvedClip, event)}
                       onClick={() => selectSingleClip(resolvedClip.id)}
-                      className={getPreviewClipClassName(resolvedClip, resolvedClip.id === selectedClip?.id, active)}
+                      className={getPreviewClipClassName(resolvedClip, selected, active)}
                       style={{
                         left: `${rect.x * 100}%`,
                         top: `${rect.y * 100}%`,
                         width: `${rect.width * 100}%`,
                         height: `${rect.height * 100}%`,
-                        opacity: active ? getTimelineClipOpacity(resolvedClip) : Math.min(getTimelineClipOpacity(resolvedClip), 0.45),
+                        opacity: previewOpacity,
                         transform: `rotate(${getTimelineClipRotation(resolvedClip)}deg)`,
                         transformOrigin: 'center',
                         transition: rotating ? 'none' : undefined,
@@ -3982,7 +3984,7 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
                       ) : (
                         <span className="relative z-10 truncate">{getTimelineClipLabel(resolvedClip)}</span>
                       )}
-                      {resolvedClip.id === selectedClip?.id && overlayResizeHandles.map((item) => (
+                      {selected && overlayResizeHandles.map((item) => (
                         <span
                           key={item.handle}
                           data-node-overlay-resize-handle={item.handle}
@@ -4006,7 +4008,8 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
                 <ButtonFloatingStyleToolbar
                   t={t}
                   clip={selectedButtonToolbarClip}
-                  imageAssets={imageAssetItems}
+                  assetItems={assetLibrary}
+                  draggedAssetId={draggedAssetId}
                   isImportingImage={isImportingAsset}
                   onImportImage={importButtonBackgroundImage}
                   onUpdate={(update) => updateClip(selectedButtonToolbarClip.id, (clip) => (isInteractionClip(clip) ? update(clip) : clip))}
@@ -5260,229 +5263,6 @@ function InspectorSwitchRow({
   );
 }
 
-function InspectorRangeField({
-  label,
-  value,
-  min = 0,
-  max = 1,
-  step = 0.05,
-  formatValue = (item) => `${Math.round(item * 100)}%`,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  min?: number;
-  max?: number;
-  step?: number;
-  formatValue?: (value: number) => string;
-  onChange: (value: number) => void;
-}) {
-  const safeValue = Math.max(min, Math.min(max, Number.isFinite(value) ? value : min));
-  return (
-    <ButtonStyleOptionRow label={label}>
-      <div className="ml-auto grid h-7 w-[132px] grid-cols-[minmax(0,1fr)_40px] items-center gap-2">
-        <input
-          type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={safeValue}
-          onChange={(event) => onChange(Number(event.target.value))}
-          className="h-full min-w-0 accent-openfmv-accent"
-          aria-label={label}
-        />
-        <span className="grid h-7 place-items-center rounded-openfmv-tool border border-white/12 bg-[#171717] font-mono text-[10px] text-openfmv-sub transition">
-          {formatValue(safeValue)}
-        </span>
-      </div>
-    </ButtonStyleOptionRow>
-  );
-}
-
-function InspectorInlineNumberField({
-  label,
-  value,
-  step,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  step: number;
-  onChange: (value: number) => void;
-}) {
-  const safeValue = Number.isFinite(value) ? value : 0;
-  return (
-    <ButtonStyleOptionRow label={label}>
-      <div className="ml-auto grid h-7 w-[92px] grid-cols-[22px_minmax(0,1fr)_22px] overflow-hidden rounded-openfmv-tool border border-white/12 bg-[#171717] text-xs text-white transition hover:border-white/24 focus-within:border-white/35">
-        <button
-          type="button"
-          aria-label={`${label} -`}
-          onClick={() => onChange(safeValue - step)}
-          className="grid h-full place-items-center border-r border-white/10 text-openfmv-muted transition hover:bg-white/[0.06] hover:text-white"
-        >
-          <Minus size={11} />
-        </button>
-        <input
-          type="text"
-          inputMode="numeric"
-          aria-label={label}
-          value={safeValue}
-          onChange={(event) => onChange(Number(event.target.value))}
-          className="h-full min-w-0 border-0 bg-transparent px-1 text-center font-mono text-xs text-white outline-none"
-        />
-        <button
-          type="button"
-          aria-label={`${label} +`}
-          onClick={() => onChange(safeValue + step)}
-          className="grid h-full place-items-center border-l border-white/10 text-openfmv-muted transition hover:bg-white/[0.06] hover:text-white"
-        >
-          <Plus size={11} />
-        </button>
-      </div>
-    </ButtonStyleOptionRow>
-  );
-}
-
-function InspectorColorField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  const safeValue = normalizeButtonHexColor(value, '#ffffff');
-  const updateColor = (nextValue: string) => onChange(normalizeButtonHexColor(nextValue, safeValue));
-  return (
-    <ButtonStyleOptionRow label={label}>
-      <ColorPickerControl label={label} value={safeValue} onChange={updateColor} />
-    </ButtonStyleOptionRow>
-  );
-}
-
-const COLOR_HEX_INPUT_PATTERN = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i;
-
-function ColorPickerControl({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [draftValue, setDraftValue] = useState(value);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setDraftValue(value);
-  }, [value]);
-
-  useEffect(() => {
-    if (!open) return;
-    const handlePointerDown = (event: PointerEvent) => {
-      if (containerRef.current?.contains(event.target as Node)) return;
-      setOpen(false);
-    };
-    document.addEventListener('pointerdown', handlePointerDown);
-    return () => document.removeEventListener('pointerdown', handlePointerDown);
-  }, [open]);
-
-  const applyColor = (nextValue: string) => {
-    const normalized = normalizeButtonHexColor(nextValue, value);
-    setDraftValue(normalized);
-    onChange(normalized);
-  };
-
-  const updateDraft = (nextValue: string) => {
-    setDraftValue(nextValue);
-    if (COLOR_HEX_INPUT_PATTERN.test(nextValue.trim())) {
-      onChange(normalizeButtonHexColor(nextValue, value));
-    }
-  };
-
-  const commitDraft = () => {
-    const normalized = normalizeButtonHexColor(draftValue, value);
-    setDraftValue(normalized);
-    onChange(normalized);
-  };
-
-  return (
-    <div ref={containerRef} className="relative w-10 justify-self-end">
-      <button
-        type="button"
-        aria-label={label}
-        aria-expanded={open}
-        title={value}
-        onClick={() => setOpen((current) => !current)}
-        className={`grid h-7 w-10 place-items-center rounded-openfmv-tool border bg-black/25 p-1 transition ${open ? 'border-cyan-300/65 ring-1 ring-cyan-300/35' : 'border-white/10 hover:border-white/35'}`}
-      >
-        <span className="h-full w-full rounded-[3px] border border-white/16" style={{ backgroundColor: value }} />
-      </button>
-
-      {open && (
-        <div
-          className="absolute right-0 top-8 z-40 w-40 rounded-openfmv-tool border border-white/12 bg-[#171717] p-2 shadow-[0_18px_42px_rgba(0,0,0,0.42)]"
-          onKeyDown={(event) => {
-            if (event.key === 'Escape') setOpen(false);
-          }}
-        >
-          <div className="grid grid-cols-4 gap-1.5">
-            {BUTTON_STYLE_SWATCHES.map((color) => {
-              const selected = value === color;
-              return (
-                <button
-                  key={color}
-                  type="button"
-                  aria-label={`${label} ${color}`}
-                  aria-pressed={selected}
-                  onClick={() => applyColor(color)}
-                  className={`grid h-7 place-items-center rounded-openfmv-tool border transition ${selected ? 'border-white ring-1 ring-white/70' : 'border-white/12 hover:border-white/40'}`}
-                  style={{ backgroundColor: color }}
-                >
-                  {selected && <Check size={11} className="text-white drop-shadow" />}
-                </button>
-              );
-            })}
-          </div>
-          <input
-            type="text"
-            spellCheck={false}
-            value={draftValue}
-            onChange={(event) => updateDraft(event.target.value)}
-            onBlur={commitDraft}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                commitDraft();
-                setOpen(false);
-              }
-            }}
-            aria-label={`${label} hex`}
-            className="mt-2 h-7 w-full rounded-openfmv-tool border border-white/12 bg-black/25 px-2 font-mono text-[11px] text-white outline-none transition placeholder:text-openfmv-muted focus:border-cyan-300/60"
-          />
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ButtonStyleOptionRow({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="grid grid-cols-[52px_minmax(0,1fr)] items-center gap-2">
-      <span className="min-w-0 truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-openfmv-muted" title={label}>{label}</span>
-      <div className="min-w-0">{children}</div>
-    </div>
-  );
-}
-
 function ButtonShapeIcon({ shape, compact = false }: { shape: ButtonStyleShape; compact?: boolean }) {
   const radiusClass = shape === 'pill' ? 'rounded-openfmv-pill' : shape === 'square' || shape === 'diamond' || shape === 'hexagon' ? 'rounded-[2px]' : shape === 'oval' ? 'rounded-[50%]' : 'rounded-[7px]';
   const clipPath = getButtonStyleClipPath(shape);
@@ -5514,19 +5294,21 @@ const getButtonBackgroundFitOptions = (t: NodeTimelineTranslator): Array<{ label
   return BUTTON_STYLE_BACKGROUND_FITS.map((value) => ({ label: labels[value], value }));
 };
 
-type FloatingToolbarPanel = 'shape' | 'fill' | 'background' | 'border' | 'text';
+type FloatingToolbarPanel = 'shape' | 'fill' | 'border' | 'text';
 
 function ButtonFloatingStyleToolbar({
   t,
   clip,
-  imageAssets,
+  assetItems,
+  draggedAssetId,
   isImportingImage,
   onImportImage,
   onUpdate,
 }: {
   t: NodeTimelineTranslator;
   clip: TimelineInteractionClip;
-  imageAssets: TimelineAssetItem[];
+  assetItems: TimelineAssetItem[];
+  draggedAssetId: string | null;
   isImportingImage: boolean;
   onImportImage: (file: File) => Promise<OpenFMVAsset | null>;
   onUpdate: (update: (clip: TimelineInteractionClip) => TimelineInteractionClip) => void;
@@ -5543,7 +5325,7 @@ function ButtonFloatingStyleToolbar({
 
   return (
     <div
-      className="absolute z-40 max-w-[calc(100%-16px)] text-slate-900"
+      className="absolute z-40 w-max text-slate-900"
       style={placement.style}
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
@@ -5569,19 +5351,6 @@ function ButtonFloatingStyleToolbar({
             className="h-5 w-5 rounded-full border border-slate-300"
             style={{ backgroundColor: getButtonStyleRgba(style.fillColor, style.fillOpacity) }}
           />
-        </FloatingToolbarButton>
-        <FloatingToolbarButton
-          label={t('fields.buttonBackgroundImage')}
-          active={openPanel === 'background'}
-          onClick={() => togglePanel('background')}
-        >
-          <span className="relative grid h-6 w-6 place-items-center overflow-hidden rounded-[5px] border border-slate-300 bg-slate-100">
-            {style.backgroundImageSrc ? (
-              <ButtonBackgroundImageThumbnail src={style.backgroundImageSrc} />
-            ) : (
-              <ImageIcon size={16} strokeWidth={2.1} />
-            )}
-          </span>
         </FloatingToolbarButton>
         <FloatingToolbarButton
           label={t('fields.buttonBorderColor')}
@@ -5615,25 +5384,16 @@ function ButtonFloatingStyleToolbar({
         />
       )}
       {openPanel === 'fill' && (
-        <FloatingColorPanel
-          label={t('fields.buttonFillColor')}
-          opacityLabel={t('fields.buttonFillOpacity')}
-          placement={placement.panelPlacement}
-          value={style.fillColor}
-          opacity={style.fillOpacity}
-          includeClear
-          onChange={(fillColor) => setStyle({ fillColor, fillOpacity: style.fillOpacity <= 0 ? 0.92 : style.fillOpacity })}
-          onClear={() => setStyle({ fillOpacity: 0 })}
-          onOpacityChange={(fillOpacity) => setStyle({ fillOpacity: clampButtonStyleOpacity(fillOpacity, style.fillOpacity) })}
-        />
-      )}
-      {openPanel === 'background' && (
-        <FloatingBackgroundPanel
+        <FloatingFillPanel
           t={t}
           placement={placement.panelPlacement}
-          imageAssets={imageAssets}
+          assetItems={assetItems}
+          draggedAssetId={draggedAssetId}
           style={style}
           isImporting={isImportingImage}
+          onFillColorChange={(fillColor) => setStyle({ fillColor, fillOpacity: style.fillOpacity <= 0 ? 0.92 : style.fillOpacity })}
+          onFillClear={() => setStyle({ fillOpacity: 0 })}
+          onFillOpacityChange={(fillOpacity) => setStyle({ fillOpacity: clampButtonStyleOpacity(fillOpacity, style.fillOpacity) })}
           onPickAsset={(asset) => setStyle({
             backgroundImageAssetId: asset.id,
             backgroundImageSrc: getAssetSource(asset),
@@ -5710,13 +5470,6 @@ function FloatingToolbarDivider() {
   return <div className="mx-0.5 h-6 w-px bg-slate-200" />;
 }
 
-function ButtonBackgroundImageThumbnail({ src }: { src?: string }) {
-  const resolvedSrc = useResolvedMediaSrc(src);
-
-  if (!resolvedSrc) return <ImageIcon size={16} strokeWidth={2.1} />;
-  return <img src={resolvedSrc} alt="" className="h-full w-full object-cover" />;
-}
-
 function FloatingPanelShell({
   placement,
   widthClass = 'w-[268px]',
@@ -5734,10 +5487,73 @@ function FloatingPanelShell({
   );
 }
 
-function FloatingBackgroundPanel({
+function FloatingFillPanel({
   t,
   placement,
-  imageAssets,
+  assetItems,
+  draggedAssetId,
+  style,
+  isImporting,
+  onFillColorChange,
+  onFillClear,
+  onFillOpacityChange,
+  onPickAsset,
+  onImport,
+  onRemove,
+  onFitChange,
+}: {
+  t: NodeTimelineTranslator;
+  placement: FloatingToolbarPlacement;
+  assetItems: TimelineAssetItem[];
+  draggedAssetId: string | null;
+  style: ResolvedButtonStyleConfig;
+  isImporting: boolean;
+  onFillColorChange: (color: string) => void;
+  onFillClear: () => void;
+  onFillOpacityChange: (opacity: number) => void;
+  onPickAsset: (asset: OpenFMVAsset) => void;
+  onImport: (file: File) => Promise<void>;
+  onRemove: () => void;
+  onFitChange: (fit: ButtonStyleBackgroundFit) => void;
+}) {
+  return (
+    <FloatingPanelShell placement={placement} widthClass="w-[356px]">
+      <div className="grid grid-cols-[132px_minmax(0,1fr)] gap-3">
+        <div className="min-w-0">
+          <div className="mb-2 text-[11px] font-semibold text-slate-600">{t('fields.buttonFillColor')}</div>
+          <FloatingColorSwatches
+            label={t('fields.buttonFillColor')}
+            value={style.fillColor}
+            includeClear
+            clearSelected={style.fillOpacity === 0}
+            className="grid grid-cols-5 gap-1.5"
+            onChange={onFillColorChange}
+            onClear={onFillClear}
+          />
+          <FloatingOpacityControl label={t('fields.buttonFillOpacity')} value={style.fillOpacity} onChange={onFillOpacityChange} />
+        </div>
+        <div className="min-w-0 border-l border-slate-200 pl-3">
+          <FloatingBackgroundControls
+            t={t}
+            assetItems={assetItems}
+            draggedAssetId={draggedAssetId}
+            style={style}
+            isImporting={isImporting}
+            onPickAsset={onPickAsset}
+            onImport={onImport}
+            onRemove={onRemove}
+            onFitChange={onFitChange}
+          />
+        </div>
+      </div>
+    </FloatingPanelShell>
+  );
+}
+
+function FloatingBackgroundControls({
+  t,
+  assetItems,
+  draggedAssetId,
   style,
   isImporting,
   onPickAsset,
@@ -5746,8 +5562,8 @@ function FloatingBackgroundPanel({
   onFitChange,
 }: {
   t: NodeTimelineTranslator;
-  placement: FloatingToolbarPlacement;
-  imageAssets: TimelineAssetItem[];
+  assetItems: TimelineAssetItem[];
+  draggedAssetId: string | null;
   style: ResolvedButtonStyleConfig;
   isImporting: boolean;
   onPickAsset: (asset: OpenFMVAsset) => void;
@@ -5756,27 +5572,74 @@ function FloatingBackgroundPanel({
   onFitChange: (fit: ButtonStyleBackgroundFit) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [dragActive, setDragActive] = useState(false);
   const hasBackground = Boolean(style.backgroundImageSrc);
+  const resolvedBackgroundSrc = useResolvedMediaSrc(style.backgroundImageSrc);
   const fitOptions = getButtonBackgroundFitOptions(t);
+  const getDraggedImageAssetItem = (event?: React.DragEvent<HTMLElement>) => {
+    const assetId = event?.dataTransfer.getData('application/openfmv-asset-id') || draggedAssetId;
+    const projectId = event?.dataTransfer.getData('application/openfmv-asset-project-id');
+    const assetItem = assetItems.find((item) => item.asset.id === assetId && (!projectId || item.projectId === projectId))
+      ?? assetItems.find((item) => item.asset.id === assetId)
+      ?? null;
+    return assetItem?.asset.type === 'image' ? assetItem : null;
+  };
+  const canDropImage = (event: React.DragEvent<HTMLElement>) => {
+    if (getDraggedImageAssetItem(event)) return true;
+    return Array.from(event.dataTransfer.files || []).some((file) => file.type.startsWith('image/'));
+  };
+  const handleBackgroundDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    if (!canDropImage(event)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = 'copy';
+    setDragActive(true);
+  };
+  const handleBackgroundDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    if (!canDropImage(event)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setDragActive(false);
+
+    const assetItem = getDraggedImageAssetItem(event);
+    if (assetItem) {
+      onPickAsset(assetItem.asset);
+      return;
+    }
+
+    const imageFile = Array.from(event.dataTransfer.files || []).find((file) => file.type.startsWith('image/'));
+    if (imageFile) void onImport(imageFile);
+  };
 
   return (
-    <FloatingPanelShell placement={placement} widthClass="w-[268px]">
+    <>
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5 text-[11px] font-semibold text-slate-600">
           <ImageIcon size={13} className="shrink-0 text-slate-400" />
           <span className="truncate">{t('fields.buttonBackgroundImage')}</span>
         </div>
-        {hasBackground && (
+        <div className="flex shrink-0 items-center gap-1">
           <button
             type="button"
+            disabled={isImporting}
+            onClick={() => inputRef.current?.click()}
+            className="grid h-7 w-7 place-items-center rounded-[7px] text-slate-500 transition hover:bg-blue-50 hover:text-blue-600 disabled:opacity-45"
+            title={t('fields.buttonBackgroundUpload')}
+            aria-label={t('fields.buttonBackgroundUpload')}
+          >
+            <Upload size={14} />
+          </button>
+          <button
+            type="button"
+            disabled={!hasBackground}
             onClick={onRemove}
-            className="grid h-7 w-7 shrink-0 place-items-center rounded-[7px] text-slate-500 transition hover:bg-red-50 hover:text-red-600"
+            className="grid h-7 w-7 place-items-center rounded-[7px] text-slate-500 transition hover:bg-red-50 hover:text-red-600 disabled:pointer-events-none disabled:opacity-30"
             title={t('fields.buttonBackgroundRemove')}
             aria-label={t('fields.buttonBackgroundRemove')}
           >
             <Trash2 size={14} />
           </button>
-        )}
+        </div>
       </div>
 
       <input
@@ -5791,40 +5654,20 @@ function FloatingBackgroundPanel({
         }}
       />
 
-      <div className="mt-1.5 grid max-h-[112px] grid-cols-4 gap-1.5 overflow-y-auto pr-1">
-        <button
-          type="button"
-          disabled={isImporting}
-          onClick={() => inputRef.current?.click()}
-          className="flex h-[54px] flex-col items-center justify-center gap-1 rounded-[8px] border border-dashed border-slate-300 bg-slate-50 text-[10px] font-semibold text-slate-500 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 disabled:opacity-45"
-          title={t('fields.buttonBackgroundUpload')}
-          aria-label={t('fields.buttonBackgroundUpload')}
-        >
-          <Upload size={14} />
-          <span className="max-w-full truncate px-1">{t('actions.import')}</span>
-        </button>
-        {imageAssets.map((item) => {
-          const source = getAssetSource(item.asset);
-          const selected = style.backgroundImageAssetId === item.asset.id || Boolean(style.backgroundImageSrc && style.backgroundImageSrc === source);
-          return (
-            <button
-              key={getTimelineAssetItemKey(item)}
-              type="button"
-              aria-label={item.asset.name}
-              aria-pressed={selected}
-              title={item.asset.name}
-              onClick={() => onPickAsset(item.asset)}
-              className={`relative h-[54px] overflow-hidden rounded-[8px] border bg-slate-100 transition ${selected ? 'border-blue-500 ring-2 ring-blue-100' : 'border-slate-200 hover:border-slate-400'}`}
-            >
-              <AssetLibraryPreview asset={item.asset} />
-              {selected && (
-                <span className="absolute right-1 top-1 grid h-4 w-4 place-items-center rounded-full bg-blue-500 text-white shadow">
-                  <Check size={10} strokeWidth={2.4} />
-                </span>
-              )}
-            </button>
-          );
-        })}
+      <div
+        className={`mt-1.5 grid h-[58px] overflow-hidden rounded-[8px] border transition ${dragActive ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-100' : hasBackground ? 'border-slate-200 bg-slate-100' : 'border-dashed border-slate-300 bg-slate-50'}`}
+        onDragEnter={handleBackgroundDragOver}
+        onDragOver={handleBackgroundDragOver}
+        onDragLeave={() => setDragActive(false)}
+        onDrop={handleBackgroundDrop}
+      >
+        {resolvedBackgroundSrc ? (
+          <img src={resolvedBackgroundSrc} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <div className="grid h-full place-items-center text-slate-400">
+            <ImageIcon size={18} />
+          </div>
+        )}
       </div>
 
       <div className="mt-2 flex items-center gap-2">
@@ -5846,7 +5689,7 @@ function FloatingBackgroundPanel({
           })}
         </div>
       </div>
-    </FloatingPanelShell>
+    </>
   );
 }
 
@@ -5989,6 +5832,7 @@ function FloatingColorSwatches({
   value,
   includeClear = false,
   clearSelected = false,
+  className = 'grid grid-cols-9 gap-1.5',
   onChange,
   onClear,
 }: {
@@ -5996,12 +5840,13 @@ function FloatingColorSwatches({
   value: string;
   includeClear?: boolean;
   clearSelected?: boolean;
+  className?: string;
   onChange: (value: string) => void;
   onClear?: () => void;
 }) {
   const safeValue = normalizeButtonHexColor(value, '#ffffff');
   return (
-    <div className="grid grid-cols-9 gap-1.5">
+    <div className={className}>
       {includeClear && (
         <button
           type="button"
@@ -6059,68 +5904,6 @@ function FloatingOpacityControl({
         className="h-1.5 w-full accent-blue-500"
         aria-label={label}
       />
-    </div>
-  );
-}
-
-function ButtonStyleInspector({
-  t,
-  clip,
-  onUpdate,
-}: {
-  t: NodeTimelineTranslator;
-  clip: TimelineInteractionClip;
-  onUpdate: (update: (clip: TimelineInteractionClip) => TimelineInteractionClip) => void;
-}) {
-  const style = resolveButtonStyleConfig(clip);
-  const previewClip = { ...clip, style };
-  const label = isQteButtonClip(clip) ? getQteDisplayName(clip) : getTimelineClipLabel(clip);
-  const setStyle = (patch: ButtonStyleConfig) => onUpdate((item) => updateInteractionStyle(item, patch));
-
-  return (
-    <div className="space-y-2 rounded-openfmv-tool border border-white/10 bg-white/[0.035] p-2.5">
-      <ButtonStyleOptionRow label={t('fields.buttonStyleShape')}>
-        <InspectorSegmentedControl
-          value={style.shape}
-          compact
-          options={getButtonShapeOptions(t).map((option) => ({
-            ...option,
-            visual: <ButtonShapeIcon shape={option.value} />,
-          }))}
-          onChange={(value) => setStyle({ shape: value as ButtonStyleShape })}
-        />
-      </ButtonStyleOptionRow>
-
-      <div className="grid grid-cols-1 gap-1.5">
-        <InspectorColorField label={t('fields.buttonFillColor')} value={style.fillColor} onChange={(value) => setStyle({ fillColor: value })} />
-        <InspectorColorField label={t('fields.buttonTextColor')} value={style.textColor} onChange={(value) => setStyle({ textColor: value })} />
-        <InspectorColorField label={t('fields.buttonBorderColor')} value={style.borderColor} onChange={(value) => setStyle({ borderColor: value })} />
-      </div>
-
-      <div className="grid grid-cols-1 gap-1.5">
-        <InspectorRangeField
-          label={t('fields.buttonFillOpacity')}
-          value={style.fillOpacity}
-          onChange={(value) => setStyle({ fillOpacity: clampButtonStyleOpacity(value, style.fillOpacity) })}
-        />
-        <InspectorInlineNumberField
-          label={t('fields.buttonBorderWidth')}
-          value={style.borderWidth}
-          step={1}
-          onChange={(value) => setStyle({ borderWidth: clampButtonBorderWidth(value, style.borderWidth) })}
-        />
-      </div>
-
-      <div className="rounded-openfmv-tool border border-white/10 bg-black/25 p-2">
-        <button
-          type="button"
-          tabIndex={-1}
-          className="pointer-events-none flex h-openfmv-control w-full min-w-0 items-center justify-center overflow-hidden px-4 text-xs font-bold"
-          style={getButtonClipInlineStyle(previewClip)}
-        >
-          <span className="truncate">{label}</span>
-        </button>
-      </div>
     </div>
   );
 }
@@ -6298,10 +6081,6 @@ function InteractionClipInspector({
   const qteConfig = getQteConfig(clip);
   const clickOutputId = getTimelineClipOutputHandleId(clip.id);
   const timeoutOutputId = getTimelineClipOutputHandleId(clip.id, 'timeout');
-  const [styleExpanded, setStyleExpanded] = useState(false);
-  const resolvedStyle = resolveButtonStyleConfig(clip);
-  const shapeOptions = getButtonShapeOptions(t);
-  const styleShapeLabel = shapeOptions.find((option) => option.value === resolvedStyle.shape)?.label ?? t('fields.buttonShapeRounded');
 
   return (
     <div className="space-y-1">
@@ -6357,33 +6136,6 @@ function InteractionClipInspector({
         <InspectorFieldRow label={t('fields.label')} icon={Type}>
           <InspectorTextInput value={clip.label || ''} onChange={(value) => onUpdate((item) => updateInteractionLabel(item, value))} />
         </InspectorFieldRow>
-      )}
-
-      <InspectorDivider />
-
-      <InspectorFieldRow label={t('fields.buttonStyle')} icon={Palette}>
-        <button
-          type="button"
-          onClick={() => setStyleExpanded((expanded) => !expanded)}
-          aria-expanded={styleExpanded}
-          className="flex h-openfmv-tool w-full items-center justify-between gap-2 rounded-openfmv-tool border border-white/10 bg-[#171717] px-2.5 text-left text-xs text-white outline-none transition hover:border-white/18 hover:bg-[#1d1d1d]"
-        >
-          <span className="flex min-w-0 items-center gap-2">
-            <span className="grid h-4 w-4 shrink-0 place-items-center overflow-hidden rounded-openfmv-tool border border-white/20" style={{ backgroundColor: resolvedStyle.fillColor }}>
-              {resolvedStyle.backgroundImageSrc && <ButtonBackgroundImageThumbnail src={resolvedStyle.backgroundImageSrc} />}
-            </span>
-            <span className="min-w-0 truncate">{styleShapeLabel}</span>
-          </span>
-          <ChevronDown size={14} className={`shrink-0 text-openfmv-muted transition ${styleExpanded ? 'rotate-180 text-white' : ''}`} />
-        </button>
-      </InspectorFieldRow>
-
-      {styleExpanded && (
-        <ButtonStyleInspector
-          t={t}
-          clip={clip}
-          onUpdate={onUpdate}
-        />
       )}
 
       <InspectorDivider />
