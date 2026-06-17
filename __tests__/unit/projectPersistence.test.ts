@@ -65,6 +65,52 @@ describe('projectPersistence', () => {
     });
   });
 
+  it('indexes button background images from interaction styles', () => {
+    const assets = collectProjectAssetsFromGraph({
+      nodes: [
+        {
+          ...storyNode,
+          data: {
+            ...storyNode.data,
+            timeline: {
+              version: 2,
+              duration: 24,
+              bookmarks: [],
+              tracks: [
+                {
+                  id: 'interaction-track',
+                  type: 'interaction',
+                  name: 'Interaction',
+                  clips: [
+                    {
+                      id: 'choice',
+                      type: 'button',
+                      startTime: 0,
+                      duration: 4,
+                      enabled: true,
+                      label: 'Choice',
+                      rect: { x: 0.2, y: 0.2, width: 0.2, height: 0.1 },
+                      pauseOnShow: false,
+                      style: { backgroundImageSrc: 'assets/button-background.png' },
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        },
+      ],
+      edges: [],
+    });
+
+    expect(assets).toHaveLength(1);
+    expect(assets[0]).toMatchObject({
+      type: 'image',
+      name: 'button-background.png',
+      path: 'assets/button-background.png',
+    });
+  });
+
   it('does not index transient, remote, data, or unknown asset sources', () => {
     const assets = collectProjectAssetsFromGraph({
       nodes: [

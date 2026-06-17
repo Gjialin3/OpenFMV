@@ -167,8 +167,9 @@ export type TimelineKeyframeInterpolation = 'linear' | 'hold';
 export type ButtonMode = 'normal' | 'qte';
 export type ButtonQteInput = 'click' | 'space';
 export type ButtonStylePreset = 'solid' | 'outline' | 'glass' | 'ghost';
-export type ButtonStyleShape = 'rounded' | 'pill' | 'square';
+export type ButtonStyleShape = 'rounded' | 'pill' | 'square' | 'oval' | 'diamond' | 'hexagon';
 export type ButtonStyleShadow = 'none' | 'soft' | 'strong';
+export type ButtonStyleBackgroundFit = 'cover' | 'contain' | 'stretch';
 
 export interface TimelineClipKeyframe {
   id: string;
@@ -238,6 +239,9 @@ export interface ButtonStyleConfig {
   borderOpacity?: number;
   borderWidth?: number;
   shadow?: ButtonStyleShadow;
+  backgroundImageAssetId?: string | undefined;
+  backgroundImageSrc?: string | undefined;
+  backgroundImageFit?: ButtonStyleBackgroundFit | undefined;
 }
 
 export interface ButtonChoiceClip extends BaseTimelineClip {

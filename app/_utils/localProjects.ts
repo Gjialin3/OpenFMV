@@ -321,6 +321,10 @@ export const resolveLocalProjectForEditor = (project: OpenFMVProject): OpenFMVPr
           const value = clip[key];
           clip[key] = resolveProjectAssetValueForEditor(projectDirectory, value);
         }
+        const style = clip.style as Record<string, unknown> | undefined;
+        if (style) {
+          style.backgroundImageSrc = resolveProjectAssetValueForEditor(projectDirectory, style.backgroundImageSrc);
+        }
       }
     }
   }

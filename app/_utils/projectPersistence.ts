@@ -86,6 +86,7 @@ export const collectProjectAssetsFromGraph = (
         const mediaClip = clip as Record<string, unknown>;
         addAsset(mediaClip.src, `${node.id}-timeline-media`);
         addAsset(mediaClip.poster, `${node.id}-timeline-poster`);
+        addAsset((mediaClip.style as Record<string, unknown> | undefined)?.backgroundImageSrc, `${node.id}-button-background`);
       }
     }
   }

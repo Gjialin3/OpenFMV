@@ -66,6 +66,7 @@ import {
   ButtonMode,
   ButtonQteConfig,
   ButtonQteInput,
+  ButtonStyleBackgroundFit,
   ButtonStyleConfig,
   ButtonStyleShape,
   NodeTimeline,
@@ -94,6 +95,7 @@ import { addAssetsToLocalProject, canUseNativeAssetPicker, importAssetFromFile, 
 import { getTimelineClipOutputHandleId, removeTimelineOutputEdge } from '@/app/_utils/timelineOutputEdges';
 import {
   addTimelineTrack,
+  BUTTON_STYLE_BACKGROUND_FITS,
   BUTTON_STYLE_SWATCHES,
   buildAudioWaveformPeaks,
   buildPreviewSnapTargets,
@@ -128,6 +130,8 @@ import {
   freezeTimelineVideoClipAtTime,
   getAdjacentTimelineEditPoint,
   getButtonClipInlineStyle,
+  getButtonStyleClipPath,
+  getButtonStyleRgba,
   getClipEndTime,
   getLinkedTimelineClipIds,
   getTimelineEdgeScroll,
@@ -165,6 +169,7 @@ import {
   removeTimelineClipKeyframes,
   normalizeButtonHexColor,
   normalizeButtonStyleConfig,
+  type ResolvedButtonStyleConfig,
   resolveButtonStyleConfig,
   resolveTimelineClipKeyframes,
   resolveTimelineSnap,
@@ -585,8 +590,30 @@ const getPreviewClipClassName = (clip: TimelineInteractionClip, selected: boolea
   return `${base} ${tone} ${selected ? 'ring-2 ring-white ring-offset-2 ring-offset-black' : ''} ${active ? '' : 'opacity-45'}`;
 };
 
+type FloatingToolbarPlacement = 'above' | 'below';
+
+const getButtonFloatingToolbarPlacement = (clip: TimelineInteractionClip): {
+  panelPlacement: FloatingToolbarPlacement;
+  style: React.CSSProperties;
+} => {
+  const rect = getClipRect(clip);
+  const centerX = Math.min(0.86, Math.max(0.14, rect.x + rect.width / 2));
+  const panelPlacement: FloatingToolbarPlacement = rect.y + rect.height <= 0.58 ? 'below' : 'above';
+  const top = panelPlacement === 'below'
+    ? Math.min(0.9, rect.y + rect.height + 0.035)
+    : Math.max(0.025, rect.y - 0.12);
+  return {
+    panelPlacement,
+    style: {
+      left: `${centerX * 100}%`,
+      top: `${top * 100}%`,
+      transform: 'translateX(-50%)',
+    },
+  };
+};
+
 const getPreviewFrameClassName = () => {
-  return 'relative shrink-0 overflow-hidden border border-white/20 bg-black shadow-[0_18px_52px_rgba(0,0,0,0.22)]';
+  return 'relative shrink-0 overflow-visible border border-white/20 bg-black shadow-[0_18px_52px_rgba(0,0,0,0.22)]';
 };
 
 const TIMELINE_PLAYBACK_PAUSE_EPSILON = 0.001;
@@ -1162,6 +1189,10 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
   const canUnlinkSelectedClips = selectedEditableClipIds.length > 0 && hasLinkedEditableClip;
   const canToggleSelectedClipLink = hasLinkedEditableClip ? canUnlinkSelectedClips : canLinkSelectedClips;
   const selectedClip = selectedClipRef?.clip ?? null;
+  const selectedButtonToolbarClip = useMemo(() => {
+    if (!selectedClip || !isInteractionClip(selectedClip) || selectedClip.type !== 'button') return null;
+    return resolveTimelineClipKeyframes(selectedClip, currentTime);
+  }, [currentTime, selectedClip]);
   const selectedClipKeyframesExpanded = Boolean(selectedClip && expandedKeyframeClipIdSet.has(selectedClip.id));
   const canToggleSelectedSourceAudio = selectedEditableClipRefs.length === 1 && selectedEditableClipRefs[0]?.clip.id === selectedClip?.id && canToggleTimelineSourceAudio(selectedClip);
   const selectedSourceAudioLabel = selectedClip && isTimelineSourceAudioSeparated(selectedClip) ? t('timeline.toolbar.recoverAudio') : t('timeline.toolbar.extractAudio');
@@ -1263,6 +1294,7 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
     });
   }, [assetLibrary, assetSortMode]);
   const mediaAssetItems = useMemo(() => sortedAssetItems.filter((item) => isTimelineMediaAsset(item.asset)), [sortedAssetItems]);
+  const imageAssetItems = useMemo(() => sortedAssetItems.filter((item) => item.asset.type === 'image'), [sortedAssetItems]);
   const audioAssetItems = useMemo(() => sortedAssetItems.filter((item) => item.asset.type === 'audio'), [sortedAssetItems]);
   const visibleMediaAssetItems = activeLibraryTab === 'audio' ? audioAssetItems : mediaAssetItems;
   const isMediaLibraryTab = activeLibraryTab === 'assets' || activeLibraryTab === 'audio';
@@ -2354,6 +2386,31 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
     [persistImportedAssets, t]
   );
 
+  const importButtonBackgroundImage = useCallback(async (file: File): Promise<OpenFMVAsset | null> => {
+    setIsImportingAsset(true);
+    setAssetLibraryError('');
+    try {
+      const asset = await importAssetFromFile(file);
+      if (asset.type !== 'image') throw new Error(t('fields.buttonBackgroundImageOnly'));
+
+      const targetProjectId = currentProjectId ?? (await saveProjectSession())?.id;
+      if (!targetProjectId) throw new Error(t('panel.selectProjectBeforeImport'));
+
+      const savedProject = await addAssetsToLocalProject(targetProjectId, [asset]);
+      if (!savedProject) throw new Error(t('panel.selectProjectBeforeImport'));
+      refreshAssetLibrary();
+      return asset;
+    } catch (error) {
+      console.error('Failed to import button background image', error);
+      const message = isStorageQuotaError(error) ? t('panel.quotaExceeded') : error instanceof Error ? error.message : t('panel.importFailed');
+      setAssetLibraryError(message);
+      alert(message);
+      return null;
+    } finally {
+      setIsImportingAsset(false);
+    }
+  }, [currentProjectId, refreshAssetLibrary, saveProjectSession, t]);
+
   useEffect(() => {
     const handlePaste = (event: ClipboardEvent) => {
       if (event.defaultPrevented || isShortcutEditingTarget(event.target)) return;
@@ -3415,15 +3472,16 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
       const bounds = frame.getBoundingClientRect();
       const sourceTimeline = timelineRef.current;
       const sourceCompiledTimeline = compiledTimelineRef.current;
+      const clipRef = findTimelineClip(sourceTimeline, overlayDrag.clipId);
+      const clip = clipRef?.clip;
+      const canTransformClip = clip && !clipRef.track.locked && (isInteractionClip(clip) || (isMediaClip(clip) && isVisualMediaClip(clip)));
+      if (!canTransformClip) return;
+
       const snapTargets = buildPreviewSnapTargets(
         [...sourceCompiledTimeline.visualMediaClips, ...sourceCompiledTimeline.interactionClips]
           .filter((item) => item.id !== overlayDrag.clipId)
           .map(getPreviewElementRect)
       );
-      const clipRef = findTimelineClip(sourceTimeline, overlayDrag.clipId);
-      const clip = clipRef?.clip;
-      const canTransformClip = clip && !clipRef.track.locked && (isInteractionClip(clip) || (isMediaClip(clip) && isVisualMediaClip(clip)));
-      if (!canTransformClip) return;
 
       if (overlayDrag.mode === 'move') {
         const rect = getPreviewElementRect(clip);
@@ -3677,7 +3735,7 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
       <section className="min-h-0 overflow-hidden rounded-openfmv-tool border border-white/10 bg-[#171717] shadow-[0_18px_56px_rgba(0,0,0,0.30)]">
         <div className="flex size-full min-h-0 min-w-0 flex-col">
           <div className="flex min-h-0 min-w-0 flex-1 p-2 pb-0">
-            <div ref={previewViewportRef} className="relative flex size-full min-h-0 min-w-0 items-center justify-center overflow-hidden">
+            <div ref={previewViewportRef} className="relative flex size-full min-h-0 min-w-0 items-center justify-center overflow-visible">
               <div
                 ref={previewFrameRef}
                 data-node-preview-frame
@@ -3690,84 +3748,106 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
                   width: '100%',
                 }}
               >
-              {activeVisualMediaClips.length > 0 ? (
-                activeVisualMediaClips.map((clip) => (
-                  <PreviewMediaLayer
-                    key={clip.id}
-                    clip={clip}
-                    selected={clip.id === selectedClip?.id}
-                    currentTime={currentTime}
-                    isTimelinePlaying={isTimelinePlaying}
+              <div className="absolute inset-0 overflow-hidden">
+                {activeVisualMediaClips.length > 0 ? (
+                  activeVisualMediaClips.map((clip) => (
+                    <PreviewMediaLayer
+                      key={clip.id}
+                      clip={clip}
+                      selected={clip.id === selectedClip?.id}
+                      currentTime={currentTime}
+                      isTimelinePlaying={isTimelinePlaying}
                     playerRef={clip.id === visualMediaClip?.id && clip.type === 'video' ? videoRef : undefined}
                     onPointerDown={handleOverlayPointerDown}
                     onClick={selectSingleClip}
                     onResizePointerDown={handleOverlayResizePointerDown}
                     onAspectRatioReady={handlePreviewMediaAspectRatioReady}
                   />
-                ))
-              ) : (
-                <div className="grid h-full w-full place-items-center bg-[linear-gradient(135deg,#151821,#070a10_62%,#17120f)]">
-                  <div className="text-center">
-                    <Film size={34} className="mx-auto text-openfmv-muted" />
-                    <div className="mt-3 text-sm font-semibold text-openfmv-sub">{t('preview.noVisualMedia')}</div>
+                  ))
+                ) : (
+                  <div className="grid h-full w-full place-items-center bg-[linear-gradient(135deg,#151821,#070a10_62%,#17120f)]">
+                    <div className="text-center">
+                      <Film size={34} className="mx-auto text-openfmv-muted" />
+                      <div className="mt-3 text-sm font-semibold text-openfmv-sub">{t('preview.noVisualMedia')}</div>
+                    </div>
                   </div>
-                </div>
-              )}
-              {overlaySnapLines.map((line) => (
-                <div
-                  key={`${line.orientation}-${line.position}`}
-                  data-node-overlay-snap-line={line.orientation}
-                  className={`pointer-events-none absolute z-30 bg-sky-300/90 shadow-[0_0_12px_rgba(56,189,248,0.45)] ${line.orientation === 'vertical' ? 'bottom-0 top-0 w-px' : 'left-0 right-0 h-px'}`}
-                  style={line.orientation === 'vertical' ? { left: `${line.position * 100}%` } : { top: `${line.position * 100}%` }}
-                />
-              ))}
-              {compiledTimeline.interactionClips.map((clip) => {
-                const resolvedClip = resolveTimelineClipKeyframes(clip, currentTime);
-                const rect = getClipRect(resolvedClip);
-                const active = isTimelineClipActive(clip, currentTime);
-                const qteConfig = isQteButtonClip(resolvedClip) ? getQteConfig(resolvedClip) : null;
-                const qteCueLabel = qteConfig ? getQteCueLabel(qteConfig) : null;
-                return (
-                  <button
-                    key={clip.id}
-                    type="button"
-                    onPointerDown={(event) => handleOverlayPointerDown(resolvedClip, event)}
-                    onClick={() => selectSingleClip(resolvedClip.id)}
-                    className={getPreviewClipClassName(resolvedClip, resolvedClip.id === selectedClip?.id, active)}
-                    style={{
-                      ...getButtonClipInlineStyle(resolvedClip),
-                      left: `${rect.x * 100}%`,
-                      top: `${rect.y * 100}%`,
-                      width: `${rect.width * 100}%`,
-                      height: `${rect.height * 100}%`,
-                      opacity: active ? getTimelineClipOpacity(resolvedClip) : Math.min(getTimelineClipOpacity(resolvedClip), 0.45),
-                      transform: `rotate(${getTimelineClipRotation(resolvedClip)}deg)`,
-                      transformOrigin: 'center',
-                    }}
-                  >
-                    {qteConfig ? (
-                      <span className="flex min-w-0 max-w-full flex-col items-center justify-center gap-0.5 text-center leading-tight">
-                        {qteCueLabel && (
-                          <span className="block max-w-full truncate font-mono text-[10px] font-semibold leading-none text-white/75">
-                            {qteCueLabel}
-                          </span>
-                        )}
-                        <span className="block max-w-full truncate">{getQteDisplayName(resolvedClip)}</span>
-                      </span>
-                    ) : (
-                      <span className="truncate">{getTimelineClipLabel(resolvedClip)}</span>
-                    )}
-                    {resolvedClip.id === selectedClip?.id && overlayResizeHandles.map((item) => (
+                )}
+                {overlaySnapLines.map((line) => (
+                  <div
+                    key={`${line.orientation}-${line.position}`}
+                    data-node-overlay-snap-line={line.orientation}
+                    className={`pointer-events-none absolute z-30 bg-sky-300/90 shadow-[0_0_12px_rgba(56,189,248,0.45)] ${line.orientation === 'vertical' ? 'bottom-0 top-0 w-px' : 'left-0 right-0 h-px'}`}
+                    style={line.orientation === 'vertical' ? { left: `${line.position * 100}%` } : { top: `${line.position * 100}%` }}
+                  />
+                ))}
+                {compiledTimeline.interactionClips.map((clip) => {
+                  const resolvedClip = resolveTimelineClipKeyframes(clip, currentTime);
+                  const rect = getClipRect(resolvedClip);
+                  const active = isTimelineClipActive(clip, currentTime);
+                  const qteConfig = isQteButtonClip(resolvedClip) ? getQteConfig(resolvedClip) : null;
+                  const qteCueLabel = qteConfig ? getQteCueLabel(qteConfig) : null;
+                  const buttonVisualStyle = getButtonClipInlineStyle(resolvedClip);
+                  return (
+                    <button
+                      key={clip.id}
+                      type="button"
+                      onPointerDown={(event) => handleOverlayPointerDown(resolvedClip, event)}
+                      onClick={() => selectSingleClip(resolvedClip.id)}
+                      className={getPreviewClipClassName(resolvedClip, resolvedClip.id === selectedClip?.id, active)}
+                      style={{
+                        left: `${rect.x * 100}%`,
+                        top: `${rect.y * 100}%`,
+                        width: `${rect.width * 100}%`,
+                        height: `${rect.height * 100}%`,
+                        opacity: active ? getTimelineClipOpacity(resolvedClip) : Math.min(getTimelineClipOpacity(resolvedClip), 0.45),
+                        transform: `rotate(${getTimelineClipRotation(resolvedClip)}deg)`,
+                        transformOrigin: 'center',
+                        backgroundColor: 'transparent',
+                        borderColor: 'transparent',
+                        borderWidth: 0,
+                        boxShadow: 'none',
+                        color: buttonVisualStyle.color,
+                      }}
+                    >
                       <span
-                        key={item.handle}
-                        data-node-overlay-resize-handle={item.handle}
-                        onPointerDown={(event) => handleOverlayResizePointerDown(resolvedClip, item.handle, event)}
-                        className={`absolute z-20 h-2.5 w-2.5 rounded-full border border-white bg-sky-400 shadow-[0_0_0_2px_rgba(0,0,0,0.35)] ${item.className}`}
+                        aria-hidden
+                        className="pointer-events-none absolute inset-0"
+                        style={buttonVisualStyle}
                       />
-                    ))}
-                  </button>
-                );
-              })}
+                      {qteConfig ? (
+                        <span className="relative z-10 flex min-w-0 max-w-full flex-col items-center justify-center gap-0.5 text-center leading-tight">
+                          {qteCueLabel && (
+                            <span className="block max-w-full truncate font-mono text-[10px] font-semibold leading-none text-white/75">
+                              {qteCueLabel}
+                            </span>
+                          )}
+                          <span className="block max-w-full truncate">{getQteDisplayName(resolvedClip)}</span>
+                        </span>
+                      ) : (
+                        <span className="relative z-10 truncate">{getTimelineClipLabel(resolvedClip)}</span>
+                      )}
+                      {resolvedClip.id === selectedClip?.id && overlayResizeHandles.map((item) => (
+                        <span
+                          key={item.handle}
+                          data-node-overlay-resize-handle={item.handle}
+                          onPointerDown={(event) => handleOverlayResizePointerDown(resolvedClip, item.handle, event)}
+                          className={`absolute z-20 h-2.5 w-2.5 rounded-full border border-white bg-sky-400 shadow-[0_0_0_2px_rgba(0,0,0,0.35)] ${item.className}`}
+                        />
+                      ))}
+                    </button>
+                  );
+                })}
+              </div>
+              {selectedButtonToolbarClip && (
+                <ButtonFloatingStyleToolbar
+                  t={t}
+                  clip={selectedButtonToolbarClip}
+                  imageAssets={imageAssetItems}
+                  isImportingImage={isImportingAsset}
+                  onImportImage={importButtonBackgroundImage}
+                  onUpdate={(update) => updateClip(selectedButtonToolbarClip.id, (clip) => (isInteractionClip(clip) ? update(clip) : clip))}
+                />
+              )}
             </div>
             {activeAudioClips.map((clip) => (
               <PreviewAudioLayer key={clip.id} clip={clip} currentTime={currentTime} isTimelinePlaying={isTimelinePlaying} />
@@ -5239,9 +5319,584 @@ function ButtonStyleOptionRow({
   );
 }
 
-function ButtonShapeIcon({ shape }: { shape: ButtonStyleShape }) {
-  const radiusClass = shape === 'pill' ? 'rounded-openfmv-pill' : shape === 'square' ? 'rounded-[2px]' : 'rounded-[7px]';
-  return <span className={`block h-4 w-7 border border-current bg-white/10 ${radiusClass}`} />;
+function ButtonShapeIcon({ shape, compact = false }: { shape: ButtonStyleShape; compact?: boolean }) {
+  const radiusClass = shape === 'pill' ? 'rounded-openfmv-pill' : shape === 'square' || shape === 'diamond' || shape === 'hexagon' ? 'rounded-[2px]' : shape === 'oval' ? 'rounded-[50%]' : 'rounded-[7px]';
+  const clipPath = getButtonStyleClipPath(shape);
+  const sizeClass = compact ? 'h-3 w-[22px]' : 'h-4 w-7';
+  const borderClass = compact ? 'border-2' : 'border';
+  return (
+    <span
+      className={`block ${sizeClass} ${borderClass} border-current bg-white/10 ${radiusClass}`}
+      style={{ clipPath, WebkitClipPath: clipPath }}
+    />
+  );
+}
+
+const getButtonShapeOptions = (t: NodeTimelineTranslator): Array<{ label: string; value: ButtonStyleShape }> => [
+  { label: t('fields.buttonShapeRounded'), value: 'rounded' },
+  { label: t('fields.buttonShapePill'), value: 'pill' },
+  { label: t('fields.buttonShapeSquare'), value: 'square' },
+  { label: t('fields.buttonShapeOval'), value: 'oval' },
+  { label: t('fields.buttonShapeDiamond'), value: 'diamond' },
+  { label: t('fields.buttonShapeHexagon'), value: 'hexagon' },
+];
+
+const getButtonBackgroundFitOptions = (t: NodeTimelineTranslator): Array<{ label: string; value: ButtonStyleBackgroundFit }> => {
+  const labels: Record<ButtonStyleBackgroundFit, string> = {
+    cover: t('fields.buttonBackgroundFitCover'),
+    contain: t('fields.buttonBackgroundFitContain'),
+    stretch: t('fields.buttonBackgroundFitStretch'),
+  };
+  return BUTTON_STYLE_BACKGROUND_FITS.map((value) => ({ label: labels[value], value }));
+};
+
+type FloatingToolbarPanel = 'shape' | 'fill' | 'background' | 'border' | 'text';
+
+function ButtonFloatingStyleToolbar({
+  t,
+  clip,
+  imageAssets,
+  isImportingImage,
+  onImportImage,
+  onUpdate,
+}: {
+  t: NodeTimelineTranslator;
+  clip: TimelineInteractionClip;
+  imageAssets: TimelineAssetItem[];
+  isImportingImage: boolean;
+  onImportImage: (file: File) => Promise<OpenFMVAsset | null>;
+  onUpdate: (update: (clip: TimelineInteractionClip) => TimelineInteractionClip) => void;
+}) {
+  const [openPanel, setOpenPanel] = useState<FloatingToolbarPanel | null>(null);
+  const style = resolveButtonStyleConfig(clip);
+  const placement = getButtonFloatingToolbarPlacement(clip);
+  const setStyle = (patch: ButtonStyleConfig) => onUpdate((item) => updateInteractionStyle(item, patch));
+  const togglePanel = (panel: FloatingToolbarPanel) => setOpenPanel((currentPanel) => (currentPanel === panel ? null : panel));
+
+  useEffect(() => {
+    setOpenPanel(null);
+  }, [clip.id]);
+
+  return (
+    <div
+      className="absolute z-40 max-w-[calc(100%-16px)] text-slate-900"
+      style={placement.style}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') setOpenPanel(null);
+      }}
+    >
+      <div className="flex h-9 items-center overflow-hidden rounded-[9px] border border-black/[0.08] bg-white p-0.5 shadow-[0_14px_34px_rgba(15,23,42,0.16)]">
+        <FloatingToolbarButton
+          label={t('fields.buttonStyleShape')}
+          active={openPanel === 'shape'}
+          onClick={() => togglePanel('shape')}
+        >
+          <ButtonShapeIcon shape={style.shape} />
+        </FloatingToolbarButton>
+        <FloatingToolbarDivider />
+        <FloatingToolbarButton
+          label={t('fields.buttonFillColor')}
+          active={openPanel === 'fill'}
+          onClick={() => togglePanel('fill')}
+        >
+          <span
+            className="h-5 w-5 rounded-full border border-slate-300"
+            style={{ backgroundColor: getButtonStyleRgba(style.fillColor, style.fillOpacity) }}
+          />
+        </FloatingToolbarButton>
+        <FloatingToolbarButton
+          label={t('fields.buttonBackgroundImage')}
+          active={openPanel === 'background'}
+          onClick={() => togglePanel('background')}
+        >
+          <span className="relative grid h-6 w-6 place-items-center overflow-hidden rounded-[5px] border border-slate-300 bg-slate-100">
+            {style.backgroundImageSrc ? (
+              <ButtonBackgroundImageThumbnail src={style.backgroundImageSrc} />
+            ) : (
+              <ImageIcon size={16} strokeWidth={2.1} />
+            )}
+          </span>
+        </FloatingToolbarButton>
+        <FloatingToolbarButton
+          label={t('fields.buttonBorderColor')}
+          active={openPanel === 'border'}
+          onClick={() => togglePanel('border')}
+        >
+          <span
+            className="h-5 w-5 rounded-full border-[5px] bg-white"
+            style={{ borderColor: getButtonStyleRgba(style.borderColor, style.borderWidth > 0 ? style.borderOpacity : 0.2) }}
+          />
+        </FloatingToolbarButton>
+        <FloatingToolbarDivider />
+        <FloatingToolbarButton
+          label={t('fields.buttonTextColor')}
+          active={openPanel === 'text'}
+          onClick={() => togglePanel('text')}
+        >
+          <span className="relative grid h-6 w-6 place-items-center">
+            <Type size={18} strokeWidth={2.2} />
+            <span className="absolute bottom-0 h-0.5 w-4 rounded-openfmv-pill" style={{ backgroundColor: style.textColor }} />
+          </span>
+        </FloatingToolbarButton>
+      </div>
+
+      {openPanel === 'shape' && (
+        <FloatingShapePanel
+          t={t}
+          placement={placement.panelPlacement}
+          value={style.shape}
+          onChange={(shape) => setStyle({ shape })}
+        />
+      )}
+      {openPanel === 'fill' && (
+        <FloatingColorPanel
+          label={t('fields.buttonFillColor')}
+          opacityLabel={t('fields.buttonFillOpacity')}
+          placement={placement.panelPlacement}
+          value={style.fillColor}
+          opacity={style.fillOpacity}
+          includeClear
+          onChange={(fillColor) => setStyle({ fillColor, fillOpacity: style.fillOpacity <= 0 ? 0.92 : style.fillOpacity })}
+          onClear={() => setStyle({ fillOpacity: 0 })}
+          onOpacityChange={(fillOpacity) => setStyle({ fillOpacity: clampButtonStyleOpacity(fillOpacity, style.fillOpacity) })}
+        />
+      )}
+      {openPanel === 'background' && (
+        <FloatingBackgroundPanel
+          t={t}
+          placement={placement.panelPlacement}
+          imageAssets={imageAssets}
+          style={style}
+          isImporting={isImportingImage}
+          onPickAsset={(asset) => setStyle({
+            backgroundImageAssetId: asset.id,
+            backgroundImageSrc: getAssetSource(asset),
+            backgroundImageFit: style.backgroundImageFit ?? 'cover',
+          })}
+          onImport={async (file) => {
+            const asset = await onImportImage(file);
+            if (!asset) return;
+            setStyle({
+              backgroundImageAssetId: asset.id,
+              backgroundImageSrc: getAssetSource(asset),
+              backgroundImageFit: style.backgroundImageFit ?? 'cover',
+            });
+          }}
+          onRemove={() => setStyle({
+            backgroundImageAssetId: undefined,
+            backgroundImageSrc: undefined,
+            backgroundImageFit: 'cover',
+          })}
+          onFitChange={(backgroundImageFit) => setStyle({ backgroundImageFit })}
+        />
+      )}
+      {openPanel === 'border' && (
+        <FloatingBorderPanel
+          t={t}
+          placement={placement.panelPlacement}
+          value={style.borderColor}
+          opacity={style.borderOpacity}
+          width={style.borderWidth}
+          onColorChange={(borderColor) => setStyle({ borderColor, borderWidth: style.borderWidth <= 0 ? 1 : style.borderWidth })}
+          onOpacityChange={(borderOpacity) => setStyle({ borderOpacity: clampButtonStyleOpacity(borderOpacity, style.borderOpacity) })}
+          onWidthChange={(borderWidth) => setStyle({ borderWidth: clampButtonBorderWidth(borderWidth, style.borderWidth) })}
+        />
+      )}
+      {openPanel === 'text' && (
+        <FloatingColorPanel
+          label={t('fields.buttonTextColor')}
+          placement={placement.panelPlacement}
+          value={style.textColor}
+          onChange={(textColor) => setStyle({ textColor })}
+        />
+      )}
+    </div>
+  );
+}
+
+function FloatingToolbarButton({
+  label,
+  active,
+  onClick,
+  children,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      aria-expanded={active}
+      onClick={onClick}
+      className={`flex h-8 items-center gap-1 rounded-[7px] px-1.5 transition ${active ? 'bg-slate-100 text-slate-950' : 'text-slate-700 hover:bg-slate-100 hover:text-slate-950'}`}
+    >
+      {children}
+      <ChevronDown size={13} strokeWidth={2.4} className={`transition ${active ? 'rotate-180' : ''}`} />
+    </button>
+  );
+}
+
+function FloatingToolbarDivider() {
+  return <div className="mx-0.5 h-6 w-px bg-slate-200" />;
+}
+
+function ButtonBackgroundImageThumbnail({ src }: { src?: string }) {
+  const resolvedSrc = useResolvedMediaSrc(src);
+
+  if (!resolvedSrc) return <ImageIcon size={16} strokeWidth={2.1} />;
+  return <img src={resolvedSrc} alt="" className="h-full w-full object-cover" />;
+}
+
+function FloatingPanelShell({
+  placement,
+  widthClass = 'w-[268px]',
+  children,
+}: {
+  placement: FloatingToolbarPlacement;
+  widthClass?: string;
+  children: React.ReactNode;
+}) {
+  const placementClass = placement === 'below' ? 'top-[calc(100%+6px)]' : 'bottom-[calc(100%+6px)]';
+  return (
+    <div className={`absolute left-0 rounded-[9px] border border-black/[0.08] bg-white p-2.5 text-slate-900 shadow-[0_18px_44px_rgba(15,23,42,0.18)] ${widthClass} ${placementClass}`}>
+      {children}
+    </div>
+  );
+}
+
+function FloatingBackgroundPanel({
+  t,
+  placement,
+  imageAssets,
+  style,
+  isImporting,
+  onPickAsset,
+  onImport,
+  onRemove,
+  onFitChange,
+}: {
+  t: NodeTimelineTranslator;
+  placement: FloatingToolbarPlacement;
+  imageAssets: TimelineAssetItem[];
+  style: ResolvedButtonStyleConfig;
+  isImporting: boolean;
+  onPickAsset: (asset: OpenFMVAsset) => void;
+  onImport: (file: File) => Promise<void>;
+  onRemove: () => void;
+  onFitChange: (fit: ButtonStyleBackgroundFit) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const hasBackground = Boolean(style.backgroundImageSrc);
+  const fitOptions = getButtonBackgroundFitOptions(t);
+
+  return (
+    <FloatingPanelShell placement={placement} widthClass="w-[268px]">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-1.5 text-[11px] font-semibold text-slate-600">
+          <ImageIcon size={13} className="shrink-0 text-slate-400" />
+          <span className="truncate">{t('fields.buttonBackgroundImage')}</span>
+        </div>
+        {hasBackground && (
+          <button
+            type="button"
+            onClick={onRemove}
+            className="grid h-7 w-7 shrink-0 place-items-center rounded-[7px] text-slate-500 transition hover:bg-red-50 hover:text-red-600"
+            title={t('fields.buttonBackgroundRemove')}
+            aria-label={t('fields.buttonBackgroundRemove')}
+          >
+            <Trash2 size={14} />
+          </button>
+        )}
+      </div>
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          event.currentTarget.value = '';
+          if (file) void onImport(file);
+        }}
+      />
+
+      <div className="mt-1.5 grid max-h-[112px] grid-cols-4 gap-1.5 overflow-y-auto pr-1">
+        <button
+          type="button"
+          disabled={isImporting}
+          onClick={() => inputRef.current?.click()}
+          className="flex h-[54px] flex-col items-center justify-center gap-1 rounded-[8px] border border-dashed border-slate-300 bg-slate-50 text-[10px] font-semibold text-slate-500 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 disabled:opacity-45"
+          title={t('fields.buttonBackgroundUpload')}
+          aria-label={t('fields.buttonBackgroundUpload')}
+        >
+          <Upload size={14} />
+          <span className="max-w-full truncate px-1">{t('actions.import')}</span>
+        </button>
+        {imageAssets.map((item) => {
+          const source = getAssetSource(item.asset);
+          const selected = style.backgroundImageAssetId === item.asset.id || Boolean(style.backgroundImageSrc && style.backgroundImageSrc === source);
+          return (
+            <button
+              key={getTimelineAssetItemKey(item)}
+              type="button"
+              aria-label={item.asset.name}
+              aria-pressed={selected}
+              title={item.asset.name}
+              onClick={() => onPickAsset(item.asset)}
+              className={`relative h-[54px] overflow-hidden rounded-[8px] border bg-slate-100 transition ${selected ? 'border-blue-500 ring-2 ring-blue-100' : 'border-slate-200 hover:border-slate-400'}`}
+            >
+              <AssetLibraryPreview asset={item.asset} />
+              {selected && (
+                <span className="absolute right-1 top-1 grid h-4 w-4 place-items-center rounded-full bg-blue-500 text-white shadow">
+                  <Check size={10} strokeWidth={2.4} />
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="mt-2 flex items-center gap-2">
+        <span className="shrink-0 text-[10px] font-semibold text-slate-400">{t('fields.buttonBackgroundFit')}</span>
+        <div className="grid h-7 min-w-0 flex-1 grid-cols-3 rounded-[8px] bg-slate-100 p-0.5">
+          {fitOptions.map((option) => {
+            const selected = (style.backgroundImageFit ?? 'cover') === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => onFitChange(option.value)}
+                className={`min-w-0 rounded-[6px] px-1.5 text-[10px] font-semibold transition ${selected ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
+              >
+                <span className="block truncate">{option.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </FloatingPanelShell>
+  );
+}
+
+function FloatingShapePanel({
+  t,
+  placement,
+  value,
+  onChange,
+}: {
+  t: NodeTimelineTranslator;
+  placement: FloatingToolbarPlacement;
+  value: ButtonStyleShape;
+  onChange: (shape: ButtonStyleShape) => void;
+}) {
+  const options = getButtonShapeOptions(t);
+
+  return (
+    <FloatingPanelShell placement={placement} widthClass="w-[142px]">
+      <div className="mb-2 text-[11px] font-semibold text-slate-600">{t('fields.buttonStyleShape')}</div>
+      <div className="grid grid-cols-3 gap-1.5">
+        {options.map((option) => {
+          const selected = value === option.value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              aria-label={option.label}
+              aria-pressed={selected}
+              onClick={() => onChange(option.value)}
+              title={option.label}
+              className={`grid h-8 place-items-center rounded-[7px] transition ${selected ? 'bg-blue-50 text-blue-600 ring-1 ring-blue-300' : 'text-slate-700 hover:bg-slate-100'}`}
+            >
+              <ButtonShapeIcon shape={option.value} compact />
+            </button>
+          );
+        })}
+      </div>
+    </FloatingPanelShell>
+  );
+}
+
+function FloatingColorPanel({
+  label,
+  placement,
+  value,
+  opacity,
+  opacityLabel,
+  includeClear = false,
+  onChange,
+  onClear,
+  onOpacityChange,
+}: {
+  label: string;
+  placement: FloatingToolbarPlacement;
+  value: string;
+  opacity?: number;
+  opacityLabel?: string;
+  includeClear?: boolean;
+  onChange: (value: string) => void;
+  onClear?: () => void;
+  onOpacityChange?: (value: number) => void;
+}) {
+  return (
+    <FloatingPanelShell placement={placement}>
+      <div className="mb-2 text-[11px] font-semibold text-slate-600">{label}</div>
+      <FloatingColorSwatches
+        label={label}
+        value={value}
+        includeClear={includeClear}
+        clearSelected={includeClear && opacity === 0}
+        onChange={onChange}
+        onClear={onClear}
+      />
+      {typeof opacity === 'number' && opacityLabel && onOpacityChange && (
+        <FloatingOpacityControl label={opacityLabel} value={opacity} onChange={onOpacityChange} />
+      )}
+    </FloatingPanelShell>
+  );
+}
+
+function FloatingBorderPanel({
+  t,
+  placement,
+  value,
+  opacity,
+  width,
+  onColorChange,
+  onOpacityChange,
+  onWidthChange,
+}: {
+  t: NodeTimelineTranslator;
+  placement: FloatingToolbarPlacement;
+  value: string;
+  opacity: number;
+  width: number;
+  onColorChange: (value: string) => void;
+  onOpacityChange: (value: number) => void;
+  onWidthChange: (value: number) => void;
+}) {
+  const widthOptions = [0, 1, 2, 4];
+
+  return (
+    <FloatingPanelShell placement={placement}>
+      <div className="mb-2 text-[11px] font-semibold text-slate-600">{t('fields.buttonBorderColor')}</div>
+      <div className="mb-2 grid grid-cols-4 gap-1.5">
+        {widthOptions.map((option) => {
+          const selected = Math.round(width) === option;
+          return (
+            <button
+              key={option}
+              type="button"
+              aria-label={`${t('fields.buttonBorderWidth')} ${option}`}
+              aria-pressed={selected}
+              onClick={() => onWidthChange(option)}
+              className={`grid h-8 place-items-center rounded-[7px] transition ${selected ? 'bg-blue-50 text-blue-600 ring-1 ring-blue-200' : 'bg-slate-50 text-slate-700 hover:bg-slate-100'}`}
+            >
+              {option === 0 ? (
+                <span className="relative h-5 w-5 rounded-full border border-slate-400">
+                  <span className="absolute left-1/2 top-0 h-full w-px -rotate-45 bg-slate-400" />
+                </span>
+              ) : (
+                <span className="w-7 rounded-openfmv-pill bg-current" style={{ height: Math.max(1, option) }} />
+              )}
+            </button>
+          );
+        })}
+      </div>
+      <FloatingColorSwatches
+        label={t('fields.buttonBorderColor')}
+        value={value}
+        onChange={onColorChange}
+      />
+      <FloatingOpacityControl label={t('fields.buttonBorderOpacity')} value={opacity} onChange={onOpacityChange} />
+    </FloatingPanelShell>
+  );
+}
+
+function FloatingColorSwatches({
+  label,
+  value,
+  includeClear = false,
+  clearSelected = false,
+  onChange,
+  onClear,
+}: {
+  label: string;
+  value: string;
+  includeClear?: boolean;
+  clearSelected?: boolean;
+  onChange: (value: string) => void;
+  onClear?: () => void;
+}) {
+  const safeValue = normalizeButtonHexColor(value, '#ffffff');
+  return (
+    <div className="grid grid-cols-9 gap-1.5">
+      {includeClear && (
+        <button
+          type="button"
+          aria-label={`${label} none`}
+          aria-pressed={clearSelected}
+          onClick={onClear}
+          className={`relative h-[22px] w-[22px] rounded-full border bg-white transition ${clearSelected ? 'border-blue-500 ring-2 ring-blue-100' : 'border-slate-300 hover:border-slate-500'}`}
+        >
+          <span className="absolute left-1/2 top-0 h-full w-px -rotate-45 bg-slate-300" />
+        </button>
+      )}
+      {BUTTON_STYLE_SWATCHES.map((color) => {
+        const selected = !clearSelected && safeValue === color;
+        return (
+          <button
+            key={color}
+            type="button"
+            aria-label={`${label} ${color}`}
+            aria-pressed={selected}
+            onClick={() => onChange(color)}
+            className={`grid h-[22px] w-[22px] place-items-center rounded-full border transition ${selected ? 'border-blue-500 ring-2 ring-blue-100' : 'border-black/[0.08] hover:ring-2 hover:ring-slate-200'}`}
+            style={{ backgroundColor: color }}
+          >
+            {selected && <Check size={10} className="text-white drop-shadow" />}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function FloatingOpacityControl({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  const safeValue = clampButtonStyleOpacity(value);
+  return (
+    <div className="mt-3 space-y-1.5">
+      <div className="flex items-center justify-between text-[11px] font-medium text-slate-700">
+        <span>{label}</span>
+        <span>{Math.round(safeValue * 100)}%</span>
+      </div>
+      <input
+        type="range"
+        min={0}
+        max={1}
+        step={0.01}
+        value={safeValue}
+        onChange={(event) => onChange(Number(event.target.value))}
+        className="h-1.5 w-full accent-blue-500"
+        aria-label={label}
+      />
+    </div>
+  );
 }
 
 function ButtonStyleInspector({
@@ -5264,11 +5919,10 @@ function ButtonStyleInspector({
         <InspectorSegmentedControl
           value={style.shape}
           compact
-          options={[
-            { label: t('fields.buttonShapeRounded'), value: 'rounded', visual: <ButtonShapeIcon shape="rounded" /> },
-            { label: t('fields.buttonShapePill'), value: 'pill', visual: <ButtonShapeIcon shape="pill" /> },
-            { label: t('fields.buttonShapeSquare'), value: 'square', visual: <ButtonShapeIcon shape="square" /> },
-          ]}
+          options={getButtonShapeOptions(t).map((option) => ({
+            ...option,
+            visual: <ButtonShapeIcon shape={option.value} />,
+          }))}
           onChange={(value) => setStyle({ shape: value as ButtonStyleShape })}
         />
       </ButtonStyleOptionRow>
@@ -5482,11 +6136,8 @@ function InteractionClipInspector({
   const timeoutOutputId = getTimelineClipOutputHandleId(clip.id, 'timeout');
   const [styleExpanded, setStyleExpanded] = useState(false);
   const resolvedStyle = resolveButtonStyleConfig(clip);
-  const styleShapeLabel = {
-    rounded: t('fields.buttonShapeRounded'),
-    pill: t('fields.buttonShapePill'),
-    square: t('fields.buttonShapeSquare'),
-  }[resolvedStyle.shape];
+  const shapeOptions = getButtonShapeOptions(t);
+  const styleShapeLabel = shapeOptions.find((option) => option.value === resolvedStyle.shape)?.label ?? t('fields.buttonShapeRounded');
 
   return (
     <div className="space-y-1">
@@ -5554,7 +6205,9 @@ function InteractionClipInspector({
           className="flex h-openfmv-tool w-full items-center justify-between gap-2 rounded-openfmv-tool border border-white/10 bg-[#171717] px-2.5 text-left text-xs text-white outline-none transition hover:border-white/18 hover:bg-[#1d1d1d]"
         >
           <span className="flex min-w-0 items-center gap-2">
-            <span className="h-4 w-4 shrink-0 rounded-openfmv-tool border border-white/20" style={{ backgroundColor: resolvedStyle.fillColor }} />
+            <span className="grid h-4 w-4 shrink-0 place-items-center overflow-hidden rounded-openfmv-tool border border-white/20" style={{ backgroundColor: resolvedStyle.fillColor }}>
+              {resolvedStyle.backgroundImageSrc && <ButtonBackgroundImageThumbnail src={resolvedStyle.backgroundImageSrc} />}
+            </span>
             <span className="min-w-0 truncate">{styleShapeLabel}</span>
           </span>
           <ChevronDown size={14} className={`shrink-0 text-openfmv-muted transition ${styleExpanded ? 'rotate-180 text-white' : ''}`} />

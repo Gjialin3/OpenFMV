@@ -296,13 +296,15 @@ describe('game exporter', () => {
                         rotation: 8,
                         style: {
                           preset: 'glass',
-                          shape: 'pill',
+                          shape: 'diamond',
                           fillColor: '#22c55e',
                           textColor: '#111827',
                           borderColor: '#ffffff',
                           fillOpacity: 0.4,
                           borderWidth: 2,
                           shadow: 'soft',
+                          backgroundImageSrc: 'assets/button-background.png',
+                          backgroundImageFit: 'contain',
                         },
                       },
                     ],
@@ -353,7 +355,12 @@ describe('game exporter', () => {
     expect(html).toContain("const autoNext = effect('autoNavigate')");
     expect(html).toContain('timelineButtonCssText');
     expect(html).toContain('"preset": "glass"');
+    expect(html).toContain('"shape": "diamond"');
     expect(html).toContain('"fillOpacity": 0.4');
+    expect(html).toContain('"backgroundImageSrc": "assets/button-background.png"');
+    expect(html).toContain('"backgroundImageFit": "contain"');
+    expect(html).toContain('background-image:url');
+    expect(html).toContain('clip-path:');
     expect(html).toContain('data-qte-input');
     expect(html).toContain("document.addEventListener('keydown'");
     expect(html).toContain("send({ type: reason === 'timeout' ? 'timeline.clip.timeout' : 'timeline.clip.triggered'");

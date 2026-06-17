@@ -73,6 +73,10 @@ const isLocalFilePath = (value) => {
   return isProjectAssetSourceKind(classifyAssetSource(value));
 };
 
+const isExportableAssetPath = (value) => {
+  return isLocalFilePath(value);
+};
+
 const resolveLocalPath = (sourcePath, baseDir) => {
   if (sourcePath.startsWith('file://')) {
     return fileURLToPath(sourcePath);
@@ -95,8 +99,9 @@ const collectGraphMediaPaths = (graphData) => {
   for (const node of graphData.nodes || []) {
     for (const track of node.data?.timeline?.tracks || []) {
       for (const clip of track.clips || []) {
-        if (isLocalFilePath(clip?.src)) paths.add(clip.src);
-        if (isLocalFilePath(clip?.poster)) paths.add(clip.poster);
+        if (isExportableAssetPath(clip?.src)) paths.add(clip.src);
+        if (isExportableAssetPath(clip?.poster)) paths.add(clip.poster);
+        if (isExportableAssetPath(clip?.style?.backgroundImageSrc)) paths.add(clip.style.backgroundImageSrc);
       }
     }
   }
@@ -159,6 +164,9 @@ const rewriteGraphMediaPaths = (graphData, pathMap) => {
         if (pathMap.has(clip?.poster)) {
           clip.poster = pathMap.get(clip.poster);
         }
+        if (pathMap.has(clip?.style?.backgroundImageSrc)) {
+          clip.style.backgroundImageSrc = pathMap.get(clip.style.backgroundImageSrc);
+        }
       }
     }
   }
@@ -171,7 +179,7 @@ const normalizeProjectAssets = async (project, projectDir) => {
   const usedNames = new Set();
 
   const normalizePath = async (sourcePath) => {
-    if (!isLocalFilePath(sourcePath)) return sourcePath;
+    if (!isExportableAssetPath(sourcePath)) return sourcePath;
     if (pathMap.has(sourcePath)) return pathMap.get(sourcePath);
     const relativePath = await copyProjectAsset(sourcePath, projectDir, usedNames, baseDir);
     pathMap.set(sourcePath, relativePath);
@@ -415,6 +423,9 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
         borderOpacity: presetDefaults.borderOpacity,
         borderWidth: presetDefaults.borderWidth,
         shadow: presetDefaults.shadow,
+        backgroundImageAssetId: undefined,
+        backgroundImageSrc: undefined,
+        backgroundImageFit: 'cover',
       };
     };
     const timelineButtonStyleConfig = (clip) => {
@@ -422,9 +433,10 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
       const modeDefaults = timelineButtonModeDefaults(clip);
       const preset = ['solid', 'outline', 'glass', 'ghost'].includes(source.preset) ? source.preset : modeDefaults.preset;
       const presetDefaults = timelineButtonPresetDefaults(preset);
+      const backgroundImageSrc = typeof source.backgroundImageSrc === 'string' && source.backgroundImageSrc.trim() ? source.backgroundImageSrc.trim() : undefined;
       return {
         preset,
-        shape: ['rounded', 'pill', 'square'].includes(source.shape) ? source.shape : modeDefaults.shape,
+        shape: ['rounded', 'pill', 'square', 'oval', 'diamond', 'hexagon'].includes(source.shape) ? source.shape : modeDefaults.shape,
         fillColor: normalizeTimelineButtonColor(source.fillColor, modeDefaults.fillColor),
         textColor: normalizeTimelineButtonColor(source.textColor, modeDefaults.textColor),
         borderColor: normalizeTimelineButtonColor(source.borderColor, modeDefaults.borderColor),
@@ -432,6 +444,9 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
         borderOpacity: clampTimelineButtonOpacity(source.borderOpacity, presetDefaults.borderOpacity),
         borderWidth: clampTimelineButtonBorderWidth(source.borderWidth, presetDefaults.borderWidth),
         shadow: ['none', 'soft', 'strong'].includes(source.shadow) ? source.shadow : presetDefaults.shadow,
+        backgroundImageAssetId: backgroundImageSrc && typeof source.backgroundImageAssetId === 'string' && source.backgroundImageAssetId.trim() ? source.backgroundImageAssetId.trim() : undefined,
+        backgroundImageSrc,
+        backgroundImageFit: ['cover', 'contain', 'stretch'].includes(source.backgroundImageFit) ? source.backgroundImageFit : modeDefaults.backgroundImageFit,
       };
     };
     const timelineButtonRgba = (hex, opacity) => {
@@ -442,17 +457,31 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
       return 'rgba(' + red + ', ' + green + ', ' + blue + ', ' + clampTimelineButtonOpacity(opacity, 1) + ')';
     };
     const timelineButtonRadius = (shape) => {
+      if (shape === 'oval') return '50%';
+      if (shape === 'diamond' || shape === 'hexagon') return '2px';
       if (shape === 'pill') return '999px';
       if (shape === 'square') return '2px';
       return '10px';
+    };
+    const timelineButtonClipPath = (shape) => {
+      if (shape === 'diamond') return 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)';
+      if (shape === 'hexagon') return 'polygon(18% 0%, 82% 0%, 100% 50%, 82% 100%, 18% 100%, 0% 50%)';
+      return '';
     };
     const timelineButtonShadow = (shadow) => {
       if (shadow === 'strong') return '0 18px 52px rgba(0, 0, 0, 0.38)';
       if (shadow === 'soft') return '0 10px 30px rgba(0, 0, 0, 0.24)';
       return 'none';
     };
+    const timelineButtonBackgroundSize = (fit) => {
+      if (fit === 'contain') return 'contain';
+      if (fit === 'stretch') return '100% 100%';
+      return 'cover';
+    };
+    const timelineButtonCssUrl = (value) => String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '');
     const timelineButtonCssText = (clip, rect) => {
       const style = timelineButtonStyleConfig(clip);
+      const clipPath = timelineButtonClipPath(style.shape);
       const clipOpacity = clampTimelineButtonOpacity(clip && clip.opacity, 1);
       const rotation = Number(clip && clip.rotation);
       return [
@@ -464,10 +493,16 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
         Number.isFinite(rotation) && rotation !== 0 ? 'transform:rotate(' + rotation + 'deg)' : '',
         Number.isFinite(rotation) && rotation !== 0 ? 'transform-origin:center' : '',
         'background-color:' + timelineButtonRgba(style.fillColor, style.fillOpacity),
+        style.backgroundImageSrc ? "background-image:url('" + timelineButtonCssUrl(style.backgroundImageSrc) + "')" : '',
+        style.backgroundImageSrc ? 'background-position:center' : '',
+        style.backgroundImageSrc ? 'background-repeat:no-repeat' : '',
+        style.backgroundImageSrc ? 'background-size:' + timelineButtonBackgroundSize(style.backgroundImageFit) : '',
         'border-color:' + timelineButtonRgba(style.borderColor, style.borderWidth > 0 ? style.borderOpacity : 0),
         'border-style:solid',
         'border-width:' + style.borderWidth + 'px',
         'border-radius:' + timelineButtonRadius(style.shape),
+        clipPath ? 'clip-path:' + clipPath : '',
+        clipPath ? '-webkit-clip-path:' + clipPath : '',
         'box-shadow:' + timelineButtonShadow(style.shadow),
         'color:' + style.textColor,
         style.preset === 'glass' ? 'backdrop-filter:blur(18px)' : '',
@@ -768,7 +803,7 @@ const createExportGamePayload = async ({ project, config, assetsDir }) => {
 
   for (const asset of assets) {
     if (!asset.path) continue;
-    if (!isLocalFilePath(asset.path)) continue;
+    if (!isExportableAssetPath(asset.path)) continue;
     try {
       const relativePath = await copyExportAsset(asset.path, assetsDir, usedNames, baseDir);
       pathMap.set(asset.path, relativePath);

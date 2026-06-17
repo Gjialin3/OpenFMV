@@ -2,16 +2,25 @@ import type { CSSProperties } from 'react';
 
 import {
   ButtonMode,
+  ButtonStyleBackgroundFit,
   ButtonStyleConfig,
   ButtonStylePreset,
   ButtonStyleShadow,
   ButtonStyleShape,
   TimelineInteractionClip,
 } from '@/app/_types';
+import { resolveMediaSrc } from '@/app/_utils/mediaSrc';
 
 export const BUTTON_STYLE_PRESETS: ButtonStylePreset[] = ['solid', 'outline', 'glass', 'ghost'];
-export const BUTTON_STYLE_SHAPES: ButtonStyleShape[] = ['rounded', 'pill', 'square'];
+export const BUTTON_STYLE_SHAPES: ButtonStyleShape[] = ['rounded', 'pill', 'square', 'oval', 'diamond', 'hexagon'];
 export const BUTTON_STYLE_SHADOWS: ButtonStyleShadow[] = ['none', 'soft', 'strong'];
+export const BUTTON_STYLE_BACKGROUND_FITS: ButtonStyleBackgroundFit[] = ['cover', 'contain', 'stretch'];
+
+export type ResolvedButtonStyleConfig = Required<Omit<ButtonStyleConfig, 'backgroundImageAssetId' | 'backgroundImageSrc' | 'backgroundImageFit'>> & {
+  backgroundImageAssetId: string | undefined;
+  backgroundImageSrc: string | undefined;
+  backgroundImageFit: ButtonStyleBackgroundFit;
+};
 
 export const BUTTON_STYLE_SWATCHES = [
   '#f97316',
@@ -56,12 +65,22 @@ const isButtonStylePreset = (value: unknown): value is ButtonStylePreset => (
 );
 
 const isButtonStyleShape = (value: unknown): value is ButtonStyleShape => (
-  value === 'rounded' || value === 'pill' || value === 'square'
+  BUTTON_STYLE_SHAPES.includes(value as ButtonStyleShape)
 );
 
 const isButtonStyleShadow = (value: unknown): value is ButtonStyleShadow => (
   value === 'none' || value === 'soft' || value === 'strong'
 );
+
+const isButtonStyleBackgroundFit = (value: unknown): value is ButtonStyleBackgroundFit => (
+  BUTTON_STYLE_BACKGROUND_FITS.includes(value as ButtonStyleBackgroundFit)
+);
+
+const normalizeOptionalString = (value: unknown) => {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
+};
 
 export const getButtonStylePresetDefaults = (preset: ButtonStylePreset): Pick<ButtonStyleConfig, 'fillOpacity' | 'borderOpacity' | 'borderWidth' | 'shadow'> => {
   if (preset === 'outline') return { fillOpacity: 0, borderOpacity: 0.9, borderWidth: 1, shadow: 'soft' };
@@ -70,7 +89,7 @@ export const getButtonStylePresetDefaults = (preset: ButtonStylePreset): Pick<Bu
   return { fillOpacity: 0.92, borderOpacity: 0.9, borderWidth: 1, shadow: 'strong' };
 };
 
-export const getDefaultButtonStyleConfig = (mode?: ButtonMode): Required<ButtonStyleConfig> => {
+export const getDefaultButtonStyleConfig = (mode?: ButtonMode): ResolvedButtonStyleConfig => {
   const preset: ButtonStylePreset = 'solid';
   const presetDefaults = getButtonStylePresetDefaults(preset);
   const isQte = mode === 'qte';
@@ -84,6 +103,9 @@ export const getDefaultButtonStyleConfig = (mode?: ButtonMode): Required<ButtonS
     borderOpacity: presetDefaults.borderOpacity ?? 0.9,
     borderWidth: presetDefaults.borderWidth ?? 1,
     shadow: presetDefaults.shadow ?? 'strong',
+    backgroundImageAssetId: undefined,
+    backgroundImageSrc: undefined,
+    backgroundImageFit: 'cover',
   };
 };
 
@@ -103,10 +125,13 @@ export const normalizeButtonStyleConfig = (value: unknown, mode?: ButtonMode): B
     borderOpacity: clampButtonStyleOpacity(source.borderOpacity, presetDefaults.borderOpacity ?? modeDefaults.borderOpacity),
     borderWidth: clampButtonBorderWidth(source.borderWidth, presetDefaults.borderWidth ?? modeDefaults.borderWidth),
     shadow: isButtonStyleShadow(source.shadow) ? source.shadow : presetDefaults.shadow ?? modeDefaults.shadow,
+    backgroundImageAssetId: normalizeOptionalString(source.backgroundImageAssetId),
+    backgroundImageSrc: normalizeOptionalString(source.backgroundImageSrc),
+    backgroundImageFit: isButtonStyleBackgroundFit(source.backgroundImageFit) ? source.backgroundImageFit : modeDefaults.backgroundImageFit,
   };
 };
 
-export const resolveButtonStyleConfig = (clip: Pick<TimelineInteractionClip, 'mode' | 'style'>): Required<ButtonStyleConfig> => {
+export const resolveButtonStyleConfig = (clip: Pick<TimelineInteractionClip, 'mode' | 'style'>): ResolvedButtonStyleConfig => {
   return {
     ...getDefaultButtonStyleConfig(clip.mode === 'qte' ? 'qte' : 'normal'),
     ...normalizeButtonStyleConfig(clip.style, clip.mode === 'qte' ? 'qte' : 'normal'),
@@ -128,9 +153,17 @@ export const getButtonStyleRgba = (hex: string, opacity: number) => {
 };
 
 export const getButtonStyleRadius = (shape: ButtonStyleShape) => {
+  if (shape === 'oval') return '50%';
+  if (shape === 'diamond' || shape === 'hexagon') return '2px';
   if (shape === 'pill') return '999px';
   if (shape === 'square') return '2px';
   return '10px';
+};
+
+export const getButtonStyleClipPath = (shape: ButtonStyleShape) => {
+  if (shape === 'diamond') return 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)';
+  if (shape === 'hexagon') return 'polygon(18% 0%, 82% 0%, 100% 50%, 82% 100%, 18% 100%, 0% 50%)';
+  return undefined;
 };
 
 export const getButtonStyleShadow = (shadow: ButtonStyleShadow) => {
@@ -139,14 +172,30 @@ export const getButtonStyleShadow = (shadow: ButtonStyleShadow) => {
   return 'none';
 };
 
+export const getButtonStyleBackgroundSize = (fit?: ButtonStyleBackgroundFit) => {
+  if (fit === 'contain') return 'contain';
+  if (fit === 'stretch') return '100% 100%';
+  return 'cover';
+};
+
+const escapeCssUrl = (value: string) => value.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '');
+
 export const getButtonClipInlineStyle = (clip: Pick<TimelineInteractionClip, 'mode' | 'style'>): CSSProperties => {
   const style = resolveButtonStyleConfig(clip);
+  const clipPath = getButtonStyleClipPath(style.shape);
+  const backgroundImageSrc = resolveMediaSrc(style.backgroundImageSrc);
   return {
     backgroundColor: getButtonStyleRgba(style.fillColor, style.fillOpacity),
+    backgroundImage: backgroundImageSrc ? `url("${escapeCssUrl(backgroundImageSrc)}")` : undefined,
+    backgroundPosition: backgroundImageSrc ? 'center' : undefined,
+    backgroundRepeat: backgroundImageSrc ? 'no-repeat' : undefined,
+    backgroundSize: backgroundImageSrc ? getButtonStyleBackgroundSize(style.backgroundImageFit) : undefined,
     borderColor: getButtonStyleRgba(style.borderColor, style.borderWidth > 0 ? style.borderOpacity : 0),
     borderStyle: 'solid',
     borderWidth: style.borderWidth,
     borderRadius: getButtonStyleRadius(style.shape),
+    clipPath,
+    WebkitClipPath: clipPath,
     boxShadow: getButtonStyleShadow(style.shadow),
     color: style.textColor,
     backdropFilter: style.preset === 'glass' ? 'blur(18px)' : undefined,

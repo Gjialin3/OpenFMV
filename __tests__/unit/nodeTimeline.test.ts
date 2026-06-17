@@ -171,7 +171,7 @@ describe('NodeTimeline v2', () => {
               pauseOnShow: false,
               style: {
                 preset: 'glass',
-                shape: 'pill',
+                shape: 'hexagon',
                 fillColor: '22c55e',
                 textColor: '#fff',
                 borderColor: 'not-a-color',
@@ -179,6 +179,9 @@ describe('NodeTimeline v2', () => {
                 borderOpacity: -1,
                 borderWidth: 9,
                 shadow: 'strong',
+                backgroundImageAssetId: 'background-asset',
+                backgroundImageSrc: 'assets/button-background.png',
+                backgroundImageFit: 'contain',
               },
             },
             {
@@ -199,7 +202,7 @@ describe('NodeTimeline v2', () => {
     const [styledButton, oldButton] = getInteractionTimelineClips(timeline);
     expect(styledButton?.style).toEqual({
       preset: 'glass',
-      shape: 'pill',
+      shape: 'hexagon',
       fillColor: '#22c55e',
       textColor: '#ffffff',
       borderColor: '#fed7aa',
@@ -207,6 +210,9 @@ describe('NodeTimeline v2', () => {
       borderOpacity: 0,
       borderWidth: 4,
       shadow: 'strong',
+      backgroundImageAssetId: 'background-asset',
+      backgroundImageSrc: 'assets/button-background.png',
+      backgroundImageFit: 'contain',
     });
     expect(oldButton?.style).toBeUndefined();
   });
