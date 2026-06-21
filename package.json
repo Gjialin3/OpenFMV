@@ -1,6 +1,6 @@
 {
   "name": "openfmv",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Visual non-linear storytelling editor",
   "private": true,
   "scripts": {
