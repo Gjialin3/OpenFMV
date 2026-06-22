@@ -219,6 +219,7 @@ const normalizeButtonQteConfig = (value: unknown): ButtonQteConfig => {
     clickCount,
     keyLabel,
     showCountdown: source.showCountdown !== false,
+    showCueLabel: source.showCueLabel !== false,
   };
 };
 
@@ -475,16 +476,28 @@ export const resolveTimelineClipKeyframes = <TClip extends TimelineClip>(clip: T
   return nextClip;
 };
 
+export const getTimelineQteDisplayName = (clip: Pick<TimelineInteractionClip, 'label' | 'name'>) => {
+  const rawLabel = typeof clip.label === 'string'
+    ? clip.label
+    : typeof clip.name === 'string'
+      ? clip.name
+      : undefined;
+  if (typeof rawLabel !== 'string') return 'QTE';
+
+  const label = rawLabel.trim();
+  if (!label) return '';
+  return label === 'New choice' || label === 'Choice' ? 'QTE' : label;
+};
+
 export const getTimelineClipLabel = (clip: TimelineClip) => {
   if (clip.type === 'button') {
     if (isQteButtonClip(clip)) {
       const clickCount = Number.isFinite(Number(clip.qte?.clickCount)) ? Math.max(1, Math.round(Number(clip.qte?.clickCount))) : 1;
       const input = clip.qte?.input === 'space' ? clip.qte.keyLabel || 'Space' : clickCount > 1 ? `Click x${clickCount}` : 'Click';
-      const label = (clip.label || clip.name || '').trim();
-      const name = !label || label === 'New choice' || label === 'Choice' ? 'QTE' : label;
-      return `${name} · ${input} · ${roundTimelineTime(clip.duration).toFixed(2)}s`;
+      const name = getTimelineQteDisplayName(clip);
+      return [name, input, `${roundTimelineTime(clip.duration).toFixed(2)}s`].filter(Boolean).join(' · ');
     }
-    return clip.label || clip.name || 'Continue';
+    return typeof clip.label === 'string' ? clip.label : clip.name || 'Continue';
   }
   if (isMediaClipType(clip.type) && 'src' in clip) return clip.name || clip.src.split(/[\\/]/).pop() || clip.type;
   return clip.name || clip.type;

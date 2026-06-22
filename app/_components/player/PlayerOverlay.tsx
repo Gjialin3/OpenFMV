@@ -2,9 +2,9 @@
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { ArrowRight, RotateCcw, X } from 'lucide-react';
+import { ArrowRight, Info, RotateCcw, X } from 'lucide-react';
 
-import { getButtonClipInlineStyle } from '@/app/_features/node-timeline';
+import { getButtonClipInlineStyle, getTimelineQteDisplayName } from '@/app/_features/node-timeline';
 import { useRuntimeSessionStore } from '@/app/_features/runtime-session/store';
 import { useResolvedMediaSrc } from '../../_hooks/useResolvedMediaSrc';
 import { usePlayerStore } from '../../_store/usePlayerStore';
@@ -106,13 +106,7 @@ const assignVideoRef = (ref: React.Ref<HTMLVideoElement> | undefined, value: HTM
 };
 
 const getTimelineClipLabel = (clip: TimelineInteractionClip) => {
-  return clip.label || clip.name || 'Continue';
-};
-
-const getQteDisplayName = (clip: TimelineInteractionClip) => {
-  const label = (clip.label || clip.name || '').trim();
-  if (!label || label === 'New choice' || label === 'Choice') return 'QTE';
-  return label;
+  return typeof clip.label === 'string' ? clip.label : clip.name || 'Continue';
 };
 
 const isQteButtonClip = (clip: TimelineInteractionClip) => {
@@ -164,6 +158,7 @@ const getQteConfig = (clip: TimelineInteractionClip): ButtonQteConfig => {
     clickCount: clip.qte?.clickCount,
     keyLabel: input === 'space' ? (clip.qte?.keyLabel && clip.qte.keyLabel !== 'Click' ? clip.qte.keyLabel : 'Space') : 'Click',
     showCountdown: clip.qte?.showCountdown !== false,
+    showCueLabel: clip.qte?.showCueLabel !== false,
   };
 };
 
@@ -490,7 +485,7 @@ const TimelineRuntimeOverlay = ({
         const label = getTimelineClipLabel(clip);
         const qteStartedAt = qteStartedAtRef.current.get(clip.id);
         const qteCompletedClicks = qteClickCountsRef.current.get(clip.id) ?? 0;
-        const qteCueLabel = isQte ? getQteCueLabel(qteConfig, qteCompletedClicks) : null;
+        const qteCueLabel = isQte && qteConfig.showCueLabel !== false ? getQteCueLabel(qteConfig, qteCompletedClicks) : null;
         const qteDurationMs = Math.max(1, clip.duration * 1000);
         const qteNow = qteClockTick || (typeof window !== 'undefined' ? window.performance.now() : qteStartedAt || 0);
         const qteRemainingRatio = qteStartedAt
@@ -530,7 +525,7 @@ const TimelineRuntimeOverlay = ({
                       {qteCueLabel}
                     </span>
                   )}
-                  <span className="block max-w-full truncate">{getQteDisplayName(clip)}</span>
+                  <span className="block max-w-full truncate">{getTimelineQteDisplayName(clip)}</span>
                 </span>
                 {qteConfig.showCountdown !== false && (
                   <span className="absolute bottom-1 left-2 right-2 h-1 overflow-hidden rounded-full bg-white/18">
@@ -571,10 +566,15 @@ export default function PlayerOverlay() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const timelineTimeRef = useRef(0);
   const [isTimelineClockPaused, setIsTimelineClockPaused] = useState(false);
+  const [isSceneInfoOpen, setIsSceneInfoOpen] = useState(false);
   const effects = snapshot?.effects || [];
   const currentNode = snapshot?.currentNode ?? null;
   const currentNodeId = currentNode?.id ?? null;
   const sceneEffect = getEffect(effects, 'scene');
+  const sceneInfoType = sceneEffect?.nodeType || snapshot?.status || '';
+  const sceneInfoTitle = sceneEffect?.title || t('playEnded');
+  const sceneInfoText = sceneEffect?.text || '';
+  const hasSceneInfo = Boolean(sceneInfoType || sceneInfoTitle || sceneInfoText);
   const visualMediaEffects = getVisualMediaEffects(effects);
   const visualMediaEffect = visualMediaEffects.at(-1) ?? getVisualMediaEffect(effects);
   const stageReferenceVisualMediaEffect = visualMediaEffects[0] ?? null;
@@ -633,6 +633,7 @@ export default function PlayerOverlay() {
 
   useEffect(() => {
     setIsTimelineClockPaused(false);
+    setIsSceneInfoOpen(false);
   }, [currentNodeId]);
 
   useEffect(() => {
@@ -693,8 +694,29 @@ export default function PlayerOverlay() {
   return (
     <div className="fixed inset-0 z-[100] bg-[linear-gradient(135deg,#090b10,#15110d)] text-white">
       <div className="absolute left-4 top-4 z-50 flex items-center gap-2">
-        <button onClick={closePlayer} className="flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.11] px-4 py-2 text-sm font-medium text-white/85 backdrop-blur-3xl transition hover:border-openfmv-accent/70 hover:text-white"><X size={16} />{t('exit')}</button>
-        <button onClick={() => dispatch({ type: 'restart' })} className="flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.11] px-4 py-2 text-sm font-medium text-white/85 backdrop-blur-3xl transition hover:border-openfmv-accent/70 hover:text-white"><RotateCcw size={16} />{t('replay')}</button>
+        <button type="button" onClick={closePlayer} className="flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.11] px-4 py-2 text-sm font-medium text-white/85 backdrop-blur-3xl transition hover:border-openfmv-accent/70 hover:text-white"><X size={16} />{t('exit')}</button>
+        <button type="button" onClick={() => dispatch({ type: 'restart' })} className="flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.11] px-4 py-2 text-sm font-medium text-white/85 backdrop-blur-3xl transition hover:border-openfmv-accent/70 hover:text-white"><RotateCcw size={16} />{t('replay')}</button>
+        {hasSceneInfo && (
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setIsSceneInfoOpen((value) => !value)}
+              aria-expanded={isSceneInfoOpen}
+              aria-label="Info"
+              title="Info"
+              className={`grid h-10 w-10 place-items-center rounded-full border text-white/85 backdrop-blur-3xl transition hover:border-openfmv-accent/70 hover:text-white ${isSceneInfoOpen ? 'border-openfmv-accent/70 bg-white/[0.16]' : 'border-white/15 bg-white/[0.11]'}`}
+            >
+              <Info size={17} />
+            </button>
+            {isSceneInfoOpen && (
+              <div className="absolute left-0 top-12 w-80 max-w-[calc(100vw-2rem)] rounded-openfmv-card border border-white/15 bg-black/[0.78] p-4 text-white shadow-[0_18px_56px_rgba(0,0,0,0.48)] backdrop-blur-3xl">
+                {sceneInfoType && <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-openfmv-accent">{sceneInfoType}</div>}
+                <h1 className="text-xl font-semibold leading-tight tracking-tight">{sceneInfoTitle}</h1>
+                {sceneInfoText && <p className="mt-3 max-h-48 overflow-y-auto whitespace-pre-wrap text-sm leading-6 text-white/[0.78]">{sceneInfoText}</p>}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="absolute inset-0 grid place-items-center bg-black">
@@ -744,14 +766,8 @@ export default function PlayerOverlay() {
 
       <div className="relative z-10 flex min-h-full flex-col justify-end px-5 py-8 md:px-12 md:py-12">
         <div className="mx-auto w-full max-w-5xl">
-          <div className="mb-8 max-w-3xl">
-            <div className="mb-3 text-xs font-semibold uppercase tracking-[0.3em] text-openfmv-accent">{sceneEffect?.nodeType || snapshot.status}</div>
-            <h1 className="text-4xl font-semibold tracking-tight drop-shadow-2xl md:text-6xl">{sceneEffect?.title || t('playEnded')}</h1>
-            {sceneEffect?.text && <p className="mt-5 whitespace-pre-wrap text-base leading-8 text-white/86 drop-shadow-lg md:text-xl md:leading-9">{sceneEffect.text}</p>}
-          </div>
-
           {snapshot.status === 'ended' || currentNode?.type === 'end' ? (
-            <button onClick={() => dispatch({ type: 'restart' })} className="inline-flex items-center gap-2 rounded-full bg-openfmv-accent px-6 py-3 text-sm font-semibold text-white transition hover:bg-openfmv-accent-hover"><RotateCcw size={16} />{t('restart')}</button>
+            <button type="button" onClick={() => dispatch({ type: 'restart' })} className="inline-flex items-center gap-2 rounded-full bg-openfmv-accent px-6 py-3 text-sm font-semibold text-white transition hover:bg-openfmv-accent-hover"><RotateCcw size={16} />{t('restart')}</button>
           ) : (
             <ContinueControl effects={effects} dispatch={dispatch} />
           )}

@@ -460,7 +460,7 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
 
     const timelineClipLabel = (clip) => {
       if (!clip) return '';
-      return clip.label || clip.name || 'Continue';
+      return typeof clip.label === 'string' ? clip.label : clip.name || 'Continue';
     };
     const clampTimelineButtonOpacity = (value, fallback) => {
       const numberValue = Number(value);
@@ -585,9 +585,15 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
       ].filter(Boolean).join(';');
     };
     const timelineQteDisplayName = (clip) => {
-      const rawLabel = clip && (clip.label || clip.name);
+      const rawLabel = clip && typeof clip.label === 'string'
+        ? clip.label
+        : clip && typeof clip.name === 'string'
+          ? clip.name
+          : undefined;
+      if (typeof rawLabel !== 'string') return 'QTE';
       const label = typeof rawLabel === 'string' ? rawLabel.trim() : '';
-      return !label || label === 'New choice' || label === 'Choice' ? 'QTE' : label;
+      if (!label) return '';
+      return label === 'New choice' || label === 'Choice' ? 'QTE' : label;
     };
 
     const isTimelineQteClip = (clip) => clip && clip.type === 'button' && clip.mode === 'qte';
@@ -603,6 +609,7 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
         clickCount: clip && clip.qte && clip.qte.clickCount,
         keyLabel: input === 'space' ? clip && clip.qte && clip.qte.keyLabel && clip.qte.keyLabel !== 'Click' ? clip.qte.keyLabel : 'Space' : 'Click',
         showCountdown: !clip || !clip.qte || clip.qte.showCountdown !== false,
+        showCueLabel: !clip || !clip.qte || clip.qte.showCueLabel !== false,
       };
     };
     const timelineQteCueLabel = (config, completedClicks) => {
@@ -665,7 +672,7 @@ const createGameShellHtml = (gameJson, graphRuntimeScript = '') => {
         const qteStartedAt = timelineQteStartedAt.get(clip.id);
         const qteDuration = Math.max(1, (clip.duration || 0) * 1000);
         const qteRemainingRatio = qteStartedAt ? Math.max(0, Math.min(1, 1 - ((performance.now() - qteStartedAt) / qteDuration))) : 1;
-        const qteCueLabel = isQte ? timelineQteCueLabel(qte, timelineQteClickCounts.get(clip.id) || 0) : '';
+        const qteCueLabel = isQte && qte.showCueLabel !== false ? timelineQteCueLabel(qte, timelineQteClickCounts.get(clip.id) || 0) : '';
         const label = timelineClipLabel(clip);
         const labelHtml = isQte
           ? '<span class="timeline-qte-label">' + (qteCueLabel ? '<span class="timeline-qte-cue">' + escapeHtml(qteCueLabel) + '</span>' : '') + '<span class="timeline-qte-name">' + escapeHtml(timelineQteDisplayName(clip)) + '</span>' + (qte.showCountdown ? '<span class="timeline-qte-countdown"><span style="width:' + (qteRemainingRatio * 100) + '%"></span></span>' : '') + '</span>'

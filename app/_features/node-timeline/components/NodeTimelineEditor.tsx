@@ -142,6 +142,7 @@ import {
   getSnapAdjustedClipStart,
   getTimelineClipLabel,
   getTimelineClipLocalTime,
+  getTimelineQteDisplayName,
   getTimelineSplitTargetClipIds,
   getMediaFilesFromClipboardData,
   getTimelineMediaElementTime,
@@ -559,12 +560,6 @@ const getQteCueLabel = (config: ButtonQteConfig) => {
   return count > 1 ? `x${count}` : null;
 };
 
-const getQteDisplayName = (clip: TimelineInteractionClip) => {
-  const label = (clip.label || clip.name || '').trim();
-  if (!label || label === 'New choice' || label === 'Choice') return 'QTE';
-  return label;
-};
-
 const getQteConfig = (clip: TimelineInteractionClip): ButtonQteConfig => {
   const input = clip.qte?.input === 'space' ? 'space' : 'click';
   return {
@@ -573,6 +568,7 @@ const getQteConfig = (clip: TimelineInteractionClip): ButtonQteConfig => {
     clickCount: clampQteClickCount(clip.qte?.clickCount),
     keyLabel: getQteInputLabel(input, clip.qte?.keyLabel, clip.qte?.clickCount),
     showCountdown: clip.qte?.showCountdown !== false,
+    showCueLabel: clip.qte?.showCueLabel !== false,
   };
 };
 
@@ -962,6 +958,7 @@ const updateButtonMode = (clip: TimelineInteractionClip, mode: ButtonMode): Time
       clickCount: clampQteClickCount(qteConfig.clickCount),
       keyLabel: getQteInputLabel(qteConfig.input, qteConfig.keyLabel, qteConfig.clickCount),
       showCountdown: qteConfig.showCountdown !== false,
+      showCueLabel: qteConfig.showCueLabel !== false,
     },
   };
 };
@@ -981,6 +978,7 @@ const updateInteractionQteConfig = (clip: TimelineInteractionClip, patch: Partia
     clickCount: clampQteClickCount(mergedQte.clickCount),
     keyLabel: getQteInputLabel(input, keyLabel, mergedQte.clickCount),
     showCountdown: mergedQte.showCountdown !== false,
+    showCueLabel: mergedQte.showCueLabel !== false,
   };
   return {
     ...clip,
@@ -3937,7 +3935,7 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
                   const rect = getClipRect(resolvedClip);
                   const active = isTimelineClipActive(clip, currentTime);
                   const qteConfig = isQteButtonClip(resolvedClip) ? getQteConfig(resolvedClip) : null;
-                  const qteCueLabel = qteConfig ? getQteCueLabel(qteConfig) : null;
+                  const qteCueLabel = qteConfig && qteConfig.showCueLabel !== false ? getQteCueLabel(qteConfig) : null;
                   const buttonVisualStyle = getButtonClipInlineStyle(resolvedClip);
                   const selected = resolvedClip.id === selectedClip?.id;
                   const previewOpacity = active || selected
@@ -3979,7 +3977,7 @@ export default function NodeTimelineEditor({ onRequestMediaClip }: NodeTimelineE
                               {qteCueLabel}
                             </span>
                           )}
-                          <span className="block max-w-full truncate">{getQteDisplayName(resolvedClip)}</span>
+                          <span className="block max-w-full truncate">{getTimelineQteDisplayName(resolvedClip)}</span>
                         </span>
                       ) : (
                         <span className="relative z-10 truncate">{getTimelineClipLabel(resolvedClip)}</span>
@@ -5920,59 +5918,86 @@ function InspectorKeyCapture({
   value,
   changeLabel,
   captureLabel,
+  showValue = true,
+  toggleLabel,
   onChange,
+  onShowValueChange,
 }: {
   value: string;
   changeLabel: string;
   captureLabel: string;
+  showValue?: boolean;
+  toggleLabel?: string;
   onChange: (value: string) => void;
+  onShowValueChange?: (visible: boolean) => void;
 }) {
   const [isCapturing, setIsCapturing] = useState(false);
   const label = isCapturing ? captureLabel : normalizeQteKeyLabel(value);
+  const VisibilityIcon = showValue ? Eye : EyeOff;
 
   return (
-    <button
-      type="button"
-      aria-label={isCapturing ? captureLabel : changeLabel}
-      title={isCapturing ? captureLabel : changeLabel}
-      onClick={(event) => {
-        event.currentTarget.focus();
-        setIsCapturing(true);
-      }}
-      onBlur={() => setIsCapturing(false)}
-      onKeyDown={(event) => {
-        if (!isCapturing) {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            setIsCapturing(true);
+    <div className="grid h-openfmv-tool w-full grid-cols-[minmax(0,1fr)_32px] overflow-hidden rounded-openfmv-tool border border-white/10 bg-[#171717] text-xs font-semibold text-white transition hover:border-white/18 hover:bg-[#1d1d1d]">
+      <button
+        type="button"
+        aria-label={isCapturing ? captureLabel : changeLabel}
+        title={isCapturing ? captureLabel : changeLabel}
+        onClick={(event) => {
+          event.currentTarget.focus();
+          setIsCapturing(true);
+        }}
+        onBlur={() => setIsCapturing(false)}
+        onKeyDown={(event) => {
+          if (!isCapturing) {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              setIsCapturing(true);
+            }
+            return;
           }
-          return;
-        }
-        event.preventDefault();
-        event.stopPropagation();
-        onChange(getQteKeyLabelFromEvent(event));
-        setIsCapturing(false);
-      }}
-      className={`flex h-openfmv-tool w-full items-center rounded-openfmv-tool border px-2.5 text-left text-xs font-semibold text-white outline-none transition hover:border-white/18 hover:bg-[#1d1d1d] ${isCapturing ? 'border-cyan-300/70 bg-cyan-400/10' : 'border-white/10 bg-[#171717] focus:border-cyan-300/65 focus:bg-cyan-400/10'}`}
-    >
-      <span className="min-w-0 truncate">{label}</span>
-    </button>
+          event.preventDefault();
+          event.stopPropagation();
+          onChange(getQteKeyLabelFromEvent(event));
+          setIsCapturing(false);
+        }}
+        className={`flex min-w-0 items-center px-2.5 text-left outline-none transition ${isCapturing ? 'bg-cyan-400/10' : 'focus:bg-cyan-400/10'}`}
+      >
+        <span className={`min-w-0 truncate ${showValue ? '' : 'text-openfmv-muted'}`}>{label}</span>
+      </button>
+      {onShowValueChange && (
+        <button
+          type="button"
+          aria-label={toggleLabel}
+          title={toggleLabel}
+          onClick={() => onShowValueChange(!showValue)}
+          className="grid h-full place-items-center border-l border-white/10 text-openfmv-muted transition hover:bg-white/[0.06] hover:text-white"
+        >
+          <VisibilityIcon size={14} />
+        </button>
+      )}
+    </div>
   );
 }
 
 function InspectorClickCountStepper({
   value,
   ariaLabel,
+  showValue = true,
+  toggleLabel,
   onChange,
+  onShowValueChange,
 }: {
   value: number;
   ariaLabel: string;
+  showValue?: boolean;
+  toggleLabel?: string;
   onChange: (value: number) => void;
+  onShowValueChange?: (visible: boolean) => void;
 }) {
   const count = clampQteClickCount(value);
+  const VisibilityIcon = showValue ? Eye : EyeOff;
 
   return (
-    <div className="grid h-openfmv-tool w-full grid-cols-[32px_minmax(0,1fr)_32px] overflow-hidden rounded-openfmv-tool border border-white/10 bg-[#171717] text-xs font-semibold text-white transition hover:border-white/18 hover:bg-[#1d1d1d]">
+    <div className={`grid h-openfmv-tool w-full ${onShowValueChange ? 'grid-cols-[32px_minmax(0,1fr)_32px_32px]' : 'grid-cols-[32px_minmax(0,1fr)_32px]'} overflow-hidden rounded-openfmv-tool border border-white/10 bg-[#171717] text-xs font-semibold text-white transition hover:border-white/18 hover:bg-[#1d1d1d]`}>
       <button
         type="button"
         aria-label={`${ariaLabel} -`}
@@ -5988,7 +6013,7 @@ function InspectorClickCountStepper({
         aria-label={ariaLabel}
         value={count}
         onChange={(event) => onChange(clampQteClickCount(event.target.value))}
-        className="h-full min-w-0 border-0 bg-transparent px-2 text-center font-mono text-xs text-white outline-none"
+        className={`h-full min-w-0 border-0 bg-transparent px-2 text-center font-mono text-xs outline-none ${showValue ? 'text-white' : 'text-openfmv-muted'}`}
       />
       <button
         type="button"
@@ -5999,6 +6024,17 @@ function InspectorClickCountStepper({
       >
         <Plus size={13} />
       </button>
+      {onShowValueChange && (
+        <button
+          type="button"
+          aria-label={toggleLabel}
+          title={toggleLabel}
+          onClick={() => onShowValueChange(!showValue)}
+          className="grid h-full place-items-center border-l border-white/10 text-openfmv-muted transition hover:bg-white/[0.06] hover:text-white"
+        >
+          <VisibilityIcon size={14} />
+        </button>
+      )}
     </div>
   );
 }
@@ -6099,7 +6135,7 @@ function InteractionClipInspector({
       {isQte ? (
         <>
           <InspectorFieldRow label={t('fields.qteName')} icon={Type}>
-            <InspectorTextInput value={getQteDisplayName(clip)} onChange={(value) => onUpdate((item) => updateInteractionLabel(item, value))} />
+            <InspectorTextInput value={getTimelineQteDisplayName(clip)} onChange={(value) => onUpdate((item) => updateInteractionLabel(item, value))} />
           </InspectorFieldRow>
           <InspectorFieldRow label={t('fields.qteCondition')} icon={Keyboard}>
             <InspectorSegmentedControl
@@ -6118,6 +6154,9 @@ function InteractionClipInspector({
                 value={qteConfig.clickCount || 1}
                 ariaLabel={t('fields.qteClickCount')}
                 onChange={(value) => onUpdate((item) => updateInteractionQteConfig(item, { input: 'click', clickCount: value }))}
+                showValue={qteConfig.showCueLabel !== false}
+                toggleLabel={qteConfig.showCueLabel === false ? 'Show click text' : 'Hide click text'}
+                onShowValueChange={(visible) => onUpdate((item) => updateInteractionQteConfig(item, { showCueLabel: visible }))}
               />
             </InspectorFieldRow>
           )}
@@ -6128,6 +6167,9 @@ function InteractionClipInspector({
                 changeLabel={t('fields.qteChangeKey')}
                 captureLabel={t('fields.qtePressNewKey')}
                 onChange={(value) => onUpdate((item) => updateInteractionQteConfig(item, { input: 'space', keyLabel: value }))}
+                showValue={qteConfig.showCueLabel !== false}
+                toggleLabel={qteConfig.showCueLabel === false ? 'Show key text' : 'Hide key text'}
+                onShowValueChange={(visible) => onUpdate((item) => updateInteractionQteConfig(item, { showCueLabel: visible }))}
               />
             </InspectorFieldRow>
           )}

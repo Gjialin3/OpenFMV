@@ -26,7 +26,9 @@ import {
   getFitTimelineZoom,
   getMediaTimelineClips,
   getNodeTimelineTrackHeight,
+  getTimelineClipLabel,
   getTimelineEdgeScroll,
+  getTimelineQteDisplayName,
   getTimelineRulerTicks,
   getTimelineSplitTargetClipIds,
   insertTimelineClip,
@@ -97,6 +99,50 @@ describe('NodeTimeline v2', () => {
     expect(buttonClip.qte).toBeUndefined();
     expect(buttonClip.label).toBe('New choice');
     expect(buttonClip).not.toHaveProperty('action');
+  });
+
+  it('preserves intentionally empty button labels for display', () => {
+    const buttonClip = { ...createInteractionClip('button', 1, 8), label: '', name: '' };
+
+    expect(getTimelineClipLabel(buttonClip)).toBe('');
+  });
+
+  it('preserves intentionally empty QTE display names', () => {
+    const qteClip = { ...createInteractionClip('button', 1, 8), mode: 'qte' as const, label: '', name: '' };
+
+    expect(getTimelineQteDisplayName(qteClip)).toBe('');
+    expect(getTimelineClipLabel(qteClip)).not.toContain('QTE');
+  });
+
+  it('preserves hidden QTE cue label settings', () => {
+    const timeline = ensureNodeTimeline({
+      version: 2,
+      duration: 8,
+      bookmarks: [],
+      tracks: [
+        {
+          id: 'interaction-track',
+          type: 'interaction',
+          name: 'Interaction',
+          clips: [
+            {
+              id: 'space-qte',
+              type: 'button',
+              mode: 'qte',
+              startTime: 1,
+              duration: 2,
+              enabled: true,
+              label: '',
+              rect: { x: 0.2, y: 0.3, width: 0.2, height: 0.1 },
+              qte: { input: 'space', keyLabel: 'Space', showCueLabel: false },
+            },
+          ],
+        },
+      ],
+    } as NodeTimeline);
+
+    const clip = getInteractionTimelineClips(timeline)[0];
+    expect(clip?.qte?.showCueLabel).toBe(false);
   });
 
   it('normalizes QTE button clips while keeping old buttons compatible', () => {

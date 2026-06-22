@@ -227,6 +227,7 @@ export interface ButtonQteConfig {
   clickCount?: number;
   keyLabel?: string;
   showCountdown?: boolean;
+  showCueLabel?: boolean;
 }
 
 export interface ButtonStyleConfig {
