@@ -265,6 +265,11 @@ OpenFMV 仍在快速迭代。请保持改动聚焦、本地优先，并与基于
 
 OpenFMV 基于 Next.js、Electron、React Flow、Zustand、Tailwind CSS 以及更广泛的开源 JavaScript 生态构建。
 
+OpenFMV 也感谢以下开源项目带来的灵感与参考：
+
+- [OpenCut-app/OpenCut](https://github.com/OpenCut-app/OpenCut)
+- [nexu-io/open-design](https://github.com/nexu-io/open-design)
+
 ## 许可证
 
 MIT

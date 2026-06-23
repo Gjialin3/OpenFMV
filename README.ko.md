@@ -265,6 +265,11 @@ OpenFMV는 여전히 빠르게 변화하고 있습니다. 변경 사항은 집�
 
 OpenFMV는 Next.js, Electron, React Flow, Zustand, Tailwind CSS, 그리고 더 넓은 오픈소스 JavaScript 생태계를 바탕으로 만들어졌습니다.
 
+OpenFMV는 영감과 참고가 된 다음 오픈소스 프로젝트에도 감사드립니다.
+
+- [OpenCut-app/OpenCut](https://github.com/OpenCut-app/OpenCut)
+- [nexu-io/open-design](https://github.com/nexu-io/open-design)
+
 ## 라이선스
 
 MIT

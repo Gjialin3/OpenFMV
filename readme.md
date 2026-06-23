@@ -265,6 +265,11 @@ OpenFMV is still moving quickly. Keep changes focused, local-first, and aligned 
 
 OpenFMV is built with Next.js, Electron, React Flow, Zustand, Tailwind CSS, and the broader open-source JavaScript ecosystem.
 
+OpenFMV also thanks these open-source projects for inspiration and reference:
+
+- [OpenCut-app/OpenCut](https://github.com/OpenCut-app/OpenCut)
+- [nexu-io/open-design](https://github.com/nexu-io/open-design)
+
 ## License
 
 MIT

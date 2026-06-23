@@ -265,6 +265,11 @@ OpenFMV はまだ急速に変化しています。変更は焦点を絞り、ロ
 
 OpenFMV は Next.js、Electron、React Flow、Zustand、Tailwind CSS、そして広範なオープンソース JavaScript エコシステムによって構築されています。
 
+OpenFMV は、インスピレーションと参考を与えてくれた以下のオープンソースプロジェクトにも感謝します。
+
+- [OpenCut-app/OpenCut](https://github.com/OpenCut-app/OpenCut)
+- [nexu-io/open-design](https://github.com/nexu-io/open-design)
+
 ## ライセンス
 
 MIT
