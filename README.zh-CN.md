@@ -14,25 +14,25 @@
 
 OpenFMV 是一个 AI Native 互动内容编辑器，用于制作互动视频、分支叙事、互动短剧，以及可在本地播放的故事体验。
 
-它在一个本地优先的 Next.js + Electron 桌面应用中，结合了可视化故事蓝图、节点级 FlowTimeline 编辑器、本地素材管理、互动预览、导出工具和 AI 辅助创作层。项目、导入媒体、时间线数据和生成包都会保存在你的设备上，不依赖账号系统、托管数据库或云端存储。
+它的核心是节点级 FlowTimeline：每个场景都可以拥有媒体轨，以及按钮、热点、暂停门、定时分支和变量动作组成的交互轨。蓝图图更像是连接这些互动场景的高层级地图；本地素材、预览、导出和 AI 辅助创作都保留在本地优先的 Next.js + Electron 桌面应用中。项目、导入媒体、时间线数据和生成包都会保存在你的设备上，不依赖账号系统、托管数据库或云端存储。
 
-![OpenFMV 编辑器总览](./public/readme/openfmv-editor-overview.jpg)
+![OpenFMV 编辑器总览](./public/readme/openfmv-editor-overview.png)
 
 ## 产品亮点
 
 <table>
   <tr>
     <td width="25%" valign="top">
-      <img src="./public/readme/feature-readme-blueprint.png" alt="可视化节点叙事" width="100%" />
+      <img src="./public/readme/feature-readme-preview.png" alt="节点交互时间线" width="100%" />
       <br />
-      <strong>可视化故事蓝图</strong><br />
-      用节点、分支、出口和清晰的场景关系设计非线性故事结构。
+      <strong>节点交互轨</strong><br />
+      在每个场景内叠加媒体、按钮、热点、暂停门、定时分支和变量动作。
     </td>
     <td width="25%" valign="top">
-      <img src="./public/readme/feature-readme-preview.png" alt="互动预览" width="100%" />
+      <img src="./public/readme/feature-readme-blueprint.png" alt="可视化故事地图" width="100%" />
       <br />
-      <strong>互动预览</strong><br />
-      在导出前测试场景播放、时间点、按钮选择和分支行为。
+      <strong>可视化故事地图</strong><br />
+      用蓝图连接互动场景，梳理分支、出口和整体故事流。
     </td>
     <td width="25%" valign="top">
       <img src="./public/readme/feature-readme-assets.png" alt="本地素材管理" width="100%" />
@@ -60,12 +60,18 @@ OpenFMV 是一个 AI Native 互动内容编辑器，用于制作互动视频、�
 
 1. 在项目工作区创建或打开本地项目。
 2. 将源素材导入本地素材库。
-3. 在 `/editor` 故事蓝图中搭建故事结构。
-4. 在 `/nodes` 中使用 FlowTimeline 编辑每个场景的媒体轨和交互轨。
-5. 预览互动播放和分支行为。
-6. 当故事准备好分享或测试时，导出本地可播放包。
+3. 在 `/nodes` 中使用 FlowTimeline 编辑每个场景的媒体轨和交互轨。
+4. 将按钮、热点、暂停门、定时分支和变量动作作为交互片段加入时间线。
+5. 当故事流需要分支结构时，再在 `/editor` 蓝图图中连接场景。
+6. 预览互动播放，并在故事准备好分享或测试时导出本地可播放包。
 
 ## 产品预览
+
+### 互动播放预览
+
+预览观众如何在故事中前进。这里可以在上下文中检查按钮选择、场景跳转和互动播放。
+
+![OpenFMV 播放预览](./public/readme/openfmv-play-preview.png)
 
 ### 本地项目工作区
 
@@ -77,13 +83,7 @@ OpenFMV 是一个 AI Native 互动内容编辑器，用于制作互动视频、�
 
 编辑器是高层级故事地图，负责故事流、节点关系、分支出口、节点提示词和场景元数据。
 
-![OpenFMV 故事蓝图](./public/readme/openfmv-editor-overview.jpg)
-
-### 互动播放预览
-
-预览观众如何在故事中前进。这里可以在上下文中检查按钮选择、场景跳转和互动播放。
-
-![OpenFMV 播放预览](./public/readme/openfmv-play-preview.jpg)
+![OpenFMV 故事蓝图](./public/readme/openfmv-editor-overview.png)
 
 ### AI Native 配置
 
@@ -99,9 +99,9 @@ OpenFMV 被设计为可连接本地 AI 终端和模型服务。AI 层用于辅�
 
 ## 核心能力
 
-- **蓝图图编辑：** 使用节点、句柄、连线和分支出口构建非线性故事流。
 - **FlowTimeline 场景编辑：** 将每个节点作为独立时间线编辑，包含媒体轨和交互轨。
 - **交互片段：** 通过时间线片段添加按钮、热点、暂停门、定时分支和变量动作。
+- **蓝图图编辑：** 用句柄、连线和分支出口把互动节点连接成非线性故事流。
 - **本地媒体工作流：** 将导入文件复制到本地项目素材文件夹，并在导出中保留这些引用。
 - **AI 辅助创作：** 配置本地 AI 引擎并使用助手工作流，不引入用户账号或云同步。
 - **桌面优先体验：** 作为 Electron 打包应用运行，背后由本地 Next.js standalone 服务提供界面。

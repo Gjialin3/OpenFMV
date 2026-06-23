@@ -14,25 +14,25 @@
 
 OpenFMV is an AI Native interactive content editor for building interactive videos, branching narratives, interactive short dramas, and local playable story experiences.
 
-It combines a visual story blueprint, the node-level FlowTimeline editor, local asset management, interactive preview, export tooling, and an AI-assisted creation layer inside a local-first Next.js + Electron desktop app. Projects, imported media, timeline data, and generated packages stay on your machine. There is no account system, hosted database, or cloud storage dependency.
+At its core is the node-level FlowTimeline: each scene can carry media tracks plus interaction tracks for buttons, hotspots, pause gates, timed branches, and variable actions. The Blueprint graph remains the high-level map for connecting those interactive scenes, while local assets, preview, export, and AI-assisted creation stay inside a local-first Next.js + Electron desktop app. Projects, imported media, timeline data, and generated packages stay on your machine. There is no account system, hosted database, or cloud storage dependency.
 
-![OpenFMV editor overview](./public/readme/openfmv-editor-overview.jpg)
+![OpenFMV editor overview](./public/readme/openfmv-editor-overview.png)
 
 ## Product Highlights
 
 <table>
   <tr>
     <td width="25%" valign="top">
-      <img src="./public/readme/feature-readme-blueprint.png" alt="Visual node storytelling" width="100%" />
+      <img src="./public/readme/feature-readme-preview.png" alt="Node interaction timeline" width="100%" />
       <br />
-      <strong>Visual story blueprint</strong><br />
-      Design nonlinear story structure with nodes, branches, outputs, and clear scene relationships.
+      <strong>Node interaction tracks</strong><br />
+      Layer media with buttons, hotspots, pause gates, timed branches, and variable actions inside each scene.
     </td>
     <td width="25%" valign="top">
-      <img src="./public/readme/feature-readme-preview.png" alt="Interactive preview" width="100%" />
+      <img src="./public/readme/feature-readme-blueprint.png" alt="Visual story map" width="100%" />
       <br />
-      <strong>Interactive preview</strong><br />
-      Test scene playback, timing, button choices, and branch behavior before export.
+      <strong>Visual story map</strong><br />
+      Connect interactive scenes with a readable blueprint for branches, outputs, and story flow.
     </td>
     <td width="25%" valign="top">
       <img src="./public/readme/feature-readme-assets.png" alt="Local asset management" width="100%" />
@@ -60,12 +60,18 @@ It combines a visual story blueprint, the node-level FlowTimeline editor, local 
 
 1. Create or open a local project from the project workspace.
 2. Import source media into the local asset library.
-3. Build story structure in the `/editor` blueprint graph.
-4. Edit each scene in `/nodes` with FlowTimeline media and interaction tracks.
-5. Preview interactive playback and branch behavior.
-6. Export a local playable package when the story is ready to share or test.
+3. Edit each scene in `/nodes` with FlowTimeline media and interaction tracks.
+4. Add buttons, hotspots, pause gates, timed branches, and variable actions as interaction clips.
+5. Connect scenes in the `/editor` blueprint graph when the story flow needs branching structure.
+6. Preview interactive playback and export a local playable package when the story is ready to share or test.
 
 ## Product Tour
+
+### Interactive Playback Preview
+
+Preview how a viewer moves through the story. This is where button choices, scene transitions, and interactive playback can be checked in context.
+
+![OpenFMV playback preview](./public/readme/openfmv-play-preview.png)
 
 ### Local Project Workspace
 
@@ -77,13 +83,7 @@ Start from local drafts, project templates, and recent work. OpenFMV is designed
 
 The editor is the high-level story map. It is responsible for story flow, node relationships, branch outputs, node prompts, and scene metadata.
 
-![OpenFMV story blueprint](./public/readme/openfmv-editor-overview.jpg)
-
-### Interactive Playback Preview
-
-Preview how a viewer moves through the story. This is where button choices, scene transitions, and interactive playback can be checked in context.
-
-![OpenFMV playback preview](./public/readme/openfmv-play-preview.jpg)
+![OpenFMV story blueprint](./public/readme/openfmv-editor-overview.png)
 
 ### AI Native Configuration
 
@@ -99,9 +99,9 @@ Preset content can provide a quick starting point for interactive story experime
 
 ## Core Capabilities
 
-- **Blueprint graph editing:** Build nonlinear story flow with nodes, handles, edges, and branch outputs.
 - **FlowTimeline scene editing:** Edit each node as an independent timeline with media and interaction tracks.
 - **Interaction clips:** Add buttons, hotspots, pause gates, timed branches, and variable actions through timeline clips.
+- **Blueprint graph editing:** Connect interactive nodes into nonlinear story flow with handles, edges, and branch outputs.
 - **Local media workflow:** Copy imported files into local project asset folders and preserve those references through export.
 - **AI-assisted creation:** Configure local AI engines and use assistant workflows without introducing user accounts or cloud sync.
 - **Desktop-first experience:** Run as a packaged Electron app backed by a local Next.js standalone service.
