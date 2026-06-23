@@ -22,23 +22,27 @@ It combines a visual story blueprint, the node-level FlowTimeline editor, local 
 
 <table>
   <tr>
-    <td width="25%">
-      <img src="./public/feature-node-storytelling.png" alt="Visual node storytelling" />
+    <td width="25%" valign="top">
+      <img src="./public/readme/feature-readme-blueprint.png" alt="Visual node storytelling" width="100%" />
+      <br />
       <strong>Visual story blueprint</strong><br />
       Design nonlinear story structure with nodes, branches, outputs, and clear scene relationships.
     </td>
-    <td width="25%">
-      <img src="./public/feature-interactive-preview.png" alt="Interactive preview" />
+    <td width="25%" valign="top">
+      <img src="./public/readme/feature-readme-preview.png" alt="Interactive preview" width="100%" />
+      <br />
       <strong>Interactive preview</strong><br />
       Test scene playback, timing, button choices, and branch behavior before export.
     </td>
-    <td width="25%">
-      <img src="./public/feature-asset-management.png" alt="Local asset management" />
+    <td width="25%" valign="top">
+      <img src="./public/readme/feature-readme-assets.png" alt="Local asset management" width="100%" />
+      <br />
       <strong>Local asset library</strong><br />
       Import video, image, audio, and text assets into local project folders.
     </td>
-    <td width="25%">
-      <img src="./public/feature-local-export.png" alt="Local export" />
+    <td width="25%" valign="top">
+      <img src="./public/readme/feature-readme-export.png" alt="Local export" width="100%" />
+      <br />
       <strong>Local export</strong><br />
       Package playable interactive content while keeping media references local.
     </td>

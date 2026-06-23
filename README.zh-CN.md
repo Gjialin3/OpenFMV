@@ -22,23 +22,27 @@ OpenFMV 是一个 AI Native 互动内容编辑器，用于制作互动视频、�
 
 <table>
   <tr>
-    <td width="25%">
-      <img src="./public/feature-node-storytelling.png" alt="可视化节点叙事" />
+    <td width="25%" valign="top">
+      <img src="./public/readme/feature-readme-blueprint.png" alt="可视化节点叙事" width="100%" />
+      <br />
       <strong>可视化故事蓝图</strong><br />
       用节点、分支、出口和清晰的场景关系设计非线性故事结构。
     </td>
-    <td width="25%">
-      <img src="./public/feature-interactive-preview.png" alt="互动预览" />
+    <td width="25%" valign="top">
+      <img src="./public/readme/feature-readme-preview.png" alt="互动预览" width="100%" />
+      <br />
       <strong>互动预览</strong><br />
       在导出前测试场景播放、时间点、按钮选择和分支行为。
     </td>
-    <td width="25%">
-      <img src="./public/feature-asset-management.png" alt="本地素材管理" />
+    <td width="25%" valign="top">
+      <img src="./public/readme/feature-readme-assets.png" alt="本地素材管理" width="100%" />
+      <br />
       <strong>本地素材库</strong><br />
       将视频、图片、音频和文本素材导入本地项目文件夹。
     </td>
-    <td width="25%">
-      <img src="./public/feature-local-export.png" alt="本地导出" />
+    <td width="25%" valign="top">
+      <img src="./public/readme/feature-readme-export.png" alt="本地导出" width="100%" />
+      <br />
       <strong>本地导出</strong><br />
       打包可播放的互动内容，同时保持媒体引用本地化。
     </td>

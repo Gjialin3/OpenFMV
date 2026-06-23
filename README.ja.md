@@ -22,23 +22,27 @@ OpenFMV は、インタラクティブ動画、分岐型ストーリー、イン
 
 <table>
   <tr>
-    <td width="25%">
-      <img src="./public/feature-node-storytelling.png" alt="ビジュアルノードストーリーテリング" />
+    <td width="25%" valign="top">
+      <img src="./public/readme/feature-readme-blueprint.png" alt="ビジュアルノードストーリーテリング" width="100%" />
+      <br />
       <strong>ビジュアルストーリーブループリント</strong><br />
       ノード、分岐、出力、明確なシーン関係で非線形ストーリー構造を設計できます。
     </td>
-    <td width="25%">
-      <img src="./public/feature-interactive-preview.png" alt="インタラクティブプレビュー" />
+    <td width="25%" valign="top">
+      <img src="./public/readme/feature-readme-preview.png" alt="インタラクティブプレビュー" width="100%" />
+      <br />
       <strong>インタラクティブプレビュー</strong><br />
       エクスポート前に、シーン再生、タイミング、ボタン選択、分岐動作を確認できます。
     </td>
-    <td width="25%">
-      <img src="./public/feature-asset-management.png" alt="ローカル素材管理" />
+    <td width="25%" valign="top">
+      <img src="./public/readme/feature-readme-assets.png" alt="ローカル素材管理" width="100%" />
+      <br />
       <strong>ローカル素材ライブラリ</strong><br />
       動画、画像、音声、テキスト素材をローカルプロジェクトフォルダーへ取り込めます。
     </td>
-    <td width="25%">
-      <img src="./public/feature-local-export.png" alt="ローカルエクスポート" />
+    <td width="25%" valign="top">
+      <img src="./public/readme/feature-readme-export.png" alt="ローカルエクスポート" width="100%" />
+      <br />
       <strong>ローカルエクスポート</strong><br />
       メディア参照をローカルに保ったまま、再生可能なインタラクティブコンテンツをパッケージ化できます。
     </td>

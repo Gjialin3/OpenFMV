@@ -22,23 +22,27 @@ OpenFMV는 인터랙티브 영상, 분기형 내러티브, 인터랙티브 숏�
 
 <table>
   <tr>
-    <td width="25%">
-      <img src="./public/feature-node-storytelling.png" alt="비주얼 노드 스토리텔링" />
+    <td width="25%" valign="top">
+      <img src="./public/readme/feature-readme-blueprint.png" alt="비주얼 노드 스토리텔링" width="100%" />
+      <br />
       <strong>비주얼 스토리 블루프린트</strong><br />
       노드, 분기, 출력, 명확한 장면 관계로 비선형 스토리 구조를 설계합니다.
     </td>
-    <td width="25%">
-      <img src="./public/feature-interactive-preview.png" alt="인터랙티브 미리보기" />
+    <td width="25%" valign="top">
+      <img src="./public/readme/feature-readme-preview.png" alt="인터랙티브 미리보기" width="100%" />
+      <br />
       <strong>인터랙티브 미리보기</strong><br />
       내보내기 전에 장면 재생, 타이밍, 버튼 선택, 분기 동작을 테스트합니다.
     </td>
-    <td width="25%">
-      <img src="./public/feature-asset-management.png" alt="로컬 에셋 관리" />
+    <td width="25%" valign="top">
+      <img src="./public/readme/feature-readme-assets.png" alt="로컬 에셋 관리" width="100%" />
+      <br />
       <strong>로컬 에셋 라이브러리</strong><br />
       비디오, 이미지, 오디오, 텍스트 에셋을 로컬 프로젝트 폴더로 가져옵니다.
     </td>
-    <td width="25%">
-      <img src="./public/feature-local-export.png" alt="로컬 내보내기" />
+    <td width="25%" valign="top">
+      <img src="./public/readme/feature-readme-export.png" alt="로컬 내보내기" width="100%" />
+      <br />
       <strong>로컬 내보내기</strong><br />
       미디어 참조를 로컬로 유지하면서 재생 가능한 인터랙티브 콘텐츠를 패키징합니다.
     </td>
