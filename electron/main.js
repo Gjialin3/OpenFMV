@@ -7,6 +7,7 @@ const net = require('net');
 const path = require('path');
 const crypto = require('crypto');
 const { pathToFileURL } = require('url');
+const { initializeAutoUpdates } = require('./auto-updates');
 const { exportWebGamePackage, sanitizeName, saveProjectToDirectory } = require('./exporter');
 const { registerAiSettingsIpc } = require('./ai-settings');
 const { registerIpcHandler } = require('../shared/ipc-contract.js');
@@ -303,6 +304,7 @@ const createWindow = async () => {
 
   await win.loadURL(defaultStartUrl);
   win.show();
+  initializeAutoUpdates(win);
 };
 
 registerIpcHandler(ipcMain, 'selectDirectory', async () => {

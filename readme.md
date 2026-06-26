@@ -249,6 +249,8 @@ build/icons/icon.ico
 build/icons/icon.png
 ```
 
+Windows desktop releases use NSIS auto-update artifacts. Increment `package.json` `version`, then run `npm run package:desktop` for a local release build or `npm run release:desktop` to publish to the configured provider. The release set should include the installer, `latest.yml`, and the installer `.blockmap` file. See `DESKTOP_AUTO_UPDATE.md` for update hosting and unsigned internal build notes.
+
 ## Development Notes
 
 - Keep timeline behavior in `app/_features/node-timeline/`.

@@ -1,0 +1,60 @@
+appId: com.openfmv.openfmv
+productName: OpenFMV
+copyright: Copyright (c) 2026 OpenFMV
+
+directories:
+  output: dist
+
+npmRebuild: false
+
+files:
+  - electron/**
+  - shared/**
+  - public/**
+  - package.json
+  - '!node_modules/**'
+  - node_modules/argparse/**
+  - node_modules/builder-util-runtime/**
+  - node_modules/debug/**
+  - node_modules/electron-log/**
+  - node_modules/electron-updater/**
+  - node_modules/fs-extra/**
+  - node_modules/graceful-fs/**
+  - node_modules/js-yaml/**
+  - node_modules/jsonfile/**
+  - node_modules/lazy-val/**
+  - node_modules/lodash.escaperegexp/**
+  - node_modules/lodash.isequal/**
+  - node_modules/ms/**
+  - node_modules/sax/**
+  - node_modules/semver/**
+  - node_modules/tiny-typed-emitter/**
+  - node_modules/universalify/**
+  - node_modules/zod/**
+
+extraResources:
+  - from: .next/standalone
+    to: app/.next/standalone
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: build/icons/icon.ico
+  artifactName: ${productName}-Setup-${version}.${ext}
+  verifyUpdateCodeSignature: false
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: OpenFMV
+  differentialPackage: true
+
+publish:
+  provider: github
+  owner: Comedian1926
+  repo: OpenFMV
