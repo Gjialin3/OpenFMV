@@ -10,6 +10,7 @@
     "desktop": "npm run ipc:build && electron electron/main.js",
     "desktop:dev": "npm run ipc:build && electron electron/main.js",
     "build": "npm run ipc:build && node scripts/build.js",
+    "vercel:build": "node scripts/build-ipc-contract.js && next build",
     "prepare:standalone": "node scripts/prepare-standalone.js",
     "desktop:standalone": "npm run ipc:build && cmd /c \"set OPENFMV_USE_STANDALONE=1&& electron electron/main.js\"",
     "package:desktop": "npm run build && node scripts/package-desktop.js",
